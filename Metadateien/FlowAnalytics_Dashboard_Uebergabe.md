@@ -1,8 +1,8 @@
 # Flow Analytics Dashboard – Projektübergabe
 
-**Version:** 2.1  
+**Version:** 2.4  
 **Datum:** 2026-06-01  
-**Basis:** v2.0 + WIPAge Chart (`wipage.js`) als Visual 3
+**Basis:** v2.3 + WIPAge Korrekturen (Dual-Period-Logik, Rejected-Logik, P25/P50/P85/P90-Bänder)
 
 ---
 
@@ -14,7 +14,7 @@ Browser-basiertes Flow-Analytics-Dashboard: Vier Dateien in einem SharePoint-Ord
 
 **Visual 2 – CycleTime Scatterplot (`scatter.js`):** Durchlaufzeit (CT) jedes Work Items über die Zeit, mit Perzentil-Linien, 3 Farb-Modi und Jira-Link im Tooltip.
 
-**Visual 3 – WIPAge Chart (`wipage.js`):** Scatterplot aktiver WIP-Items gruppiert nach aktuellem Status (X-Achse), mit dem Alter im aktuellen Status auf der Y-Achse. Rolling-Pace-Bänder (P50/P70/P85) aus abgeschlossenen Items der letzten N Tage. Dots wechseln ab einem konfigurierbaren Schwellwert die Farbe. Reihenfolge-Panel (▲/▼ + Drag) und Jira-Link im Tooltip.
+**Visual 3 – WIPAge Chart (`wipage.js`):** Scatterplot aktiver WIP-Items gruppiert nach aktuellem Status (X-Achse), mit dem Alter im aktuellen Status auf der Y-Achse. Rolling-Pace-Bänder (P25/P50/P85/P90) aus abgeschlossenen Items der letzten N Tage als gestaffelte Farbzonen (grün → rot) mit gestrichelten Linien. Dots wechseln ab einem konfigurierbaren Schwellwert die Farbe. Reihenfolge-Panel (▲/▼ + Drag) und Jira-Link im Tooltip.
 
 ---
 
@@ -60,15 +60,31 @@ Sheet-Name: **`JiraStories`** (Pflicht, Fallback: erstes Sheet)
 | `Issue-Status` | Aktueller Workflow-Status (Text) – **WIPAge X-Achse** | optional* |
 | `In Progress_first` | WIP-Startmarker – **WIPAge Aktiv-Logik** | optional* |
 | `Ready4Progress_first` | LT/CT Start-Default | optional |
-| `Resolved` | LT/CT Ende-Default + WIPAge Aktiv-Logik (leer = aktiv) | optional |
-| `[Zustand]` | Eintrittsdatum Workflow-Zustand – **WIPAge Y-Achse** | optional (mehrfach) |
-| `leaving_[Zustand]` | Austrittsdatum Workflow-Zustand – **WIPAge Rolling Pace** | optional (mehrfach) |
+| `Resolved` | LT/CT Ende-Default + WIPAge Aktiv-Logik (leer = noch aktiv) | optional |
+| `Rejected` | Abbruch-Marker – WIPAge Aktiv-Logik (leer = noch aktiv); **nicht** in Rolling Pace | optional |
+| `[Zustand]_first` | Eintrittsdatum **erstes** Mal in Workflow-Zustand – **Dual-Period-Logik** | optional (mehrfach) |
+| `leaving_[Zustand]_first` | Austrittsdatum erstes Mal – **Dual-Period-Logik** | optional (mehrfach) |
+| `[Zustand]` | Eintrittsdatum **letztes/aktuelles** Mal in Workflow-Zustand | optional (mehrfach) |
+| `leaving_[Zustand]` | Austrittsdatum letztes Mal – **WIPAge Rolling Pace** | optional (mehrfach) |
 
 *Für WIPAge Chart erforderlich.
 
 **State-Erkennungslogik:** Spalte ist Workflow-Zustand wenn sie nicht in `META_COLS`, nicht `leaving_`-Präfix, nicht `_first`-Suffix, nicht `_Count`-Suffix.
 
-**Dauerberechnung:** `(leaving_X - X) / 86400000 + 1` Tage — Ein- und Austrittstag zählen.
+**Dauerberechnung – Dual-Period-Logik (gilt für alle Visuals):**
+
+Ein Work Item kann einen Status zweimal durchlaufen (z.B. nach Rücksprung). Dafür gibt es `_first`-Spalten für den ersten Durchlauf und Basis-Spalten für den zweiten. Die korrekte Gesamtdauer:
+
+```
+X_first == X (gleicher Tag)?
+├── Ja  → Item war nur einmal in X → Dauer = leaving_X − X + 1  (inklusiv)
+└── Nein → Item hat X zweimal durchlaufen → Dauer = (leaving_X_first − X_first + 1)
+                                                    + (leaving_X − X + 1)
+```
+
+Threshold für „gleich": Datums-Differenz < 0,5 Tage (43.200.000 ms).
+
+**Aktiv/Erledigt-Logik (XOR):** Ein Item ist erledigt wenn `Resolved` **oder** `Rejected` gefüllt ist — da nur eines der beiden Felder befüllt sein kann, ist das effektiv ein XOR. Aktiv = weder `Resolved` noch `Rejected` gefüllt.
 
 ---
 
@@ -205,21 +221,21 @@ Layout-Key: `fhwa_layout2` (abweichend von v1.x `fhwa_layout` — Absicht, um al
 ## Visual-Template (Minimalbeispiel für neues Visual)
 
 ```javascript
-// wipage.js
+// boxchart.js
 import { core } from './core.js';
 
 export function init() {
 
   // 1. Lokaler Config-State (nur diese Datei kennt ihn)
-  const cfg = core.load('fhwa_wipage', {
-    maxAge: 30,
+  const cfg = core.load('fhwa_boxchart', {
+    rollingDays: 90,
     // ...
   });
 
   // 2. Card anlegen
   const { contentEl, headerExtraEl, diagEl } = core.createCard({
-    id:          'wipage',
-    title:       'WIP<span class="hl">Age</span>',
+    id:          'boxchart',
+    title:       'Lead<span class="hl">Time</span>',
     defaultGrid: { col: 0, row: 12, w: 6, h: 10 },
   });
 
@@ -238,7 +254,7 @@ export function init() {
   }
 
   // 5. Config speichern
-  function saveConfig() { core.save('fhwa_wipage', cfg); }
+  function saveConfig() { core.save('fhwa_boxchart', cfg); }
 
   // 6. Events abonnieren
   core.on('data',     render);
@@ -258,7 +274,7 @@ export function init() {
 | `fhwa_layout2` | core.js | `{ [visualId]: { col, row, w, h } }` für alle Cards |
 | `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenStates[], stateOrder[] |
 | `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
-| `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList, stateOrder[] |
+| `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected'`), stateOrder[] |
 | `fhwa_global` | core.js | squadFilter[], urlTemplate |
 | `fhwa_theme` | core.js | `'dark'` \| `'light'` |
 | `fhwa_boxchart` | boxchart.js | *(noch nicht implementiert)* |
@@ -327,11 +343,39 @@ function _overlap(a, b) {
 
 ## WIPAge Chart – Details
 
-**Aktiv-Logik:** `In Progress_first` gefüllt **UND** `Resolved` leer.
+**Aktiv-Logik:** `In Progress_first` gefüllt **UND** `Resolved` leer **UND** `Rejected` leer.
+Ein Item ist erledigt wenn `Resolved` **oder** `Rejected` gefüllt ist (XOR — nur eines kann befüllt sein).
 
-**Status-Age Y-Achse:** `heute − row[Issue-Status-Wert]` (Eintrittsdatum des aktuellen Status aus der gleichnamigen Spalte).
+**Status-Age Y-Achse (Dual-Period-Logik):**
+```
+X_first == X (gleicher Tag)?
+├── Ja  → age = heute − X
+└── Nein → age = (leaving_X_first − X_first) + (heute − X)
+```
+Fallback: wenn nur `X_first` vorhanden (kein `X`): `age = heute − X_first`.
 
-**Rolling Pace:** Abgeschlossene Items (`Resolved` nicht leer, innerhalb letzter `rollingDays` Tage) → `leaving_[Status] − [Status]` pro Status → P50/P70/P85 als gestrichelte horizontale Linien.
+**Rolling Pace:**
+- Nur `Resolved`-Items (kein `Rejected`) fließen in die Pace-Berechnung ein
+- Zeitfenster: letzte `rollingDays` Tage gerechnet vom `Resolved`-Datum
+- Dauerkalkulation pro Status ebenfalls mit Dual-Period-Logik:
+```
+X_first == X?
+├── Ja  → dauer = leaving_X − X + 1
+└── Nein → dauer = (leaving_X_first − X_first + 1) + (leaving_X − X + 1)
+```
+- Ergebnis: P25/P50/P85/P90 als gestaffelte Farbzonen + gestrichelte Linien
+
+**Pace-Bänder (Farbzonen pro Status-Spalte):**
+
+| Zone | Bereich | Farbe | Bedeutung |
+|---|---|---|---|
+| 1 | 0 → P25 | Grün `rgba(100,185,100,0.10)` | Im grünen Bereich |
+| 2 | P25 → P50 | Gelbgrün `rgba(180,210,80,0.10)` | Untere Hälfte normal |
+| 3 | P50 → P85 | Gelb/Orange `rgba(230,180,40,0.10)` | Obere Hälfte normal |
+| 4 | P85 → P90 | Orange-Rot `rgba(220,100,40,0.12)` | Kritisch |
+| 5 | P90 → oben | Rot `rgba(210,50,50,0.10)` | Überfällig |
+
+Linienfarben: P25 `#64B964` · P50 `#A8C034` · P85 `#E68C3C` · P90 `#E84040`
 
 **Dot-Farben:**
 - Normal: `var(--blue)`
@@ -346,8 +390,8 @@ function _overlap(a, b) {
 | `rollingDays` | number | `90` | Zeitfenster Perzentil-Berechnung |
 | `statusAgeDays` | number | `5` | Alert-Schwellwert in Tagen |
 | `dotSize` | number | `4` | Basis-Radius (skaliert mit pW) |
-| `showBands` | bool | `true` | P50/P70/P85-Linien ein/ausblenden |
-| `excludeList` | string | `""` | Komma-getrennte Status ausblenden |
+| `showBands` | bool | `true` | Farbzonen + P25/P50/P85/P90-Linien ein/ausblenden |
+| `excludeList` | string | `'Rejected'` | Komma-getrennte Status ausblenden (Rejected per Default) |
 | `alertColor` | string | `var(--red)` | Farbe überfälliger Dots |
 
 **Reihenfolge-Panel (↕):** Exaktes heatmap.js-Muster – `⠿` Drag-Handle + ▲/▼ Buttons. Gespeichert in `cfg.stateOrder`. Synchronisiert sich automatisch mit neuen/entfallenen Status beim nächsten Datenload.
@@ -360,6 +404,7 @@ tooltip.style.pointerEvents = d.url ? 'all' : 'none';
 // Hover-Delay 120ms: dot mouseout → _hideTt(), tooltip mouseenter → _showTt()
 window.open(url, '_blank');  // kein host.launchUrl — standalone HTML
 ```
+Tooltip zeigt: Jira-ID · Status · Alter im Status · P25/P50/P85/P90-Pace-Werte · Basis-n · Link
 
 ---
 
@@ -409,6 +454,26 @@ window.open(item.url, '_blank');  // kein host.launchUrl — standalone HTML
 - Symptom: Farb-Modus „Typ" ohne Legende
 - Fix: SVG-Legende oben rechts im Plotbereich
 
+**Bug 4: WIPAge zeigte Rejected-Items als aktiv (wipage.js)**
+- Symptom: Abgelehnte Items erschienen im WIPAge-Chart als aktive WIP-Items
+- Ursache: Aktiv-Filter prüfte nur `Resolved`, nicht `Rejected`
+- Fix: `rejected == null` als dritte Bedingung im Aktiv-Filter ergänzt
+
+**Bug 5: WIPAge ignorierte Mehrfach-Status-Durchläufe (wipage.js)**
+- Symptom: Alter und Rolling Pace zu niedrig bei Items die einen Status zweimal durchlaufen haben
+- Ursache: `_first`-Spalten wurden nicht ausgewertet; nur der letzte Zeitraum (`X` / `leaving_X`) wurde verwendet
+- Fix: Dual-Period-Logik — wenn `X_first != X`: beide Zeiträume addieren
+
+**Bug 6: Rolling Pace bezog Rejected-Items ein (wipage.js)**
+- Symptom: Pace-Werte durch abgelehnte Items verfälscht
+- Ursache: `completedRows`-Filter prüfte nur `Resolved`-Datum, nicht den Ausschluss von `Rejected`
+- Fix: Rolling Pace filtert ausschließlich auf `Resolved`-Items
+
+**Bug 7: WIPAge-Bänder falsche Perzentile und fehlende Farbzonen (wipage.js)**
+- Symptom: Bänder zeigten P50/P70/P85 als reine Linien ohne Fläche
+- Ursache: Falsche Perzentil-Auswahl (P70 statt P25/P90); keine Flächen-Darstellung
+- Fix: Umstellung auf P25/P50/P85/P90; SVG-Rechtecke als Farbzonen hinter den Linien
+
 ---
 
 ## Aktive Design-Standards
@@ -422,6 +487,7 @@ window.open(item.url, '_blank');  // kein host.launchUrl — standalone HTML
 - [x] Überlappungsschutz: Cards können nicht aufeinander gezogen/resized werden
 - [x] Squad-Filter global: wirkt auf alle Visuals via `core.on('filter', render)`
 - [x] Reihenfolge-Panel: heatmap.js + wipage.js verwenden identisches ▲/▼ + Drag-Muster
+- [x] Dual-Period-Logik: alle Zeitberechnungen berücksichtigen `_first`-Spalten (gilt für alle Visuals)
 - [–] pbiviz-Standards (§9.6 Icon, §9.7 launchUrl) nicht anwendbar — standalone HTML
 
 ---
@@ -475,8 +541,10 @@ Für neue Visuals: Claude startet automatisch das SDD-Interview (§0.0 aus `pbiv
 - Config-State immer lokal im Visual halten — nie in `core.state` schreiben
 - Theme-Farben immer über `core.scatterColors()` oder CSS-Variablen — nie hardcoden
 - localStorage-Key nach Schema `fhwa_[visualId]` benennen
+- Zeitberechnungen immer mit Dual-Period-Logik (`_first`-Spalten beachten) — gilt für alle Visuals
+- Aktiv/Erledigt-Logik: erledigt = `Resolved` XOR `Rejected` gefüllt
 
 ---
 
 *Erstellt: 2026-05-30 · Aktualisiert: 2026-06-01 · Autor: Oliver Wolter*  
-*v1.0–v1.2: Single-File HTML · v2.0: Migration auf ES-Module (4 Dateien), core.js API dokumentiert, Visual-Template ergänzt · v2.1: WIPAge Chart (`wipage.js`) als Visual 3 ergänzt · v2.2: SDD-Workflow (§0.0) ergänzt · v2.3: M5 Web App, SDD-Update-Regel, Übergabe-Regel*
+*v1.0–v1.2: Single-File HTML · v2.0: Migration auf ES-Module (4 Dateien), core.js API dokumentiert, Visual-Template ergänzt · v2.1: WIPAge Chart (`wipage.js`) als Visual 3 ergänzt · v2.2: SDD-Workflow (§0.0) ergänzt · v2.3: M5 Web App, SDD-Update-Regel, Übergabe-Regel · v2.4: Dual-Period-Logik (`_first`-Spalten), Rejected-Aktiv-Logik (XOR), Rolling Pace nur Resolved, WIPAge-Bänder P25/P50/P85/P90 als Farbzonen, Bugs 4–7 dokumentiert*
