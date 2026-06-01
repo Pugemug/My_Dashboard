@@ -57,33 +57,43 @@ def extract_module_script_block(html):
 
 def build():
     print("▶ Lese Quelldateien …")
-    html_src  = read('index.html')
-    core_js   = read('core.js')
-    heatmap_js = read('heatmap.js')
-    scatter_js = read('scatter.js')
+    html_src    = read('index.html')
+    core_js     = read('core.js')
+    heatmap_js  = read('heatmap.js')
+    scatter_js  = read('scatter.js')
+    wipage_js   = read('wipage.js')
+    boxchart_js = read('boxchart.js')
 
     print("▶ Transformiere JS (entferne import/export) …")
-    core_out    = strip_module_syntax(core_js)
-    heatmap_out = strip_module_syntax(heatmap_js)
-    scatter_out = strip_module_syntax(scatter_js)
+    core_out     = strip_module_syntax(core_js)
+    heatmap_out  = strip_module_syntax(heatmap_js)
+    scatter_out  = strip_module_syntax(scatter_js)
+    wipage_out   = strip_module_syntax(wipage_js)
+    boxchart_out = strip_module_syntax(boxchart_js)
 
     # Inline-Bootstrap: init() aufrufen (ersetzt den import-Block aus index.html)
     bootstrap = (
         "  init_heatmap();\n"
         "  init_scatter();\n"
+        "  init_wipage();\n"
+        "  init_boxchart();\n"
         "  core.initApp();"
     )
 
-    # heatmap.js und scatter.js exportieren init() – umbenennen um Kollision zu vermeiden
-    heatmap_out = heatmap_out.replace('function init()', 'function init_heatmap()', 1)
-    scatter_out = scatter_out.replace('function init()', 'function init_scatter()', 1)
+    # Visuals exportieren init() – umbenennen um Kollision zu vermeiden
+    heatmap_out  = heatmap_out.replace( 'function init()', 'function init_heatmap()',  1)
+    scatter_out  = scatter_out.replace( 'function init()', 'function init_scatter()',  1)
+    wipage_out   = wipage_out.replace(  'function init()', 'function init_wipage()',   1)
+    boxchart_out = boxchart_out.replace('function init()', 'function init_boxchart()', 1)
 
     # Gebündeltes JS zusammensetzen
     bundled_js = (
-        "// ── core.js ──\n" + core_out + "\n\n" +
-        "// ── heatmap.js ──\n" + heatmap_out + "\n\n" +
-        "// ── scatter.js ──\n" + scatter_out + "\n\n" +
-        "// ── Bootstrap ──\n" + bootstrap + "\n"
+        "// ── core.js ──\n"      + core_out      + "\n\n" +
+        "// ── heatmap.js ──\n"   + heatmap_out   + "\n\n" +
+        "// ── scatter.js ──\n"   + scatter_out   + "\n\n" +
+        "// ── wipage.js ──\n"    + wipage_out    + "\n\n" +
+        "// ── boxchart.js ──\n"  + boxchart_out  + "\n\n" +
+        "// ── Bootstrap ──\n"    + bootstrap      + "\n"
     )
 
     print("▶ Entferne <script type='module'>-Block aus index.html …")

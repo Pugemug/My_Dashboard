@@ -307,15 +307,17 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
 <!-- ══ ES MODULE BOOTSTRAP ══ -->
 <script type="module">
-  import { core }                from './core.js';
-  import { init as initHeatmap } from './heatmap.js';
-  import { init as initScatter } from './scatter.js';
-  import { init as initWipage }  from './wipage.js';
+  import { core }                  from './core.js';
+  import { init as initHeatmap }   from './heatmap.js';
+  import { init as initScatter }   from './scatter.js';
+  import { init as initWipage }    from './wipage.js';
+  import { init as initBoxChart }  from './boxchart.js';
 
   // Visuals registrieren ihre Cards (werden in #dash-canvas eingeh&auml;ngt)
   initHeatmap();
   initScatter();
   initWipage();
+  initBoxChart();
 
   // Core-App initialisieren (Theme, globaler State, File-Upload-Listener)
   core.initApp();

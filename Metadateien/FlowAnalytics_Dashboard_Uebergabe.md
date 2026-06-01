@@ -1,6 +1,6 @@
 # Flow Analytics Dashboard – Projektübergabe
 
-**Version:** 2.4  
+**Version:** 2.5  
 **Datum:** 2026-06-01  
 **Basis:** v2.3 + WIPAge Korrekturen (Dual-Period-Logik, Rejected-Logik, P25/P50/P85/P90-Bänder)
 
@@ -16,12 +16,14 @@ Browser-basiertes Flow-Analytics-Dashboard: Vier Dateien in einem SharePoint-Ord
 
 **Visual 3 – WIPAge Chart (`wipage.js`):** Scatterplot aktiver WIP-Items gruppiert nach aktuellem Status (X-Achse), mit dem Alter im aktuellen Status auf der Y-Achse. Rolling-Pace-Bänder (P25/P50/P85/P90) aus abgeschlossenen Items der letzten N Tage als gestaffelte Farbzonen (grün → rot) mit gestrichelten Linien. Dots wechseln ab einem konfigurierbaren Schwellwert die Farbe. Reihenfolge-Panel (▲/▼ + Drag) und Jira-Link im Tooltip.
 
+**Visual 4 – LeadTime BoxChart (`boxchart.js`):** Box-Plot-Diagramm zur Analyse der Lead Time von Work Items über Zeit. Zeigt pro Periode (Monat oder Quartal) die statistische Verteilung (P25 / Median / P85, Whisker, Ausreißer) in drei Modi: Box, Violin, Kombi. Dual-Period-Logik für ltStart/ltEnd. Konfigurierbare Spalten, Bandwidth, Periode. Jira-Link im Ausreißer-Tooltip.
+
 ---
 
 ## Was die App NICHT macht
 
 - Kein Cross-Filter zwischen Visuals
-- Keine weiteren Diagrammtypen (CFD, LeadTime BoxChart) – noch ausstehend
+- Keine weiteren Diagrammtypen (CFD) – noch ausstehend
 - Kein Server, keine API, kein Power BI
 - Kein DAX, keine automatischen Aggregationen (wird alles in JS berechnet)
 
@@ -38,6 +40,7 @@ flow-analytics/
   heatmap.js     ← FlowHeatmap Visual (vollständig eigenständig)
   scatter.js     ← CycleTime Scatterplot (vollständig eigenständig)
   wipage.js      ← WIPAge Chart (vollständig eigenständig)
+  boxchart.js    ← LeadTime BoxChart (vollständig eigenständig)
 ```
 
 **Abhängigkeiten (CDN, kein lokaler Install):**
@@ -99,7 +102,7 @@ index.html
         import { init }        from './heatmap.js'   → abonniert core-Events
         import { init }        from './scatter.js'   → abonniert core-Events
         import { init }        from './wipage.js'    → abonniert core-Events
-        // import { init }     from './boxchart.js'  ← neue Zeile = neues Visual
+        import { init }        from './boxchart.js'  → abonniert core-Events
 ```
 
 Jedes Visual:
@@ -513,7 +516,7 @@ Das Protokoll aus `pbiviz_entwickeln.md §0` gilt auch für die Web App.
 
 | Feature | Datei | Aufwand | Hinweis |
 |---|---|---|---|
-| **LeadTime BoxChart** | `boxchart.js` | mittel | Box-Whisker pro Gruppe; pbiviz-Version als Referenz |
+| ~~**LeadTime BoxChart**~~ | ~~`boxchart.js`~~ | ~~mittel~~ | ✅ Implementiert v2.5 |
 | **CFD (Cumulative Flow)** | `cfd.js` | groß | Stapelflächen über Zeit |
 | **Card-Titel editierbar** | index.html | klein | `contenteditable` auf `.card-title` |
 | **Card minimieren** | core.js | klein | `.card-content` auf `height:0` klappen |
@@ -529,6 +532,7 @@ Das Protokoll aus `pbiviz_entwickeln.md §0` gilt auch für die Web App.
 | Neues Visual schreiben | `pbiviz_entwickeln.md` + `FlowAnalytics_Dashboard_Uebergabe.md` + `core.js` |
 | Bestehendes Visual ändern | `pbiviz_entwickeln.md` + `FlowAnalytics_Dashboard_Uebergabe.md` + `core.js` + betroffene `.js`-Datei |
 | WIPAge ändern | `pbiviz_entwickeln.md` + `FlowAnalytics_Dashboard_Uebergabe.md` + `core.js` + `wipage.js` |
+| BoxChart ändern | `pbiviz_entwickeln.md` + `FlowAnalytics_Dashboard_Uebergabe.md` + `core.js` + `boxchart.js` |
 | index.html anpassen | `pbiviz_entwickeln.md` + `FlowAnalytics_Dashboard_Uebergabe.md` + `index.html` |
 
 **Einstiegssatz:**
@@ -547,4 +551,4 @@ Für neue Visuals: Claude startet automatisch das SDD-Interview (§0.0 aus `pbiv
 ---
 
 *Erstellt: 2026-05-30 · Aktualisiert: 2026-06-01 · Autor: Oliver Wolter*  
-*v1.0–v1.2: Single-File HTML · v2.0: Migration auf ES-Module (4 Dateien), core.js API dokumentiert, Visual-Template ergänzt · v2.1: WIPAge Chart (`wipage.js`) als Visual 3 ergänzt · v2.2: SDD-Workflow (§0.0) ergänzt · v2.3: M5 Web App, SDD-Update-Regel, Übergabe-Regel · v2.4: Dual-Period-Logik (`_first`-Spalten), Rejected-Aktiv-Logik (XOR), Rolling Pace nur Resolved, WIPAge-Bänder P25/P50/P85/P90 als Farbzonen, Bugs 4–7 dokumentiert*
+*v1.0–v1.2: Single-File HTML · v2.0: Migration auf ES-Module (4 Dateien), core.js API dokumentiert, Visual-Template ergänzt · v2.1: WIPAge Chart (`wipage.js`) als Visual 3 ergänzt · v2.2: SDD-Workflow (§0.0) ergänzt · v2.3: M5 Web App, SDD-Update-Regel, Übergabe-Regel · v2.4: Dual-Period-Logik (`_first`-Spalten), Rejected-Aktiv-Logik (XOR), Rolling Pace nur Resolved, WIPAge-Bänder P25/P50/P85/P90 als Farbzonen, Bugs 4–7 dokumentiert · v2.5: LeadTime BoxChart (`boxchart.js`) als Visual 4 implementiert (Spec LeadTime_BoxChart.md v1.0, Gate 1)*
