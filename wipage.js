@@ -15,7 +15,7 @@ export function init() {
     alertColor:    'var(--red)',
     dotSize:       4,
     showBands:     true,
-    excludeList:   '',
+    excludeList:   'Rejected',
     stateOrder:    [],
   });
 
@@ -307,11 +307,13 @@ export function init() {
     const C        = core.scatterColors();
 
     // ── Aktive Items filtern ──────────────────
+    // Aktiv = In Progress_first gefüllt UND weder Resolved noch Rejected gefüllt
     const allRows    = core.filteredRows();
     const activeRows = allRows.filter(r => {
-      const ip  = core.toDate(r['In Progress_first']);
-      const res = core.toDate(r['Resolved']);
-      return ip != null && res == null;
+      const ip       = core.toDate(r['In Progress_first']);
+      const resolved = core.toDate(r['Resolved']);
+      const rejected = core.toDate(r['Rejected']);
+      return ip != null && resolved == null && rejected == null;
     });
 
     // ── Exclude-Liste ─────────────────────────
@@ -345,48 +347,103 @@ export function init() {
     }
 
     // ── Items nach Status gruppieren + Alter berechnen ──
+    // Altersberechnung mit _first-Logik:
+    //   X_first == X (gleicher Tag) → age = heute − X
+    //   X_first != X               → age = (leaving_X_first − X_first) + (heute − X)
     const statusGroups = visibleStatuses.map(statusName => {
       const items = activeRows
         .filter(r => String(r['Issue-Status'] || '').trim() === statusName)
         .map(r => {
-          const entryDate = core.toDate(r[statusName]);
-          const age = entryDate != null
-            ? Math.max(0, Math.round((today_ms - entryDate.getTime()) / 86400000))
-            : null;
+          const entryFirst  = core.toDate(r[statusName + '_first']);
+          const entryReg    = core.toDate(r[statusName]);
+          const leavingFirst = core.toDate(r['leaving_' + statusName + '_first']);
+
+          let age = null;
+
+          if (entryReg != null) {
+            const ageReg = Math.max(0, Math.round((today_ms - entryReg.getTime()) / 86400000));
+
+            // Prüfen ob _first einen anderen (früheren) Zeitraum darstellt
+            const hasTwoPeriods = entryFirst != null
+              && leavingFirst != null
+              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2; // > halber Tag Abstand
+
+            if (hasTwoPeriods) {
+              const firstPeriod = Math.max(0, Math.round(
+                (leavingFirst.getTime() - entryFirst.getTime()) / 86400000
+              ) + 1);
+              age = firstPeriod + ageReg;
+            } else {
+              age = ageReg;
+            }
+          } else if (entryFirst != null) {
+            // Nur _first vorhanden
+            age = Math.max(0, Math.round((today_ms - entryFirst.getTime()) / 86400000));
+          }
+
           return {
-            key:    String(r['Jira-ID'] || ''),
+            key: String(r['Jira-ID'] || ''),
             age,
-            url:    _resolveUrl(r),
+            url: _resolveUrl(r),
           };
         })
         .filter(d => d.age != null);
       return { statusName, items };
     });
 
-    // ── Rolling Pace (abgeschlossene Items der letzten N Tage) ──
+    // ── Rolling Pace (nur Resolved-Items, kein Rejected) ──
     const cutoff_ms = today_ms - cfg.rollingDays * 86400000;
     const completedRows = allRows.filter(r => {
       const res = core.toDate(r['Resolved']);
       return res != null && res.getTime() >= cutoff_ms;
     });
 
-    const pace = {}; // statusName → { p50, p70, p85, n } | null
+    const pace = {}; // statusName → { p25, p50, p85, p90, n } | null
     visibleStatuses.forEach(sName => {
       const durations = completedRows
         .map(r => {
-          const entry = core.toDate(r[sName]);
-          const exit  = core.toDate(r['leaving_' + sName]);
-          if (!entry || !exit) return null;
-          return Math.max(0, Math.round((exit.getTime() - entry.getTime()) / 86400000) + 1);
+          const entryFirst   = core.toDate(r[sName + '_first']);
+          const entryReg     = core.toDate(r[sName]);
+          const leavingFirst = core.toDate(r['leaving_' + sName + '_first']);
+          const leavingReg   = core.toDate(r['leaving_' + sName]);
+
+          // Dual-Period-Logik: gleich wie Altersberechnung aber mit exit-Datum
+          if (entryReg != null && leavingReg != null) {
+            const hasTwoPeriods = entryFirst != null
+              && leavingFirst != null
+              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2;
+
+            if (hasTwoPeriods) {
+              const d1 = Math.max(0, Math.round(
+                (leavingFirst.getTime() - entryFirst.getTime()) / 86400000
+              ) + 1);
+              const d2 = Math.max(0, Math.round(
+                (leavingReg.getTime() - entryReg.getTime()) / 86400000
+              ) + 1);
+              return d1 + d2;
+            } else {
+              return Math.max(0, Math.round(
+                (leavingReg.getTime() - entryReg.getTime()) / 86400000
+              ) + 1);
+            }
+          }
+          // Nur _first vorhanden
+          if (entryFirst != null && leavingFirst != null) {
+            return Math.max(0, Math.round(
+              (leavingFirst.getTime() - entryFirst.getTime()) / 86400000
+            ) + 1);
+          }
+          return null;
         })
-        .filter(d => d != null);
+        .filter(d => d != null && d > 0);
 
       if (durations.length) {
         durations.sort((a, b) => a - b);
         pace[sName] = {
+          p25: core.pct(durations, 25),
           p50: core.pct(durations, 50),
-          p70: core.pct(durations, 70),
           p85: core.pct(durations, 85),
+          p90: core.pct(durations, 90),
           n:   durations.length,
         };
       } else {
@@ -399,7 +456,7 @@ export function init() {
     statusGroups.forEach(g => g.items.forEach(d => { if (d.age > maxAge) maxAge = d.age; }));
     visibleStatuses.forEach(s => {
       const p = pace[s];
-      if (p && p.p85 != null && p.p85 > maxAge) maxAge = p.p85;
+      if (p && p.p90 != null && p.p90 > maxAge) maxAge = p.p90;
     });
     maxAge = Math.ceil(maxAge * 1.12);
 
@@ -440,19 +497,51 @@ export function init() {
         parts.push(`<line x1="${(MAR.left + colW * i).toFixed(1)}" y1="${MAR.top}" x2="${(MAR.left + colW * i).toFixed(1)}" y2="${(MAR.top + pH).toFixed(1)}" stroke="${C.gridLine}" stroke-width="1"/>`);
       }
 
-      // Perzentil-Bänder
+      // Perzentil-Bänder: Farbflächen + Linien (grün → rot)
       if (cfg.showBands && pace[statusName]) {
         const p = pace[statusName];
-        const BANDS = [
-          { val: p.p50, color: '#64B964', label: 'P50' },
-          { val: p.p70, color: '#E6C837', label: 'P70' },
-          { val: p.p85, color: '#E68C3C', label: 'P85' },
+
+        // Flächen zeichnen: 5 Zonen von 0 → P25 → P50 → P85 → P90 → oben
+        const ZONE_FILLS = [
+          'rgba(100,185,100,0.10)',  // 0 → P25: grün
+          'rgba(180,210, 80,0.10)',  // P25 → P50: gelbgrün
+          'rgba(230,180, 40,0.10)',  // P50 → P85: gelb/orange
+          'rgba(220,100, 40,0.12)',  // P85 → P90: orange-rot
+          'rgba(210, 50, 50,0.10)',  // P90 → oben: rot
         ];
-        BANDS.forEach(({ val, color, label }) => {
+        const zoneEdges = [0, p.p25, p.p50, p.p85, p.p90, maxAge];
+        for (let zi = 0; zi < zoneEdges.length - 1; zi++) {
+          const lo = zoneEdges[zi];
+          const hi = zoneEdges[zi + 1];
+          if (lo == null || hi == null || hi <= lo) continue;
+          const yTop = yScale(hi).toFixed(1);
+          const yBot = yScale(lo).toFixed(1);
+          const rectH = (parseFloat(yBot) - parseFloat(yTop));
+          if (rectH < 0.5) continue;
+          parts.push(
+            `<rect x="${x0.toFixed(1)}" y="${yTop}" width="${(x1 - x0).toFixed(1)}" height="${rectH.toFixed(1)}"` +
+            ` fill="${ZONE_FILLS[zi]}" />`
+          );
+        }
+
+        // Linien + Labels für P25, P50, P85, P90
+        const LINES = [
+          { val: p.p25, color: '#64B964', label: 'P25' },
+          { val: p.p50, color: '#A8C034', label: 'P50' },
+          { val: p.p85, color: '#E68C3C', label: 'P85' },
+          { val: p.p90, color: '#E84040', label: 'P90' },
+        ];
+        LINES.forEach(({ val, color, label }) => {
           if (val == null) return;
           const y = yScale(val).toFixed(1);
-          parts.push(`<line x1="${x0.toFixed(1)}" y1="${y}" x2="${x1.toFixed(1)}" y2="${y}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.85"/>`);
-          parts.push(`<text x="${(x1 + 2).toFixed(1)}" y="${(parseFloat(y) + 3).toFixed(1)}" font-size="8" font-family="var(--mono)" fill="${color}" opacity="0.9">${label}</text>`);
+          parts.push(
+            `<line x1="${x0.toFixed(1)}" y1="${y}" x2="${x1.toFixed(1)}" y2="${y}"` +
+            ` stroke="${color}" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.9"/>`
+          );
+          parts.push(
+            `<text x="${(x1 + 2).toFixed(1)}" y="${(parseFloat(y) + 3).toFixed(1)}"` +
+            ` font-size="8" font-family="var(--mono)" fill="${color}" opacity="0.9">${label}</text>`
+          );
         });
       }
 
@@ -497,9 +586,10 @@ export function init() {
           ` data-age="${d.age}"` +
           ` data-url="${_escAttr(d.url)}"` +
           ` data-alert="${isAlert ? '1' : '0'}"` +
+          ` data-p25="${p ? (p.p25 != null ? p.p25 : '') : ''}"` +
           ` data-p50="${p ? (p.p50 != null ? p.p50 : '') : ''}"` +
-          ` data-p70="${p ? (p.p70 != null ? p.p70 : '') : ''}"` +
           ` data-p85="${p ? (p.p85 != null ? p.p85 : '') : ''}"` +
+          ` data-p90="${p ? (p.p90 != null ? p.p90 : '') : ''}"` +
           ` data-pn="${p ? p.n : 0}"` +
           `/>`
         );
@@ -515,10 +605,11 @@ export function init() {
       dot.addEventListener('mouseover', e => {
         _showTt();
         const d = dot.dataset;
+        const p25 = d.p25 !== '' ? parseFloat(d.p25) : null;
         const p50 = d.p50 !== '' ? parseFloat(d.p50) : null;
-        const p70 = d.p70 !== '' ? parseFloat(d.p70) : null;
         const p85 = d.p85 !== '' ? parseFloat(d.p85) : null;
-        _buildTooltip(d.key, d.status, parseInt(d.age, 10), d.url, p50, p70, p85, parseInt(d.pn, 10));
+        const p90 = d.p90 !== '' ? parseFloat(d.p90) : null;
+        _buildTooltip(d.key, d.status, parseInt(d.age, 10), d.url, p25, p50, p85, p90, parseInt(d.pn, 10));
         tooltip.style.display  = 'block';
         tooltip.style.pointerEvents = d.url ? 'all' : 'none';
         _posTooltip(e.clientX, e.clientY);
@@ -537,7 +628,7 @@ export function init() {
   }
 
   // ── Tooltip aufbauen ──────────────────────────
-  function _buildTooltip(key, status, age, url, p50, p70, p85, pn) {
+  function _buildTooltip(key, status, age, url, p25, p50, p85, p90, pn) {
     while (tooltip.firstChild) tooltip.removeChild(tooltip.firstChild);
 
     const title = document.createElement('div');
@@ -553,13 +644,14 @@ export function init() {
     _appendRow('Status',          status || '–');
     _appendRow('Alter im Status', age + 'd', ageColor);
 
-    if (p50 != null || p70 != null || p85 != null) {
+    if (p25 != null || p50 != null || p85 != null || p90 != null) {
       const sep = document.createElement('div');
       sep.style.cssText = 'border-top:1px solid var(--border);margin:5px 0 3px';
       tooltip.appendChild(sep);
-      if (p50 != null) _appendRow('P50 (Pace)', p50.toFixed(1) + 'd', '#64B964');
-      if (p70 != null) _appendRow('P70 (Pace)', p70.toFixed(1) + 'd', '#E6C837');
+      if (p25 != null) _appendRow('P25 (Pace)', p25.toFixed(1) + 'd', '#64B964');
+      if (p50 != null) _appendRow('P50 (Pace)', p50.toFixed(1) + 'd', '#A8C034');
       if (p85 != null) _appendRow('P85 (Pace)', p85.toFixed(1) + 'd', '#E68C3C');
+      if (p90 != null) _appendRow('P90 (Pace)', p90.toFixed(1) + 'd', '#E84040');
       if (pn)          _appendRow('Basis n', pn + ' abgeschlossen', null, true);
     }
 
