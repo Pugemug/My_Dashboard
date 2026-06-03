@@ -1,0 +1,1163 @@
+# Flow Analytics – Web App Entwicklungs-Leitfaden
+
+**Version:** 3.0  
+**Datum:** 2026-06-03  
+**Basis:** FlowAnalytics_Dashboard_Uebergabe.md v2.5 + pbiviz_entwickeln.md (Web-App-relevante Teile)  
+**Vorgänger-Dateien:** `FlowAnalytics_Dashboard_Uebergabe.md` + `pbiviz_entwickeln.md` → zusammengeführt, Power BI entfällt
+
+---
+
+## 0. Zusammenarbeits-Protokoll (verbindlich)
+
+Dieser Abschnitt regelt **wie** Claude und Oliver zusammenarbeiten. Alle Regeln sind verbindlich und werden von Claude selbst eingehalten – ohne Aufforderung.
+
+---
+
+### 0.0 Spec-Driven Development (SDD) – Spezifikation vor dem Code
+
+**Wann:** Vor Gate 1, vor dem ersten Prototyp, vor jeder Zeile Code.
+
+**Was Claude tut:** Ein strukturiertes Interview führen, daraus die `docs/specs/VisualName.md` schreiben, und erst nach Bestätigung durch Oliver mit Gate 1 fortfahren.
+
+**Warum:** Eine bestätigte Spec ist die einzige Quelle der Wahrheit. Sie verhindert Fehlentwicklungen, macht Neuanfänge reproduzierbar und ersetzt das mündliche Hin-und-Her durch ein Dokument das im nächsten Chat-Kontext direkt wiederverwendbar ist.
+
+#### SDD-Interview-Protokoll
+
+Claude führt das Interview in **7 Blöcken (A–G)**. Innerhalb eines Blocks dürfen mehrere zusammenhängende Fragen auf einmal gestellt werden (Ausnahme zu M1). Zwischen den Blöcken wartet Claude auf Olivers Antwort.
+
+**Wie Claude das Interview startet:**
+
+Wenn Oliver ein neues Visual ankündigt, antwortet Claude:
+
+> „Gut. Ich führe zuerst das SDD-Interview durch, damit wir eine vollständige Spec haben bevor wir starten. Block A: [Fragen]"
+
+**Block A – Zweck & Abgrenzung**
+```
+1. Beschreibe das Visual in 2–3 Sätzen: Was zeigt es? Welches Problem löst es?
+2. Was macht es explizit NICHT? (Cross-Filter? Andere Visuals beeinflussen?)
+3. Technologie: immer Web-App (.js + core.js) – trotzdem explizit bestätigen.
+```
+
+**Block B – Datenmodell**
+```
+1. Welche Excel-Spalten werden gelesen? (Name, Typ, Pflicht/Optional)
+2. Erkennungslogik: Wie unterscheidet das Visual relevante Spalten von Meta-Spalten?
+3. Was passiert bei fehlenden Pflicht-Spalten?
+```
+
+**Block C – UX & Layout**
+```
+1. Zeichne (ASCII) oder beschreibe die Hauptbereiche des Visuals.
+2. Welche Interaktionen gibt es? (Hover, Click, Panel öffnen, Drag, Reihenfolge ändern)
+3. Leerzustand: Was sieht der Nutzer wenn keine Daten geladen sind / alle Items gefiltert wurden?
+4. Responsive: Wie verändert sich das Visual bei kleiner Größe?
+```
+
+**Block D – Berechnungslogik**
+```
+1. Was sind die Kern-Metriken und wie werden sie berechnet? (Formeln explizit, z.B. CT = (end-start)/86400000+1)
+2. Welche Filter- oder Aggregationslogik gibt es?
+3. Edge Cases: Was passiert bei Items ohne Datum? Negativen Werten? Leeren Gruppen? Division durch 0?
+```
+
+**Block E – Config / Format-Panel**
+```
+Für jede konfigurierbare Eigenschaft:
+| Property | Typ | Default | Min/Max | Effekt | Validierung |
+Pro Eigenschaft eine Zeile – keine Lücken.
+```
+
+**Block F – Design-Standards (Pflichtcheck)**
+```
+1. Tooltip: boundary-safe (positionTooltip) + Links (Hover-Delay, pointerEvents)?
+2. N-Anzeige: wo genau?
+3. Reihenfolge-Panel: ▲/▼ + Drag benötigt?
+4. Skalierung: Wie skalieren Punkte/Balken/Zellen mit der Containergröße?
+5. Diagnosemodus: Welche Infos zeigt die Diag-Zeile mindestens?
+6. Link-Feature: core.state.urlTemplate + window.open? Oder nicht benötigt?
+```
+
+**Block G – Akzeptanzkriterien**
+```
+Testbare Aussagen die Claude beim Implementieren prüft und Oliver beim manuellen Test abhakt.
+Beispiele:
+- "Tooltip bleibt an allen 4 Ecken des Visuals vollständig sichtbar"
+- "Config-State überlebt Browser-Reload"
+- "Bei 0 Datenzeilen: Diag-Meldung sichtbar, kein JS-Error in der Console"
+- "Dots skalieren sichtbar wenn Visual von 400px auf 200px Breite verkleinert wird"
+```
+
+#### SDD-Ausgabe
+
+Nach Abschluss aller Blöcke schreibt Claude die `docs/specs/VisualName.md` nach der Vorlage in §13 und präsentiert sie Oliver zur Bestätigung:
+
+> „Hier ist die vollständige Spec: [SDD-Inhalt]. Passt das, oder soll ich etwas korrigieren?"
+
+Erst nach Bestätigung durch Oliver beginnt **Gate 1**.
+
+---
+
+### 0.1 Quality Gate 1 – SDD-Bestätigung (vor dem ersten Code)
+
+**Wann:** Direkt nach dem SDD-Interview – bevor irgendeine Zeile Code geschrieben wird.
+
+**Was Claude tut:** Die fertige SDD kurz zusammenfassen und explizit auf Bestätigung warten. Gate 1 ist der formale Freeze-Moment.
+
+```
+## Gate 1 – SDD bestätigt: [VisualName]
+
+SDD-Dokument: [docs/specs/VisualName.md] liegt vor.
+
+Kern-Entscheidungen:
+- Technologie: Web-App (.js + core.js)
+- Datenmodell: [N Excel-Spalten] – [Erkennungslogik]
+- Config: [N Properties] in localStorage-Key fhwa_[visualId]
+- Design: Tooltip ✓ · N-Anzeige: [wo] · Reihenfolge: [ja/nein] · Link: [ja/nein]
+- Akzeptanzkriterien: [N Punkte in SDD Block G]
+
+Offene Punkte die noch nicht in der SDD stehen:
+1. [falls vorhanden – sonst: keine]
+
+Soll ich mit dem Prototyp beginnen? (§0.8 M6)
+```
+
+Oliver antwortet mit „Ja" oder korrigiert einzelne Punkte. Erst dann beginnt Claude mit dem Prototyp.
+
+---
+
+### 0.2 Quality Gate 2 – Pre-Delivery Review (vor jeder Datei-Übergabe)
+
+**Wann:** Direkt bevor Claude die `.js`-Datei(en) übergeben wird.
+
+**Was Claude tut:** Die vollständige Checkliste selbst durchgehen. Alle `[ ]` müssen zu `[x]` werden – Claude behebt Lücken selbst.
+
+```
+## Pre-Delivery Review – [VisualName] v[X.Y]
+
+### Code-Qualität
+- [x] Kein innerHTML verwendet → nur DOM-Aufbau via Template-Strings in SVG-Kontext (svgEl.innerHTML = parts.join('') ist erlaubt)
+- [x] Tooltips: boundary-safe positionTooltip() + Hover-Delay wenn Links vorhanden
+- [x] Math.max() mit leerem Array abgesichert (length-Check)
+- [x] Keine hardcodierten SVG-Farben → immer core.scatterColors() oder CSS-Variablen
+- [x] Zeitberechnungen: Dual-Period-Logik (_first-Spalten beachtet)
+- [x] Aktiv/Erledigt-Logik: erledigt = Resolved XOR Rejected
+
+### Struktur & Integration
+- [x] Visual erzeugt eigene Card via core.createCard()
+- [x] Config-State lokal im Visual (nie in core.state schreiben)
+- [x] localStorage-Key: fhwa_[visualId]
+- [x] Events abonniert: data, theme, filter, resize (+ settings wenn urlTemplate genutzt)
+- [x] index.html: import + init() ergänzt
+- [x] build.py: neues Visual an allen 4 Stellen eingetragen (falls neues Visual)
+
+### Design-Standards
+- [x] Tooltip: position:absolute im Card-Container, positionTooltip() mit Overflow-Prüfung
+- [x] Diag-Bar: diagEl.textContent gesetzt
+- [x] N-Anzeige: vorhanden, Position: [wo?]
+- [x] Skalierung: alle Größen relativ zu Container-Breite/Höhe
+- [x/-] Reihenfolge-Panel: ▲/▼ + Drag / nicht benötigt
+- [x/-] Link-Feature: core.state.urlTemplate + window.open / nicht benötigt
+
+### Manueller Test-Hinweis für Oliver
+- [ ] Tooltip an allen 4 Ecken des Visuals testen
+- [ ] Theme-Toggle: Visual neu rendern ohne Artefakte
+- [ ] Visual auf kleines Format skalieren → Elemente passen sich an?
+- [ ] Browser-Reload: Config-State erhalten?
+```
+
+---
+
+### 0.3 Maßnahme M1 – Eine Frage, dann warten
+
+Claude stellt in einer Antwort **immer nur eine Klärungsfrage**. Wenn mehrere Unklarheiten bestehen, nennt Claude die wichtigste zuerst.
+
+**Ausnahme:** Beim SDD-Interview (§0.0) dürfen alle Fragen eines Blocks gesammelt gestellt werden.
+
+---
+
+### 0.4 Maßnahme M2 – Anforderungs-Zusammenfassung vor dem Code
+
+Entspricht Gate 1 (§0.1). Die Zusammenfassung ist nicht optional.
+
+---
+
+### 0.5 Maßnahme M3 – „Ich mache X, weil Y" bei Design-Entscheidungen
+
+Wenn Claude eine Design-Entscheidung trifft, die nicht explizit vorgegeben war, benennt Claude kurz die Begründung:
+
+> „N-Anzeige platziere ich unter der X-Achse, weil dort kein anderes Element kollidiert. Passt das?"
+
+---
+
+### 0.6 Maßnahme M4 – Übergabe-Dokument ab Nachricht 15
+
+Ab Nachricht 15 fragt Claude aktiv:
+
+> „Wir sind bei Nachricht 15. Soll ich ein Übergabe-Dokument anlegen, damit der Kontext bei einem Chat-Neustart erhalten bleibt?"
+
+Das Übergabe-Dokument wird nach §12-Vorlage erstellt.
+
+---
+
+### 0.7 Maßnahme M5 – Bug-Wissen nach jedem Fix dokumentieren
+
+Wenn im Laufe eines Chats ein Bug entdeckt und behoben wird, dokumentiert Claude den Fix automatisch am Chatende – mit Symptom, Ursache und Fix. Ziel-Abschnitt: „Bekannte Bugs und Lösungen" in dieser Datei.
+
+**SDD-Update-Regel bei Fehlerbehebung:**
+
+```
+War der Bug ein Implementierungsfehler?     War der Bug eine Spec-Lücke?
+(z.B. falsches Array-Indexing)              (z.B. Edge Case nicht bedacht)
+→ Direkt fixen.                             → SDD zuerst updaten (Block D oder G).
+→ Nur Bug-Doku ergänzen (M5).              → Dann erst fixen.
+                                            → Bug-Doku ergänzen (M5).
+```
+
+---
+
+### 0.8 Maßnahme M6 – Kein Code vor Prototyp-Freigabe
+
+Bei neuen Visuals: **erst HTML-Prototyp bauen und von Oliver freigeben lassen, dann erst vollständige Implementierung.**
+
+Ausnahme: Kleine Bugfixes oder Erweiterungen an bestehendem Code brauchen keinen neuen Prototyp.
+
+---
+
+## Was die App macht
+
+Browser-basiertes Flow-Analytics-Dashboard: Vier Dateien in einem SharePoint-Ordner (kein Server, kein Build-System), die eine Excel-Datei einlesen und Visuals in einem frei konfigurierbaren Grid-Dashboard anzeigen.
+
+**Visual 1 – FlowHeatmap (`heatmap.js`):** Kumulative Verweildauer von Work Items in Workflow-Zuständen, gruppiert nach Issue-Type oder Squad, mit Status-Visibility-Steuerung und Lead-Time-Konfiguration.
+
+**Visual 2 – CycleTime Scatterplot (`scatter.js`):** Durchlaufzeit (CT) jedes Work Items über die Zeit, mit Perzentil-Linien, 3 Farb-Modi und Jira-Link im Tooltip.
+
+**Visual 3 – WIPAge Chart (`wipage.js`):** Scatterplot aktiver WIP-Items gruppiert nach aktuellem Status (X-Achse), mit dem Alter im aktuellen Status auf der Y-Achse. Rolling-Pace-Bänder (P25/P50/P85/P90) aus abgeschlossenen Items der letzten N Tage als gestaffelte Farbzonen (grün → rot) mit gestrichelten Linien. Dots wechseln ab einem konfigurierbaren Schwellwert die Farbe. Reihenfolge-Panel (▲/▼ + Drag) und Jira-Link im Tooltip.
+
+**Visual 4 – LeadTime BoxChart (`boxchart.js`):** Box-Plot-Diagramm zur Analyse der Lead Time von Work Items über Zeit. Zeigt pro Periode (Monat oder Quartal) die statistische Verteilung (P25 / Median / P85, Whisker, Ausreißer) in drei Modi: Box, Violin, Kombi. Dual-Period-Logik für ltStart/ltEnd. Konfigurierbare Spalten, Bandwidth, Periode. Jira-Link im Ausreißer-Tooltip.
+
+---
+
+## Was die App NICHT macht
+
+- Kein Cross-Filter zwischen Visuals
+- Keine weiteren Diagrammtypen (CFD) – noch ausstehend
+- Kein Server, keine API, kein Power BI
+- Kein DAX, keine automatischen Aggregationen (wird alles in JS berechnet)
+
+---
+
+## Deployment
+
+Alle 4 Dateien in **einen gemeinsamen Ordner** auf SharePoint/OneDrive legen. Nutzer öffnen `index.html` per Link im Browser. ES-Module funktionieren weil SharePoint über HTTPS ausliefert.
+
+```
+project-root/
+  docs/
+    WebAppEntwickeln.md        ← dieser Leitfaden
+    specs/
+      LeadTime_BoxChart.md     ← bestätigte Spec
+      WIPAge.md                ← bestätigte Spec
+      [VisualName].md          ← künftige Specs
+  src/
+    index.html     ← Einstiegspunkt, Layout, CSS, Modul-Imports
+    core.js        ← Gemeinsame Engine (State, Grid, Theme, Utils, Events)
+    heatmap.js     ← FlowHeatmap Visual (vollständig eigenständig)
+    scatter.js     ← CycleTime Scatterplot (vollständig eigenständig)
+    wipage.js      ← WIPAge Chart (vollständig eigenständig)
+    boxchart.js    ← LeadTime BoxChart (vollständig eigenständig)
+  tools/
+    build.py       ← Bundle-Skript
+  Web App/
+    FlowAnalytics.html         ← Ausgabe von build.py
+  .github/
+    copilot-instructions.md    ← Copilot Hintergrundinstruktionen
+```
+
+**Abhängigkeiten (CDN, kein lokaler Install):**
+```
+Google Fonts: DM Sans + DM Mono
+SheetJS:      https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js
+```
+
+---
+
+## build.py – Bundle für SharePoint ohne HTTPS-Modul-Support
+
+`build.py` bündelt die ES-Modul-Dateien in eine einzelne `FlowAnalytics.html` für Umgebungen, in denen `type="module"` Scripts nicht funktionieren. Für Entwicklung und Standard-SharePoint immer die ES-Modul-Version verwenden.
+
+### Was build.py tut (und was es nicht tut)
+
+`strip_module_syntax()` entfernt:
+- Zeilen die mit `import ` beginnen (komplette Zeile)
+- `export ` Präfix vor `const`, `let`, `var`, `function`, `class`, `async function`
+
+`strip_module_syntax()` entfernt **nicht:**
+- `export default` → Laufzeitfehler
+- `export { x, y }` → bleibt als ungültiger Code stehen
+- `import()` dynamische Imports → bleiben stehen
+
+**Regel:** In `.js`-Dateien nur `export const/function/class` und `import ... from` verwenden. Kein `export default`, keine Re-Exports.
+
+### `init()` Namenskonvention – Pflicht
+
+`build.py` benennt die `init()`-Funktion jeder Visual-Datei um um Kollisionen zu vermeiden:
+
+```python
+heatmap_out = heatmap_out.replace('function init()', 'function init_heatmap()', 1)
+scatter_out = scatter_out.replace('function init()', 'function init_scatter()', 1)
+```
+
+Die Funktion muss exakt `function init()` heißen – nicht `async function init()`, nicht `const init = () =>`. `replace(..., 1)` ersetzt nur das **erste** Vorkommen – `init()` darf nur einmal als Funktionsdeklaration erscheinen.
+
+### Neues Visual hinzufügen – vier Stellen in build.py
+
+```python
+# Stelle 1: Datei einlesen
+boxchart_js = read('boxchart.js')
+
+# Stelle 2: Transformieren + umbenennen
+boxchart_out = strip_module_syntax(boxchart_js)
+boxchart_out = boxchart_out.replace('function init()', 'function init_boxchart()', 1)
+
+# Stelle 3: In gebündeltes JS aufnehmen
+bundled_js = (
+    "// ── core.js ──\n" + core_out + "\n\n" +
+    "// ── heatmap.js ──\n" + heatmap_out + "\n\n" +
+    "// ── scatter.js ──\n" + scatter_out + "\n\n" +
+    "// ── boxchart.js ──\n" + boxchart_out + "\n\n" +  # ← neu
+    "// ── Bootstrap ──\n" + bootstrap + "\n"
+)
+
+# Stelle 4: Bootstrap-Aufruf ergänzen
+bootstrap = (
+    "  init_heatmap();\n"
+    "  init_scatter();\n"
+    "  init_boxchart();\n"   # ← neu
+    "  core.initApp();"
+)
+```
+
+**Fehler der Vergangenheit:** Neues Visual in `index.html` eingetragen aber `build.py` vergessen → das gebündelte `FlowAnalytics.html` lud das neue Visual nicht.
+
+```bash
+python build.py
+# Ausgabe: FlowAnalytics.html (X.X KB)
+```
+
+---
+
+## Excel-Datenstruktur
+
+Sheet-Name: **`JiraStories`** (Pflicht, Fallback: erstes Sheet)
+
+| Excel-Spalte | Rolle | Pflicht? |
+|---|---|---|
+| `Jira-ID` | Eindeutiger Item-Identifier | ✅ |
+| `Issue-Type` | Grouping + Scatter-Farb-Modus „Typ" | optional |
+| `Squad` | Grouping + globaler Filter | optional |
+| `Issue-Status` | Aktueller Workflow-Status (Text) – **WIPAge X-Achse** | optional* |
+| `In Progress_first` | WIP-Startmarker – **WIPAge Aktiv-Logik** | optional* |
+| `Ready4Progress_first` | LT/CT Start-Default | optional |
+| `Resolved` | LT/CT Ende-Default + WIPAge Aktiv-Logik (leer = noch aktiv) | optional |
+| `Rejected` | Abbruch-Marker – WIPAge Aktiv-Logik (leer = noch aktiv); **nicht** in Rolling Pace | optional |
+| `[Zustand]_first` | Eintrittsdatum **erstes** Mal in Workflow-Zustand – **Dual-Period-Logik** | optional (mehrfach) |
+| `leaving_[Zustand]_first` | Austrittsdatum erstes Mal – **Dual-Period-Logik** | optional (mehrfach) |
+| `[Zustand]` | Eintrittsdatum **letztes/aktuelles** Mal in Workflow-Zustand | optional (mehrfach) |
+| `leaving_[Zustand]` | Austrittsdatum letztes Mal – **WIPAge Rolling Pace** | optional (mehrfach) |
+
+*Für WIPAge Chart erforderlich.
+
+**State-Erkennungslogik:** Spalte ist Workflow-Zustand wenn sie nicht in `META_COLS`, nicht `leaving_`-Präfix, nicht `_first`-Suffix, nicht `_Count`-Suffix.
+
+**Dauerberechnung – Dual-Period-Logik (gilt für alle Visuals):**
+
+Ein Work Item kann einen Status zweimal durchlaufen (z.B. nach Rücksprung). Dafür gibt es `_first`-Spalten für den ersten Durchlauf und Basis-Spalten für den zweiten. Die korrekte Gesamtdauer:
+
+```
+X_first == X (gleicher Tag)?
+├── Ja  → Item war nur einmal in X → Dauer = leaving_X − X + 1  (inklusiv)
+└── Nein → Item hat X zweimal durchlaufen → Dauer = (leaving_X_first − X_first + 1)
+                                                    + (leaving_X − X + 1)
+```
+
+Threshold für „gleich": Datums-Differenz < 0,5 Tage (43.200.000 ms).
+
+**Aktiv/Erledigt-Logik (XOR):** Ein Item ist erledigt wenn `Resolved` **oder** `Rejected` gefüllt ist — da nur eines der beiden Felder befüllt sein kann, ist das effektiv ein XOR. Aktiv = weder `Resolved` noch `Rejected` gefüllt.
+
+---
+
+## Architektur
+
+### Prinzip: Jedes Visual ist eine eigenständige Datei
+
+```
+index.html
+  └── <script type="module">
+        import { core }        from './core.js'
+        import { init }        from './heatmap.js'   → abonniert core-Events
+        import { init }        from './scatter.js'   → abonniert core-Events
+        import { init }        from './wipage.js'    → abonniert core-Events
+        import { init }        from './boxchart.js'  → abonniert core-Events
+```
+
+Jedes Visual:
+- erzeugt seine eigene Card via `core.createCard()`
+- hält seinen Config-State **lokal** (nicht in core)
+- abonniert `core.on('data' | 'theme' | 'filter' | 'resize', fn)` — plus `'settings'` wenn es `core.state.urlTemplate` nutzt
+- schreibt in eigenen localStorage-Key (`fhwa_xyz`)
+- berührt keinen Code anderer Visuals
+
+### DOM-Struktur (index.html)
+
+```
+<body>
+  #upload-screen      Drag&Drop + Datei-Picker
+  #app-screen
+    .topbar           Logo · File-Badge · 🏰 Squads · ⚙ Einstellungen · ☀/🌙 Theme · Neue Datei
+    #dashboard        overflow:auto — scrollt wenn Cards über Viewport hinausgehen
+      #dash-canvas    position:relative — wächst mit Cards mit (_updateCanvasH)
+        #card-heatmap position:absolute  ← von heatmap.js erzeugt
+        #card-scatter position:absolute  ← von scatter.js erzeugt
+        #card-wipage  position:absolute  ← von wipage.js erzeugt
+  [Tooltips]          von jedem Visual eigenständig erzeugt und an body gehängt
+```
+
+### Neues Visual registrieren (2 Schritte + build.py)
+
+**Schritt 1** – neue `.js`-Datei schreiben (Template siehe unten).
+
+**Schritt 2** – In `index.html` zwei Zeilen ergänzen:
+```javascript
+import { init as initBoxChart } from './boxchart.js';
+// ...
+initBoxChart();
+```
+
+**Schritt 3** – In `build.py` an allen 4 Stellen eintragen (siehe Deployment-Abschnitt).
+
+---
+
+## core.js – Public API
+
+`core` ist ein Singleton-Objekt das alle Visuals importieren.
+
+### Shared State (nur lesen, nie direkt schreiben)
+
+```javascript
+core.state.rows          // Row[] — alle geladenen Excel-Zeilen
+core.state.dateCols      // string[] — alle Datumsspalten
+core.state.states        // { name, entryCol, exitCol }[] — erkannte Workflow-Zustände
+core.state.stateOrder    // string[] — aktuelle Reihenfolge der Zustände
+core.state.allSquads     // string[] — alle Squad-Namen
+core.state.hasSquad      // boolean
+core.state.hasIssueType  // boolean
+core.state.squadFilter   // string[] — aktiver globaler Filter ([] = alle)
+core.state.fileName      // string
+core.state.sheetName     // string
+core.state.urlTemplate   // string — globales Jira URL-Template (⚙ Einstellungen-Panel)
+```
+
+### Event Bus
+
+```javascript
+core.on('data',     fn)    // Excel wurde geladen, state.rows gefüllt
+core.on('theme',    fn)    // Dark/Light gewechselt → neu rendern
+core.on('filter',   fn)    // Squad-Filter geändert → neu rendern
+core.on('resize',   fn)    // Card wurde gezogen/resized → SVG neu rendern
+core.on('settings', fn)    // Globale Einstellung geändert (z.B. urlTemplate) → neu rendern
+core.emit(event)           // intern; Visuals rufen das nicht auf
+```
+
+### Card Factory
+
+```javascript
+const { cardEl, contentEl, headerExtraEl, diagEl } = core.createCard({
+  id:          'wipage',                      // wird zu #card-wipage
+  title:       'WIP<span class="hl">Age</span>',
+  defaultGrid: { col: 0, row: 0, w: 6, h: 10 },
+});
+// cardEl         → das .card-Element
+// contentEl      → .card-content (hier rein rendern)
+// headerExtraEl  → freier Bereich im Card-Header für eigene Buttons/Toggles
+// diagEl         → .diag-bar (Diagnose-Zeile unten)
+```
+
+### Daten-Utilities
+
+```javascript
+core.filteredRows()          // → Row[] nach activem squadFilter
+core.toDate(v)               // Excel-Wert / String / Date → Date | null
+core.dur(entryVal, exitVal)  // → Tage (inklusiv) | null
+core.pct(sortedArr, p)       // → Perzentil p (0–100)
+core.fmt(v)                  // → "12.3d" | "–"
+```
+
+### Theme & Farben
+
+```javascript
+core.isLight()               // → boolean
+core.palette()               // → PALETTE_DARK | PALETTE_LIGHT (8 Farben)
+core.lerp(t)                 // → rgb-String, Heatmap-Gradient (t = 0…1)
+core.getCellContrast(t)      // → 'dark' | 'light' für Text auf Heatmap-Zelle
+core.scatterColors()         // → { plotBg, gridLine, axisLine, axisLabel, dotStroke, … }
+core.toggleTheme()           // Theme wechseln + 'theme'-Event emittieren
+core.initTheme()             // Gespeichertes Theme beim Start laden
+```
+
+### Storage
+
+```javascript
+core.save(key, value)        // localStorage.setItem mit JSON.stringify
+core.load(key, default)      // localStorage.getItem mit JSON.parse + Fallback
+```
+
+### Grid (intern, kein direkter Aufruf nötig)
+
+Grid wird vollständig von `core.initLayout()` und `core.initDragResize()` verwaltet.  
+Layout-Key: `fhwa_layout2` (abweichend von v1.x `fhwa_layout` — Absicht, um alten gespeicherten State zu ignorieren).
+
+---
+
+## Visual-Template (Minimalbeispiel für neues Visual)
+
+```javascript
+// boxchart.js
+import { core } from './core.js';
+
+export function init() {
+
+  // 1. Lokaler Config-State (nur diese Datei kennt ihn)
+  const cfg = core.load('fhwa_boxchart', {
+    rollingDays: 90,
+    // ...
+  });
+
+  // 2. Card anlegen
+  const { contentEl, headerExtraEl, diagEl } = core.createCard({
+    id:          'boxchart',
+    title:       'Lead<span class="hl">Time</span>',
+    defaultGrid: { col: 0, row: 12, w: 6, h: 10 },
+  });
+
+  // 3. Eigene Header-Controls (optional)
+  const btn = document.createElement('button');
+  btn.className = 'btn-icon';
+  btn.textContent = '⚙ Einstellungen';
+  btn.onclick = () => { /* Panel öffnen */ };
+  headerExtraEl.appendChild(btn);
+
+  // 4. Render-Funktion
+  function render() {
+    const rows = core.filteredRows();
+    // ... SVG oder DOM aufbauen, in contentEl einhängen
+    diagEl.textContent = `n=${rows.length}`;
+  }
+
+  // 5. Config speichern
+  function saveConfig() { core.save('fhwa_boxchart', cfg); }
+
+  // 6. Events abonnieren
+  core.on('data',     render);
+  core.on('theme',    render);
+  core.on('filter',   render);
+  core.on('resize',   render);
+  core.on('settings', render);  // nur wenn core.state.urlTemplate genutzt wird
+}
+```
+
+---
+
+## localStorage-Keys
+
+| Key | Datei | Inhalt |
+|---|---|---|
+| `fhwa_layout2` | core.js | `{ [visualId]: { col, row, w, h } }` für alle Cards |
+| `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenStates[], stateOrder[] |
+| `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
+| `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected'`), stateOrder[] |
+| `fhwa_global` | core.js | squadFilter[], urlTemplate |
+| `fhwa_theme` | core.js | `'dark'` \| `'light'` |
+| `fhwa_boxchart` | boxchart.js | *(noch nicht implementiert)* |
+
+**Hinweis:** `fhwa_layout` (ohne `2`) war der Key der alten Single-File-Version (v1.x). Wird ignoriert.
+
+---
+
+## Theme-System
+
+### CSS-Variablen (in index.html)
+
+```css
+/* Dark (Standard) */
+:root { --bg:#0f1c30; --bg2:#162035; --bg3:#1e2e47; --bg4:#273552;
+  --border:#2a3d5c; --text:#e8f0fe; --dim:#8ba8c8; --dimmer:#4d6a88;
+  --blue:#38bdf8; --red:#f87171; --green:#4ade80; --yellow:#fbbf24;
+  --purple:#c084fc; --orange:#fb923c; }
+
+/* Light */
+[data-theme="light"] { --bg:#f1f5f9; --bg2:#ffffff; --bg3:#f8fafc; --bg4:#e2e8f0;
+  --border:#cbd5e1; --text:#0f172a; --dim:#475569; --dimmer:#94a3b8;
+  --blue:#0284c7; --red:#dc2626; --green:#16a34a; --yellow:#b45309;
+  --purple:#7c3aed; --orange:#c2410c; }
+```
+
+`data-theme` sitzt auf `<html>`. Theme-Toggle ruft `core.toggleTheme()` auf, das 'theme'-Event emittiert — alle Visuals rendern neu.
+
+### Farbpaletten
+
+| | Dark | Light |
+|---|---|---|
+| Heatmap-Gradient | Navy `[28,42,63]` → Rot `[192,57,43]` | Hellblau `[219,234,254]` → Orange `[251,146,60]` |
+| Scatter-Palette | `#38bdf8, #fb923c, #a78bfa, …` | `#0284c7, #c2410c, #7c3aed, …` |
+| Dot-Halo | `rgba(0,0,0,0.45)` | `rgba(255,255,255,0.6)` |
+
+**Regel:** Nie SVG-Farben hardcoden. Immer `core.scatterColors()` oder CSS-Variablen verwenden.
+
+---
+
+## Dashboard-Grid
+
+```
+GRID_COLS = 12      (Spalten)
+GRID_ROW_H = 70px   (Zeilenhöhe)
+```
+
+**Drag:** Handle `⠿` → `core._initDrag(id)` → mousemove verschiebt frei → mouseup: `_snapToGrid()` → Kollisionsprüfung → bei Überlappung Revert → `_saveLayout()`.
+
+**Resize:** Ecke rechts unten → `core._initResize(id)` → gleicher Ablauf.
+
+**Überlappungsschutz:**
+```javascript
+function _overlap(a, b) {
+  return a.col < b.col+b.w && a.col+a.w > b.col &&
+         a.row < b.row+b.h && a.row+a.h > b.row;
+}
+// In _snapToGrid(): wenn blocked → _grid[id] = {...origGrid} (Revert)
+```
+
+**Scroll:** `_updateCanvasH()` setzt `#dash-canvas.style.minHeight` live im mousemove.
+
+**Default-Layout:** Wenn kein gespeichertes Layout vorhanden, verteilt `initLayout()` alle Cards gleichmäßig auf die volle Breite und die verfügbare Viewport-Höhe.
+
+---
+
+## Design-Standards (verbindlich für alle Visuals)
+
+Diese Standards werden bei jedem neuen Visual von Anfang an eingehalten – nicht erst wenn Oliver sie anfordert.
+
+### §9.1 Reihenfolge-Steuerung
+
+Wenn der Nutzer die Reihenfolge von Elementen im Visual steuern kann, wird **immer** das FlowHeatmap-Muster verwendet: ein In-Visual-Panel mit ▲/▼-Buttons pro Element und Drag-Handle.
+
+**Nie** stattdessen: einfaches Textfeld, Dropdowns.
+
+```
+┌─────────────────────────────┐
+│ ↕ Reihenfolge          [×] │   ← Button oben rechts öffnet Panel
+├─────────────────────────────┤
+│ 1. Analyse          [▲][▼] │
+│ 2. Entwicklung      [▲][▼] │
+│ 3. Test             [▲][▼] │
+└─────────────────────────────┘
+```
+
+Die gewählte Reihenfolge wird via `core.save('fhwa_[visualId]', cfg)` in localStorage gespeichert und überlebt den Browser-Reload.
+
+**Synchronisierung mit neuen/entfallenen Status:**
+```javascript
+// In render(): gespeicherte Reihenfolge mit aktuellen Zuständen abgleichen
+const currentStates = /* aktuell vorhandene Zustände aus Daten */;
+cfg.stateOrder = [
+    ...cfg.stateOrder.filter(s => currentStates.indexOf(s) >= 0),
+    ...currentStates.filter(s => cfg.stateOrder.indexOf(s) < 0)
+];
+```
+
+### §9.2 Diagnoseanzeige
+
+- Position: **immer in der Diag-Bar** (`diagEl.textContent`) – nicht im SVG
+- Standardmäßig: **immer sichtbar** (Diag-Bar ist fester Bestandteil jeder Card)
+- Inhalt mindestens: Anzahl der dargestellten Items (`n=42`)
+- Farbton und Styling: einheitlich über alle Visuals, nicht pro Visual anpassen
+
+### §9.3 Tooltip: boundary-safe + klickbare Links
+
+**Tooltip darf nie am Rand des Visuals abgeschnitten werden.** Pflichtimplementierung:
+
+```javascript
+function positionTooltip(tooltip, mouseX, mouseY, container) {
+    const ttW = tooltip.offsetWidth  || 200;
+    const ttH = tooltip.offsetHeight || 100;
+    const cW  = container.clientWidth;
+    const cH  = container.clientHeight;
+
+    let left = mouseX + 12;
+    if (left + ttW > cW) left = mouseX - ttW - 12;
+    if (left < 0) left = 0;
+
+    let top = mouseY + 12;
+    if (top + ttH > cH) top = mouseY - ttH - 12;
+    if (top < 0) top = 0;
+
+    tooltip.style.left = left + 'px';
+    tooltip.style.top  = top  + 'px';
+}
+```
+
+Tooltip muss `position: absolute` **im Card-Container** haben. Mouse-Koordinaten relativ zum Container:
+
+```javascript
+container.addEventListener('mousemove', (e) => {
+    const rect = container.getBoundingClientRect();
+    positionTooltip(tooltip, e.clientX - rect.left, e.clientY - rect.top, container);
+});
+```
+
+**Tooltips mit klickbaren Links (Hover-Delay-Muster):**
+
+```javascript
+// pointerEvents dynamisch umschalten
+tooltip.style.pointerEvents = item.url ? 'all' : 'none';
+
+// 120ms Delay damit Maus vom Punkt auf Tooltip wechseln kann
+let _hideTimer = null;
+const _showTt = () => { if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; } };
+const _hideTt = () => { _hideTimer = setTimeout(() => tooltip.style.display = 'none', 120); };
+
+tooltip.addEventListener('mouseenter', _showTt);
+tooltip.addEventListener('mouseleave', _hideTt);
+
+// Datenpunkte: mouseout → _hideTt() statt direktem display:none
+dot.addEventListener('mouseover',  () => { _showTt(); /* Tooltip befüllen */ });
+dot.addEventListener('mouseout',   () => { _hideTt(); });
+
+// Cursor auf Datenpunkten mit URL
+dot.style.cursor = item.url ? 'pointer' : 'default';
+```
+
+**Links öffnen:**
+```javascript
+window.open(url, '_blank');  // kein host.launchUrl — standalone HTML
+```
+
+**Vor jeder Auslieferung prüfen:** Tooltip an allen vier Ecken des Visuals testen.
+
+### §9.4 N-Anzeige
+
+Jedes Visual zeigt die Anzahl der dargestellten Elemente (N) an.
+
+**Platzierungsregeln:**
+- Bei **Säulen/Kategorien auf der X-Achse** (BoxChart, WIPAge): N direkt **unter** jeder Kategoriebeschriftung als kleine, gedämpfte Zahl (`n=42`)
+- Bei **Scatterplots** (CycleTime): N als kompakter Infoblock **oben links** im Diagrammbereich
+- Bei **Heatmaps**: N als Zahl in jeder Zelle oder als Tooltip-Information
+- Wenn unklar: **fragen, nicht raten** (M1, M3)
+
+### §9.5 Skalierung
+
+Alle graphischen Elemente müssen sich proportional zur Visualgröße verhalten.
+
+```javascript
+// FALSCH – feste Punktgröße
+const r = 6;
+
+// RICHTIG – skaliert mit Container, konfigurierbar
+const baseDotSize = cfg.dotSize ?? 4;
+const r = Math.max(3, Math.min(8, pW / 100)) * (baseDotSize / 4);
+```
+
+- Schriftgrößen: relativ zum Container, nicht absolut
+- Spaltenbreiten/Zellhöhen: `100% / Anzahl` – nie feste Pixel
+- Nach jedem `resize`-Event neu berechnen und rendern
+
+### §9.6 Link-Feature (Standard für Visuals mit Jira-Link)
+
+Jedes Visual das `core.state.urlTemplate` nutzt, bekommt das Link-Feature als eingebauten Standard.
+
+**URL-Auflösungs-Logik** (Priorität: direkte URL-Spalte > Template > kein Link):
+```javascript
+function resolveUrl(key) {
+    if (item.rawUrl && item.rawUrl.trim()) return item.rawUrl.trim();
+    if (core.state.urlTemplate.trim()) return core.state.urlTemplate.replace(/\{issueKey\}/g, key);
+    return '';
+}
+```
+
+**Tooltip-Regeln:**
+- Link-Zeile nur wenn URL nicht leer
+- Trennlinie vor dem Link (`border-top: 1px solid #334155; margin: 5px 0 4px`)
+- `pointerEvents: 'all'` auf Tooltip wenn Link vorhanden (§9.3)
+- Hover-Delay-Muster (§9.3)
+- `settings`-Event abonnieren: `core.on('settings', render)` wenn `urlTemplate` genutzt
+
+---
+
+## WIPAge Chart – Details
+
+**Aktiv-Logik:** `In Progress_first` gefüllt **UND** `Resolved` leer **UND** `Rejected` leer.  
+Ein Item ist erledigt wenn `Resolved` **oder** `Rejected` gefüllt ist (XOR — nur eines kann befüllt sein).
+
+**Status-Age Y-Achse (Dual-Period-Logik):**
+```
+X_first == X (gleicher Tag)?
+├── Ja  → age = heute − X
+└── Nein → age = (leaving_X_first − X_first) + (heute − X)
+```
+Fallback: wenn nur `X_first` vorhanden (kein `X`): `age = heute − X_first`.
+
+**Rolling Pace:**
+- Nur `Resolved`-Items (kein `Rejected`) fließen in die Pace-Berechnung ein
+- Zeitfenster: letzte `rollingDays` Tage gerechnet vom `Resolved`-Datum
+- Dauerkalkulation pro Status ebenfalls mit Dual-Period-Logik:
+```
+X_first == X?
+├── Ja  → dauer = leaving_X − X + 1
+└── Nein → dauer = (leaving_X_first − X_first + 1) + (leaving_X − X + 1)
+```
+- Ergebnis: P25/P50/P85/P90 als gestaffelte Farbzonen + gestrichelte Linien
+
+**Pace-Bänder (Farbzonen pro Status-Spalte):**
+
+| Zone | Bereich | Farbe | Bedeutung |
+|---|---|---|---|
+| 1 | 0 → P25 | Grün `rgba(100,185,100,0.10)` | Im grünen Bereich |
+| 2 | P25 → P50 | Gelbgrün `rgba(180,210,80,0.10)` | Untere Hälfte normal |
+| 3 | P50 → P85 | Gelb/Orange `rgba(230,180,40,0.10)` | Obere Hälfte normal |
+| 4 | P85 → P90 | Orange-Rot `rgba(220,100,40,0.12)` | Kritisch |
+| 5 | P90 → oben | Rot `rgba(210,50,50,0.10)` | Überfällig |
+
+Linienfarben: P25 `#64B964` · P50 `#A8C034` · P85 `#E68C3C` · P90 `#E84040`
+
+**Dot-Farben:**
+- Normal: `var(--blue)`
+- Alert (≥ `statusAgeDays` Tage): `cfg.alertColor` (Default `var(--red)`, konfigurierbar via Color-Picker im ⚙-Panel)
+
+**Jitter:** Dots pro Status-Spalte werden horizontal gestreut (`± colW * 0.35`, max ±18px).
+
+**Config-Panel (⚙ Einstellungen):**
+
+| Property | Typ | Default | Beschreibung |
+|---|---|---|---|
+| `rollingDays` | number | `90` | Zeitfenster Perzentil-Berechnung |
+| `statusAgeDays` | number | `5` | Alert-Schwellwert in Tagen |
+| `dotSize` | number | `4` | Basis-Radius (skaliert mit pW) |
+| `showBands` | bool | `true` | Farbzonen + P25/P50/P85/P90-Linien ein/ausblenden |
+| `excludeList` | string | `'Rejected'` | Komma-getrennte Status ausblenden |
+| `alertColor` | string | `var(--red)` | Farbe überfälliger Dots |
+
+**Reihenfolge-Panel (↕):** Exaktes heatmap.js-Muster – `⠿` Drag-Handle + ▲/▼ Buttons. Gespeichert in `cfg.stateOrder`.
+
+**Dot-Radius-Formel:** `Math.max(3, Math.min(8, pW/100)) * (cfg.dotSize/4)` — konsistent mit scatter.js.
+
+**Tooltip** zeigt: Jira-ID · Status · Alter im Status · P25/P50/P85/P90-Pace-Werte · Basis-n · Link
+
+---
+
+## CycleTime Scatterplot – Details
+
+**CT-Formel:** `(endDate − startDate) / 86400000 + 1` (inklusiv, konsistent mit `core.dur()`)  
+Items mit `ct < 1` werden ausgeschlossen.
+
+**SVG-Rendering:** `svgEl.innerHTML = parts.join('')` — erlaubt in Browser-Kontext.
+
+**Achsen:**
+- X: Fertigstellungsdatum (`cfg.ctEnd`), Ticks nach Woche/Monat/Quartal
+- Y: CT in Tagen, `_niceYTicks()` für schöne Rundwerte
+
+**Dot-Rendering:**
+- Radius: `Math.max(3.5, Math.min(6, pW/80))`
+- Opacity: 0.95
+- Stroke-Halo: `stroke="${C.dotStroke}" stroke-width="1.5"`
+
+**Farb-Modi:** `single` → cfg.singleColor · `issueType` → cfg.typeColors[type] · `heatmap` → `core.lerp(ct/maxCT)`
+
+**Tooltip:** Hover-Delay-Muster (§9.3), `window.open(url, '_blank')` für Links.
+
+---
+
+## Patch-Strategie: Wann neu schreiben statt patchen
+
+**Faustregel:** Wenn mehr als **2 Patches** auf dieselbe Datei gehen → Datei komplett neu schreiben.
+
+Symptome, die zum Neuschreiben zwingen:
+- Jeder Fix erzeugt einen neuen Bug an anderer Stelle
+- Der Chat wird sehr lang und das Kontextfenster ist voll
+- Die ursprüngliche Logik ist nach mehreren Patches nicht mehr nachvollziehbar
+
+**Bei Neuschreiben:** Zuerst die Anforderungen explizit auflisten, dann einen vollständigen Entwurf schreiben – nicht schrittweise ergänzen.
+
+---
+
+## Bekannte Bugs und Lösungen
+
+**Bug 1: Scrollbalken fehlte nach Card-Drag**
+- Symptom: Card über sichtbaren Bereich ziehen → kein Scrollbalken
+- Ursache: Cards in `position:absolute` ohne berechnete Container-Höhe
+- Fix: Innerer `#dash-canvas`; `_updateCanvasH()` setzt `minHeight` live im mousemove
+
+**Bug 2: Cards überlappten sich (v1.1 → v1.2)**
+- Symptom: Nach Drag/Resize konnte eine Card die andere überdecken
+- Ursache: Kein Kollisionscheck
+- Fix: `_overlap(a, b)` + `origGrid`-Revert in `_snapToGrid()`
+
+**Bug 3: Issue-Type Legende fehlte im Scatterplot**
+- Symptom: Farb-Modus „Typ" ohne Legende
+- Fix: SVG-Legende oben rechts im Plotbereich
+
+**Bug 4: WIPAge zeigte Rejected-Items als aktiv**
+- Symptom: Abgelehnte Items erschienen im WIPAge-Chart als aktive WIP-Items
+- Ursache: Aktiv-Filter prüfte nur `Resolved`, nicht `Rejected`
+- Fix: `rejected == null` als dritte Bedingung im Aktiv-Filter ergänzt
+
+**Bug 5: WIPAge ignorierte Mehrfach-Status-Durchläufe**
+- Symptom: Alter und Rolling Pace zu niedrig bei Items die einen Status zweimal durchlaufen haben
+- Ursache: `_first`-Spalten wurden nicht ausgewertet
+- Fix: Dual-Period-Logik — wenn `X_first != X`: beide Zeiträume addieren
+
+**Bug 6: Rolling Pace bezog Rejected-Items ein**
+- Symptom: Pace-Werte durch abgelehnte Items verfälscht
+- Ursache: `completedRows`-Filter prüfte nur `Resolved`-Datum
+- Fix: Rolling Pace filtert ausschließlich auf `Resolved`-Items
+
+**Bug 7: WIPAge-Bänder falsche Perzentile und fehlende Farbzonen**
+- Symptom: Bänder zeigten P50/P70/P85 als reine Linien ohne Fläche
+- Ursache: Falsche Perzentil-Auswahl; keine Flächen-Darstellung
+- Fix: Umstellung auf P25/P50/P85/P90; SVG-Rechtecke als Farbzonen hinter den Linien
+
+---
+
+## Workflow-Checklisten
+
+### Phase 1: Vor der Umsetzung (neues Visual)
+- [ ] **SDD-Interview (§0.0) vollständig durchgeführt?** (Blöcke A–G)
+- [ ] **`docs/specs/VisualName.md` erstellt und von Oliver bestätigt?** (§13)
+- [ ] **Gate 1 (SDD-Bestätigung) durchgeführt?** (§0.1)
+- [ ] HTML-Prototyp freigegeben? (M6, §0.8)
+- [ ] Link-Feature in SDD Block F entschieden?
+
+### Phase 2: Beim Entwickeln
+- [ ] Visual erzeugt eigene Card via `core.createCard()`?
+- [ ] Config-State lokal im Visual (nie in `core.state` schreiben)?
+- [ ] localStorage-Key nach Schema `fhwa_[visualId]`?
+- [ ] Events korrekt abonniert (data, theme, filter, resize, ggf. settings)?
+- [ ] **Tooltip boundary-safe** (positionTooltip mit Overflow-Prüfung, §9.3)?
+- [ ] Tooltips mit Links: Hover-Delay (120ms) + `pointerEvents` dynamisch? (§9.3)
+- [ ] N-Anzeige eingebaut? (§9.4)
+- [ ] Reihenfolge-Steuerung als ▲/▼-Panel? (falls benötigt, §9.1)
+- [ ] Alle Elemente skalieren mit Container-Größe? (§9.5)
+- [ ] Keine hardcodierten SVG-Farben? (§9 Farb-Regel)
+- [ ] Dual-Period-Logik beachtet? (`_first`-Spalten)
+- [ ] Aktiv/Erledigt-Logik korrekt? (XOR: Resolved oder Rejected)
+- [ ] Neues Visual: `index.html` + `build.py` an allen Stellen aktualisiert?
+- [ ] Chat bei Nachricht 15: Übergabe-Dokument angeboten? (M4, §0.6)
+
+### Phase 3: Vor der Übergabe – Gate 2 durchführen
+- [ ] **Gate 2 (Pre-Delivery Review) vollständig abgehakt** (§0.2)
+- [ ] Nur geänderte `.js`-Datei(en) übergeben (`core.js` + `index.html` nur wenn explizit geändert)
+- [ ] Neue Bugs während Entwicklung → „Bekannte Bugs und Lösungen" ergänzt? (M5, §0.7)
+
+### Phase 4: Fehlerbehebung (ersetzt Phase 1–3 bei reinen Bugfixes)
+
+**Vorbereitung**
+- [ ] Bug klar beschrieben (Symptom, wann tritt er auf, was wurde erwartet)?
+- [ ] Betroffene `.js`-Datei(en) + ggf. `core.js` hochgeladen?
+
+**Analyse**
+- [ ] Ist der Bug eine **Spec-Lücke**? (Edge Case fehlte in SDD Block D oder G)
+  - Ja → **SDD.md zuerst updaten**, dann fixen (§0.7 M5)
+  - Nein → direkt fixen
+
+**Fix & Übergabe**
+- [ ] Korrektur implementiert?
+- [ ] Geänderte `.js`-Datei(en) übergeben; bei Bundle-Bedarf `build.py` → `FlowAnalytics.html`
+- [ ] M5: Bug dokumentiert in „Bekannte Bugs und Lösungen" (§0.7)?
+
+---
+
+## SDD-Vorlage (§13)
+
+Diese Vorlage wird vom SDD-Interview (§0.0) ausgefüllt. Alle Abschnitte sind Pflicht.
+
+**Dateiname:** `docs/specs/VisualName.md`  
+**Erstellt:** vor Gate 1 · **Aktualisiert:** nach jeder bestätigten Änderung
+
+```markdown
+# [VisualName] – Spezifikation
+
+**Version:** 1.0  
+**Datum:** YYYY-MM-DD  
+**Status:** [ ] Entwurf → [ ] Bestätigt (Gate 1) → [ ] Implementiert
+
+---
+
+## A – Zweck & Abgrenzung
+
+### Was das Visual macht
+[2–3 Sätze: welches Problem löst es, für wen, was ist der Kern-Output]
+
+### Was es NICHT macht
+- [Explizite Ausschlüsse, z.B. "kein Cross-Filter zwischen Visuals"]
+
+### Technologie
+[x] Web-App (.js + core.js, standalone HTML in SharePoint)
+
+---
+
+## B – Datenmodell
+
+### Excel-Spalten
+| Spaltenname | Typ | Pflicht? | Erkennungslogik | Fallback wenn fehlt |
+|---|---|---|---|---|
+| Jira-ID | Text | ✅ | Name exakt | Visual zeigt Fehlermeldung |
+| [weitere] | | | | |
+
+### Erkennungslogik Workflow-Zustände
+[Wie unterscheidet das Visual relevante Spalten von Meta-Spalten?]
+[z.B. "Spalte ist Zustand wenn nicht in META_COLS, kein leaving_-Präfix, kein _first-Suffix"]
+
+### Dual-Period-Logik
+[ ] Visual nutzt _first-Spalten → Dual-Period-Logik implementieren
+[ ] Visual nutzt keine _first-Spalten
+
+---
+
+## C – UX & Layout
+
+### Hauptbereiche (ASCII-Sketch)
+\```
+┌─────────────────────────────────────────┐
+│  [Card-Header: Titel + Controls]        │
+├─────────────────────────────────────────┤
+│  [Hauptbereich: Chart / Heatmap / etc.] │
+├─────────────────────────────────────────┤
+│  [Diag-Bar]                             │
+└─────────────────────────────────────────┘
+\```
+
+### Interaktionen
+| Aktion | Trigger | Effekt |
+|---|---|---|
+| Tooltip anzeigen | mouseover auf Datenpunkt | Tooltip mit [Felder] erscheint, boundary-safe |
+| Tooltip ausblenden | mouseout (+ 120ms Delay wenn Link) | Tooltip display:none |
+| [weitere] | | |
+
+### Leerzustand
+[Was sieht der Nutzer bei: keine Daten / alle Items herausgefiltert / Pflicht-Spalte fehlt]
+
+### Responsive-Verhalten
+[Wie verändern sich Punkte/Balken/Zellen/Schrift wenn die Card kleiner wird]
+
+---
+
+## D – Berechnungslogik
+
+### Kern-Metriken
+| Metrik | Formel | Einheit | Besonderheiten |
+|---|---|---|---|
+| [Name] | `(endDate - startDate) / 86400000 + 1` | Tage | Inklusiv, Items < 1 ausgeschlossen |
+| [weitere] | | | |
+
+### Filter- & Aggregationslogik
+[Welche Items werden ausgeschlossen? Welche Bedingungen müssen erfüllt sein?]
+
+### Edge Cases
+| Situation | Verhalten |
+|---|---|
+| Item ohne Pflicht-Datum | Wird übersprungen, N sinkt, Diag-Hinweis |
+| Leere Gruppe / Status | [ausblenden / als leer anzeigen] |
+| Math.max() auf leerem Array | Abgesichert: `values.length ? Math.max(...values) : 0` |
+| [weitere] | |
+
+---
+
+## E – Config (localStorage)
+
+localStorage-Key: `fhwa_[visualId]`
+
+### Alle Properties
+| Property | Typ | Default | Min | Max | Effekt | Validierung |
+|---|---|---|---|---|---|---|
+| [property] | [Typ] | [Default] | | | | |
+
+---
+
+## F – Design-Standards (Pflichtcheck)
+
+| Standard | Entscheidung | Details |
+|---|---|---|
+| Tooltip boundary-safe | ✅ Pflicht | positionTooltip() mit Overflow-Prüfung (§9.3) |
+| Tooltip mit Links | [ja / nein] | Hover-Delay 120ms + pointerEvents (§9.3) |
+| N-Anzeige | ✅ Pflicht | Position: [unter Kategorie / oben links / in Zelle] (§9.4) |
+| Reihenfolge-Panel | [ja / nicht benötigt] | ▲/▼ + Drag, localStorage (§9.1) |
+| Skalierung | ✅ Pflicht | [Formel für Dot-Radius / Zellgröße] (§9.5) |
+| Diagnosemodus | ✅ Pflicht, immer sichtbar | Diag-Bar, Inhalt: [n=X, ...] (§9.2) |
+| Link-Feature | [ja: urlTemplate + window.open / nicht benötigt] | core.state.urlTemplate (§9.6) |
+| Theme | ✅ Pflicht | core.scatterColors() / CSS-Variablen, nie hardcoden |
+
+---
+
+## G – Akzeptanzkriterien
+
+### Automatisch von Claude prüfbar
+- [ ] Keine hardcodierten Farben im Code
+- [ ] localStorage-Key nach Schema fhwa_[visualId]
+- [ ] Events korrekt abonniert
+
+### Manuell durch Oliver zu testen
+- [ ] Tooltip bleibt vollständig sichtbar an allen 4 Ecken der Card
+- [ ] Config-State überlebt Browser-Reload
+- [ ] Bei 0 Datenzeilen: Diagnosemeldung sichtbar, kein JS-Error in Console
+- [ ] Card auf 200px Breite → Elemente skalieren proportional
+- [ ] [weiterer projektspezifischer Test]
+
+---
+
+## Änderungshistorie
+
+| Datum | Version | Änderung | Bestätigt von |
+|---|---|---|---|
+| YYYY-MM-DD | 1.0 | Initiale Spec nach SDD-Interview | Oliver |
+```
+
+---
+
+## Nächste mögliche Features (Backlog)
+
+| Feature | Datei | Aufwand | Hinweis |
+|---|---|---|---|
+| ~~**LeadTime BoxChart**~~ | ~~`boxchart.js`~~ | ~~mittel~~ | ✅ Implementiert v2.5 |
+| **CFD (Cumulative Flow)** | `cfd.js` | groß | Stapelflächen über Zeit |
+| **Card-Titel editierbar** | index.html | klein | `contenteditable` auf `.card-title` |
+| **Card minimieren** | core.js | klein | `.card-content` auf `height:0` klappen |
+
+---
+
+## Hinweise für neuen Chat-Start
+
+**Datei hochladen:** Immer nur diese eine Datei: `docs/WebAppEntwickeln.md`
+
+| Vorhaben | Zusätzlich hochladen |
+|---|---|
+| Neues Visual schreiben | `docs/WebAppEntwickeln.md` + `src/core.js` |
+| Bestehendes Visual ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + betroffene `.js`-Datei |
+| WIPAge ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/wipage.js` |
+| BoxChart ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/boxchart.js` |
+| index.html anpassen | `docs/WebAppEntwickeln.md` + `src/index.html` |
+| Spec nachschlagen / ändern | `docs/WebAppEntwickeln.md` + `docs/specs/VisualName.md` |
+
+**Einstiegssatz:**
+> „Wir entwickeln das Flow Analytics Dashboard weiter. Lies bitte WebAppEntwickeln.md und core.js. Ich möchte [Feature] ergänzen."
+
+Für neue Visuals: Claude startet automatisch das SDD-Interview (§0.0) bevor Code geschrieben wird.
+
+**Wichtig:**
+- Neue Visuals immer in eigener `.js`-Datei — nie bestehende Dateien erweitern
+- Config-State immer lokal im Visual halten — nie in `core.state` schreiben
+- Theme-Farben immer über `core.scatterColors()` oder CSS-Variablen — nie hardcoden
+- localStorage-Key nach Schema `fhwa_[visualId]` benennen
+- Zeitberechnungen immer mit Dual-Period-Logik (`_first`-Spalten beachten) — gilt für alle Visuals
+- Aktiv/Erledigt-Logik: erledigt = `Resolved` XOR `Rejected` gefüllt
+
+---
+
+*Erstellt: 2026-06-03 · Autor: Oliver Wolter*  
+*v3.1: Projektstruktur auf project-root/docs/specs/ umgestellt. Spec-Dateinamen ohne „SDD"-Suffix (docs/specs/VisualName.md). Alle internen Referenzen aktualisiert. Chat-Start-Tabelle um src/-Pfade und specs/-Zeile ergänzt.*
