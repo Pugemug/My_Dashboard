@@ -44,7 +44,7 @@ export function init() {
   const { cardEl, contentEl, headerExtraEl, diagEl } = core.createCard({
     id:          'heatmap',
     title:       'Flow<span class="hl">Heatmap</span>',
-    defaultGrid: { col: 0, row: 0, w: 8, h: 12 },
+    defaultGrid: { col: 0, row: 0, w: 12, h: 12 },
   });
 
   // ── 3. Header-Controls bauen ─────────────────

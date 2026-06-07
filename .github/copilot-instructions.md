@@ -17,12 +17,17 @@ project-root/
       WIPAge.md
       [VisualName].md          ← künftige Specs
   src/
-    index.html      ← Einstiegspunkt, Layout, CSS, Modul-Imports
-    core.js         ← Gemeinsame Engine – State, Grid, Theme, Events, Utils
-    heatmap.js      ← FlowHeatmap Visual
-    scatter.js      ← CycleTime Scatterplot
-    wipage.js       ← WIPAge Chart
-    boxchart.js     ← LeadTime BoxChart
+    index.html         ← Einstiegspunkt, Layout, CSS, Modul-Imports
+    core.js            ← Gemeinsame Engine – State, Grid, Theme, Events, Navigation, Utils
+    heatmap.js         ← FlowHeatmap Visual
+    scatter.js         ← CycleTime Scatterplot
+    wipage.js          ← WIPAge Chart
+    boxchart.js        ← LeadTime BoxChart (Tile auf Lieferfähigkeit-Page, core.createTile())
+    saydoratio.js      ← Say_Do_Ratio KPI (Epics-Sheet, Quartals-Verlauf)
+    wipkpi.js          ← WIP KPI-Card (JiraStories)
+    flowefficiency.js  ← Flow Efficiency (JiraStories + BlockedReasons JOIN)
+    happiness.js       ← Happiness Faktor Visual (Sheet: 'Happiness Faktor')
+    akzeptanz.js       ← Akzeptanzkriterien KPI (dediziertes Sheet)
   tools/
     build.py        ← Bündelt ES-Module zu FlowAnalytics.html
   Web App/
@@ -39,7 +44,59 @@ project-root/
 - Config-State immer **lokal im Visual** via `core.load('fhwa_[id]', defaults)` – nie in `core.state` schreiben
 - localStorage-Keys nach Schema: **`fhwa_[visualId]`**
 - Events abonnieren: `core.on('data' | 'theme' | 'filter' | 'resize', render)` + `'settings'` wenn `core.state.urlTemplate` genutzt wird
-- Neues Visual: **3 Stellen** aktualisieren – neue `.js`-Datei, `index.html` (import + init), `build.py` (4 Stellen)
+- Neues Visual: **3 Stellen** aktualisieren – neue `.js`-Datei, `index.html` (import + init + Page-Zuordnung), `build.py` (4 Stellen)
+- **Lieferfähigkeit-Visuals** → `core.createTile({ id, title })` · **Deep-Dive-Visuals** → `core.createCard({ id, title, defaultGrid })`
+
+### Zwei Rendering-Modelle
+
+| Modell | Factory | Container | Seiten |
+|---|---|---|---|
+| **Tile** | `core.createTile()` | `#tile-canvas-[pageId]` (CSS-Grid) | lieferfahigkeit |
+| **Card** | `core.createCard()` | `#page-canvas-[pageId]` (position:relative) | wipage, scatter, heatmap |
+
+```javascript
+// Tile (Lieferfähigkeit) – kein Drag/Resize, feste Höhe var(--tile-h)
+const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
+  id: 'wipkpi', title: 'WIP<span class="hl">KPI</span>',
+});
+
+// Card (Deep-Dive) – Drag/Resize, Grid-Positionierung
+const { cardEl, contentEl, headerExtraEl, diagEl } = core.createCard({
+  id: 'wipage', title: 'WIP<span class="hl">Age</span>',
+  defaultGrid: { col: 0, row: 0, w: 12, h: 10 },
+});
+```
+
+### Navigation & Pages
+
+Die App hat eine persistente **linke Sidebar** mit 4 Pages:
+
+| Page-ID | Label | Visuals |
+|---|---|---|
+| `lieferfahigkeit` | Lieferfähigkeit | boxchart, saydoratio, wipkpi, flowefficiency, happinessfaktor, akzeptanz |
+| `wipage` | Was liegt gerade rum? | wipage |
+| `scatter` | Wie lange dauert ein Ticket? | scatter |
+| `heatmap` | Wo verbringen Tickets ihre Zeit? | heatmap |
+
+```javascript
+core.showPage('lieferfahigkeit');   // Page wechseln
+core.state.activePage               // → aktuell sichtbare Page-ID
+```
+
+### Multi-Sheet-Loading
+
+`core.state.sheets` enthält alle Worksheets der Excel-Datei als generische Map:
+
+```javascript
+// Zugriff in Visuals – immer mit ?? [] absichern
+const epics   = core.state.sheets['Epics']          ?? [];
+const blocked = core.state.sheets['BlockedReasons'] ?? [];
+
+// core.state.rows bleibt als Alias für JiraStories (Kompatibilität)
+core.state.rows === core.state.sheets['JiraStories']  // true
+```
+
+Fehlt ein Sheet → leeres Array → Visual zeigt Leerzustand. Kein Core-Umbau nötig.
 
 ---
 

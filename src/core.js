@@ -1,6 +1,7 @@
 // ════════════════════════════════════════════════
 // core.js  –  Shared Engine (State · Grid · Theme · Utils · Events)
-// Flow Analytics Dashboard v2.0
+// Flow Analytics Dashboard v2.1
+// Phase 1a: Multi-Sheet-Loading + Navigation/Sidebar
 // ════════════════════════════════════════════════
 
 // ── Constants (exported for use in visuals) ──
@@ -10,6 +11,20 @@ export const LT_END_DEFAULT    = 'Resolved';
 
 const GRID_COLS  = 12;
 const GRID_ROW_H = 70;   // px per grid row
+
+// ── Card → Page routing (kein Visual-JS anfassen nötig) ──
+// Neue Visuals hier eintragen: 'visualId': 'pageId'
+const CARD_PAGE_MAP = {
+  'heatmap':        'heatmap',
+  'scatter':        'scatter',
+  'wipage':         'wipage',
+  'boxchart':       'lieferfahigkeit',
+  'saydoratio':     'lieferfahigkeit',
+  'wipkpi':         'lieferfahigkeit',
+  'flowefficiency': 'lieferfahigkeit',
+  'happinessindex': 'lieferfahigkeit',
+  'akzeptanz':      'lieferfahigkeit',
+};
 
 const COLOR_MIN_DARK  = [28,  42,  63 ];
 const COLOR_MAX_DARK  = [192, 57,  43 ];
@@ -30,7 +45,7 @@ export const META_COLS = new Set([
 // ── Internal grid state ──
 const _listeners  = {};           // { event: [fn, …] }
 const _gridMap    = {};           // { id: {col,row,w,h} }
-const _cardMap    = {};           // { id: { el, defaultGrid } }
+const _cardMap    = {};           // { id: { el, defaultGrid, pageId } }
 let   _cardDrag   = null;
 let   _cardResize = null;
 let   _layoutInit = false;        // guard against double-init on second file load
@@ -42,17 +57,23 @@ export const core = {
 
   // ── Shared application state (read-only for visuals) ──
   state: {
-    rows:       [],
-    dateCols:   [],
-    states:     [],     // { name, entryCol, exitCol }[]
-    stateOrder: [],     // ordered names as detected from data
-    allSquads:  [],
-    hasSquad:   false,
+    rows:         [],
+    sheets:       {},     // { [sheetName]: Row[] } – alle geladenen Worksheets
+                          // Zugriff: core.state.sheets['Epics'] ?? []
+                          // rows === sheets['JiraStories'] (Alias, immer identisch)
+    sheetsRaw:    {},     // { [sheetName]: any[][] } – 2D-Array-Format (header:1)
+                          // für Sheets mit Custom-Headern (z.B. 'Happiness Faktor')
+    dateCols:     [],
+    states:       [],     // { name, entryCol, exitCol }[]
+    stateOrder:   [],     // ordered names as detected from data
+    allSquads:    [],
+    hasSquad:     false,
     hasIssueType: false,
-    squadFilter: [],    // [] = alle aktiv
-    fileName: '',
-    sheetName: '',
-    urlTemplate: '',    // global Jira URL-Template
+    squadFilter:  [],     // [] = alle aktiv
+    fileName:     '',
+    sheetName:    '',
+    urlTemplate:  '',     // global Jira URL-Template
+    activePage:   '',     // aktuell sichtbare Page-ID
   },
 
   // ── Event bus ──────────────────────────────────
@@ -159,7 +180,7 @@ export const core = {
     const next = core.isLight() ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', next);
     const btn = document.getElementById('btn-theme');
-    if (btn) btn.textContent = next === 'light' ? '🌙' : '☀';
+    if (btn) btn.textContent = next === 'light' ? '🌙 Dark' : '☀ Light';
     core.save('fhwa_theme', next);
     core.emit('theme');
   },
@@ -168,15 +189,60 @@ export const core = {
     const saved = core.load('fhwa_theme', 'dark');
     document.documentElement.setAttribute('data-theme', saved);
     const btn = document.getElementById('btn-theme');
-    if (btn) btn.textContent = saved === 'light' ? '🌙' : '☀';
+    if (btn) btn.textContent = saved === 'light' ? '🌙 Dark' : '☀ Light';
+  },
+
+  // ── Navigation ─────────────────────────────────
+  /**
+   * Wechselt zur gewählten Page: blendet alle Pages aus, zeigt pageId,
+   * setzt den aktiven Sidebar-Link und speichert in localStorage.
+   * Emittiert nach kurzem Delay 'resize' damit Visuals mit korrekter
+   * Container-Größe rendern.
+   */
+  showPage(pageId) {
+    document.querySelectorAll('.page').forEach(p => { p.style.display = 'none'; });
+    const page = document.getElementById('page-' + pageId);
+    if (page) page.style.display = page.classList.contains('page-flex') ? 'flex' : 'block';
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    document.querySelector(`.sidebar-link[data-page="${pageId}"]`)?.classList.add('active');
+    // Datencheck-Button aktiv/inaktiv in Sidebar-Bottom
+    const dcBtn = document.getElementById('btn-datencheck');
+    if (dcBtn) dcBtn.classList.toggle('sb-active', pageId === 'datencheck');
+    core.state.activePage = pageId;
+    core.save('fhwa_activePage', pageId);
+    // Layout neu anwenden + Resize-Event nach DOM-Paint.
+    // Cards auf bisher versteckten Pages hatten clientWidth=0 beim initLayout.
+    // Einzelkarten-Pages: col/row/w immer auf 0/0/12 normalisieren (old layout fix).
+    setTimeout(() => {
+      const pageCardIds = Object.entries(_cardMap)
+        .filter(([, c]) => c.pageId === pageId)
+        .map(([id]) => id);
+      if (pageCardIds.length === 1) {
+        const id = pageCardIds[0];
+        if (_gridMap[id]) {
+          _gridMap[id].col = 0;
+          _gridMap[id].row = 0;
+          _gridMap[id].w   = GRID_COLS;
+        }
+      }
+      pageCardIds.forEach(id => _applyCardLayout(id));
+      _updateCanvasH();
+      core.emit('resize');
+    }, 50);
+  },
+
+  /** Gibt die aktuell sichtbare Page-ID zurück. */
+  activePage() {
+    return core.state.activePage;
   },
 
   // ── Card factory ───────────────────────────────
   /**
-   * Creates a .card element, appends it to #dash-canvas, registers it with the grid.
-   * @param {string} id         – Visual ID (e.g. 'heatmap'). Card gets id="card-heatmap"
-   * @param {string} title      – innerHTML for .card-title
-   * @param {object} defaultGrid – { col, row, w, h } in grid units
+   * Erzeugt ein .card-Element und hängt es an den richtigen Page-Canvas
+   * (laut CARD_PAGE_MAP). Registriert die Card im Grid.
+   * @param {string} id          – Visual ID (z.B. 'heatmap'). Card bekommt id="card-heatmap"
+   * @param {string} title       – innerHTML für .card-title
+   * @param {object} defaultGrid – { col, row, w, h } in Grid-Einheiten
    * @returns {{ cardEl, contentEl, headerExtraEl, diagEl }}
    */
   createCard({ id, title, defaultGrid }) {
@@ -226,14 +292,68 @@ export const core = {
     resizeHandle.id = id + '-resize-handle';
     cardEl.appendChild(resizeHandle);
 
-    document.getElementById('dash-canvas').appendChild(cardEl);
+    // ── An den richtigen Page-Canvas hängen ──
+    const pageId = CARD_PAGE_MAP[id] || 'lieferfahigkeit';
+    const canvas  = document.getElementById('page-canvas-' + pageId);
+    (canvas || document.body).appendChild(cardEl);
 
     // ── Grid registration ──
     const savedLayout = core.load('fhwa_layout2', {});
     _gridMap[id] = savedLayout[id] ? { ...savedLayout[id] } : { ...defaultGrid };
-    _cardMap[id] = { el: cardEl, defaultGrid: { ...defaultGrid } };
+    _cardMap[id] = { el: cardEl, defaultGrid: { ...defaultGrid }, pageId };
 
     return { cardEl, contentEl, headerExtraEl, diagEl };
+  },
+
+  // ── Tile factory ───────────────────────────────
+  /**
+   * Erzeugt ein kompaktes .tile-Element und hängt es an den Tile-Canvas der
+   * zugehörigen Page (laut CARD_PAGE_MAP). Kein Drag, kein Resize, kein Grid.
+   * @param {string} id    – Visual ID (z.B. 'boxchart'). Tile bekommt id="tile-boxchart"
+   * @param {string} title – innerHTML für .tile-title
+   * @returns {{ tileEl, contentEl, headerExtraEl, diagEl }}
+   */
+  createTile({ id, title }) {
+    const tileEl = document.createElement('div');
+    tileEl.className = 'tile';
+    tileEl.id = 'tile-' + id;
+
+    // ── Header ──
+    const header = document.createElement('div');
+    header.className = 'tile-header';
+
+    const titleEl = document.createElement('span');
+    titleEl.className = 'tile-title';
+    titleEl.innerHTML = title;
+
+    const spacer = document.createElement('div');
+    spacer.className = 'tile-spacer';
+
+    const headerExtraEl = document.createElement('div');
+    headerExtraEl.style.cssText = 'display:contents';
+
+    header.appendChild(titleEl);
+    header.appendChild(spacer);
+    header.appendChild(headerExtraEl);
+    tileEl.appendChild(header);
+
+    // ── Content area ──
+    const contentEl = document.createElement('div');
+    contentEl.className = 'tile-content';
+    tileEl.appendChild(contentEl);
+
+    // ── Diag bar ──
+    const diagEl = document.createElement('div');
+    diagEl.className = 'diag-bar';
+    diagEl.textContent = '—';
+    tileEl.appendChild(diagEl);
+
+    // ── An den richtigen Tile-Canvas hängen ──
+    const pageId = CARD_PAGE_MAP[id] || 'lieferfahigkeit';
+    const canvas = document.getElementById('tile-canvas-' + pageId);
+    (canvas || document.body).appendChild(tileEl);
+
+    return { tileEl, contentEl, headerExtraEl, diagEl };
   },
 
   // ── App boot ───────────────────────────────────
@@ -242,42 +362,62 @@ export const core = {
 
     // Load saved global state
     const g = core.load('fhwa_global', null);
-    if (g && Array.isArray(g.squadFilter))   core.state.squadFilter  = g.squadFilter;
-    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate = g.urlTemplate;
+    if (g && Array.isArray(g.squadFilter))      core.state.squadFilter  = g.squadFilter;
+    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate  = g.urlTemplate;
 
     _initFileUpload();
-    _initTopbarButtons();
+    _initSidebarButtons();
+    _initSidebar();
   },
 };
 
 // ════════════════════════════════════════════════
 // Private: Grid helpers
 // ════════════════════════════════════════════════
-function _getColW() {
-  const canvas = document.getElementById('dash-canvas');
-  return (canvas ? canvas.clientWidth : window.innerWidth) / GRID_COLS;
+
+/**
+ * Gibt die Breite einer Grid-Spalte in px zurück.
+ * Sucht den Canvas-Container der Card per DOM-Traversal, damit jede Page
+ * ihren eigenen Koordinatenraum hat.
+ */
+function _getColW(id) {
+  if (id) {
+    const card   = document.getElementById('card-' + id);
+    const canvas = card?.parentElement;
+    if (canvas && canvas.clientWidth) return canvas.clientWidth / GRID_COLS;
+  }
+  // Fallback: erster Page-Canvas mit positiver Breite
+  const allCanvases = document.querySelectorAll('.page-canvas');
+  for (const c of allCanvases) {
+    if (c.clientWidth > 0) return c.clientWidth / GRID_COLS;
+  }
+  // Letzter Ausweg: Fensterbreite minus Sidebar
+  const sidebar = document.querySelector('.sidebar');
+  const sidebarW = sidebar ? sidebar.offsetWidth : 196;
+  return (window.innerWidth - sidebarW) / GRID_COLS;
 }
 
 function _applyCardLayout(id) {
   const card = document.getElementById('card-' + id);
   if (!card || !_gridMap[id]) return;
-  const g = _gridMap[id], cw = _getColW();
-  card.style.left   = (g.col * cw + 4)          + 'px';
-  card.style.top    = (g.row * GRID_ROW_H + 4)   + 'px';
-  card.style.width  = (g.w   * cw - 8)           + 'px';
-  card.style.height = (g.h   * GRID_ROW_H - 8)   + 'px';
+  const g  = _gridMap[id];
+  const cw = _getColW(id);
+  card.style.left   = (g.col * cw + 4)        + 'px';
+  card.style.top    = (g.row * GRID_ROW_H + 4) + 'px';
+  card.style.width  = (g.w   * cw - 8)         + 'px';
+  card.style.height = (g.h   * GRID_ROW_H - 8) + 'px';
 }
 
+/** Setzt minHeight auf jedem Page-Canvas so dass Drag-Cards scrollbar sind. */
 function _updateCanvasH() {
-  const canvas = document.getElementById('dash-canvas');
-  const dash   = document.getElementById('dashboard');
-  if (!canvas || !dash) return;
-  const maxB = Object.keys(_cardMap).reduce((m, id) => {
-    const c = document.getElementById('card-' + id);
-    if (!c) return m;
-    return Math.max(m, (parseFloat(c.style.top) || 0) + c.offsetHeight + 20);
-  }, 0);
-  canvas.style.minHeight = Math.max(maxB, dash.clientHeight) + 'px';
+  document.querySelectorAll('.page-canvas').forEach(canvas => {
+    const page  = canvas.closest('.page');
+    const pageH = page ? page.clientHeight : 0;
+    const maxB  = [...canvas.querySelectorAll('.card')].reduce((m, c) => {
+      return Math.max(m, (parseFloat(c.style.top) || 0) + c.offsetHeight + 20);
+    }, 0);
+    canvas.style.minHeight = Math.max(maxB, pageH) + 'px';
+  });
 }
 
 function _saveLayout() {
@@ -295,7 +435,7 @@ function _snapToGrid(cardId, origGrid) {
   const card = document.getElementById(cardId);
   if (!card) return;
   const id  = cardId.replace('card-', '');
-  const cw  = _getColW();
+  const cw  = _getColW(id);
   const left = parseFloat(card.style.left) || 0;
   const top  = parseFloat(card.style.top)  || 0;
   const w = card.offsetWidth, h = card.offsetHeight;
@@ -356,10 +496,10 @@ function _initResize(id) {
   });
 }
 
-// ── Layout init (called once after first file load) ──
+// ── Layout init (nach erstem Datei-Load aufgerufen) ──
 function _initLayout() {
   if (_layoutInit) {
-    // On subsequent loads: just re-apply positions
+    // Bei erneutem Laden: nur Positionen neu anwenden
     Object.keys(_cardMap).forEach(id => _applyCardLayout(id));
     _updateCanvasH();
     return;
@@ -392,7 +532,8 @@ document.addEventListener('mousemove', e => {
   if (_cardResize) {
     const card = document.getElementById(_cardResize.cardId);
     if (!card) return;
-    const cw = _getColW();
+    const id = _cardResize.cardId.replace('card-', '');
+    const cw = _getColW(id);
     const nw = Math.max(2 * cw, _cardResize.sw + (e.clientX - _cardResize.sx));
     const nh = Math.max(4 * GRID_ROW_H, _cardResize.sh + (e.clientY - _cardResize.sy));
     card.style.width  = nw + 'px';
@@ -454,7 +595,7 @@ function _saveGlobal() {
   });
 }
 
-function _initTopbarButtons() {
+function _initSidebarButtons() {
   // Theme toggle
   document.getElementById('btn-theme')?.addEventListener('click', () => core.toggleTheme());
 
@@ -463,7 +604,14 @@ function _initTopbarButtons() {
     document.getElementById('upload-screen').style.display = 'flex';
     document.getElementById('app-screen').style.display   = 'none';
     document.getElementById('file-input').value = '';
-    core.state.rows = [];
+    // Upload-Screen zurücksetzen
+    const dz = document.getElementById('drop-zone');
+    const dc = document.getElementById('page-datencheck');
+    if (dz) dz.style.display = '';
+    if (dc) dc.innerHTML = '';
+    core.state.rows      = [];
+    core.state.sheets    = {};
+    core.state.sheetsRaw = {};
   });
 
   // Squad dropdown toggle
@@ -471,6 +619,7 @@ function _initTopbarButtons() {
     const dd   = document.getElementById('squad-dropdown');
     const open = dd.classList.toggle('open');
     document.getElementById('btn-squad').classList.toggle('p-blue', open);
+    document.getElementById('btn-squad').classList.toggle('pf-active', open);
   });
 
   // Squad select all / none
@@ -483,15 +632,22 @@ function _initTopbarButtons() {
     _onSquadFilterChange();
   });
 
-  // Settings panel
+  // Settings panel – position:fixed, dynamisch neben dem Sidebar-Button platzieren
   const urlInput = document.getElementById('settings-url-input');
   if (urlInput) urlInput.value = core.state.urlTemplate;
 
-  document.getElementById('btn-settings')?.addEventListener('click', () => {
+  document.getElementById('btn-settings')?.addEventListener('click', (e) => {
     const panel = document.getElementById('settings-panel');
     const btn   = document.getElementById('btn-settings');
     const open  = panel.classList.toggle('open');
-    btn.classList.toggle('p-blue', open);
+    btn.classList.toggle('sb-active', open);
+    if (open) {
+      // Panel rechts neben der Sidebar positionieren
+      const rect = btn.getBoundingClientRect();
+      panel.style.left   = (rect.right + 8) + 'px';
+      const top = Math.min(rect.top, window.innerHeight - 180);
+      panel.style.top    = Math.max(8, top) + 'px';
+    }
   });
 
   if (urlInput) {
@@ -507,7 +663,7 @@ function _initTopbarButtons() {
     const wrap = document.getElementById('settings-wrap');
     if (wrap && !wrap.contains(e.target)) {
       document.getElementById('settings-panel')?.classList.remove('open');
-      document.getElementById('btn-settings')?.classList.remove('p-blue');
+      document.getElementById('btn-settings')?.classList.remove('sb-active');
     }
   });
 
@@ -515,31 +671,58 @@ function _initTopbarButtons() {
   document.addEventListener('click', e => {
     const wrap = document.getElementById('squad-dd-wrap');
     if (wrap && !wrap.contains(e.target)) {
-      document.getElementById('squad-dropdown').classList.remove('open');
-      if (!core.state.squadFilter.length)
-        document.getElementById('btn-squad').classList.remove('p-blue');
+      document.getElementById('squad-dropdown')?.classList.remove('open');
+      const btn = document.getElementById('btn-squad');
+      if (btn && !core.state.squadFilter.length) {
+        btn.classList.remove('p-blue');
+        btn.classList.remove('pf-active');
+      }
     }
   });
 }
 
+// ── Sidebar-Navigation initialisieren ──
+function _initSidebar() {
+  document.querySelectorAll('.sidebar-link').forEach(link => {
+    link.addEventListener('click', () => {
+      if (link.classList.contains('nav-locked')) return; // gesperrt bis Bestätigung
+      const pageId = link.dataset.page;
+      if (pageId) core.showPage(pageId);
+    });
+  });
+
+  // Datencheck-Button in Sidebar-Bottom
+  document.getElementById('btn-datencheck')?.addEventListener('click', () => {
+    core.showPage('datencheck');
+  });
+}
+
+// ════════════════════════════════════════════════
+// Private: Multi-Sheet Loading
+// ════════════════════════════════════════════════
 function _loadFile(file) {
   core.state.fileName = file.name;
   const reader = new FileReader();
   reader.onload = e => {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+
+      // Alle Sheets laden – automatisch erweiterbar ohne Core-Änderung
+      const sheets = {}, sheetsRaw = {};
+      wb.SheetNames.forEach(sn => {
+        sheets[sn]    = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
+        sheetsRaw[sn] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null });
+      });
+      core.state.sheets    = sheets;
+      core.state.sheetsRaw = sheetsRaw;
+
+      // Primär-Sheet: JiraStories (oder erstes Sheet als Fallback)
       const sn = wb.SheetNames.indexOf(TARGET_SHEET) >= 0 ? TARGET_SHEET : wb.SheetNames[0];
       core.state.sheetName = sn;
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
+      const rows = sheets[sn] || [];
+
       _processData(rows);
-
-      // Show app
-      document.getElementById('upload-screen').style.display = 'none';
-      const app = document.getElementById('app-screen');
-      app.style.display       = 'flex';
-      app.style.flexDirection = 'column';
-
-      _initLayout();
+      _showDataPreview(wb.SheetNames, sheets);
     } catch (err) {
       alert('Fehler beim Laden: ' + err.message);
     }
@@ -552,9 +735,10 @@ function _processData(rows) {
   const s    = core.state;
   const cols = Object.keys(rows[0]);
 
-  s.rows          = rows;
-  s.hasSquad      = cols.indexOf('Squad')      >= 0;
-  s.hasIssueType  = cols.indexOf('Issue-Type') >= 0;
+  // rows === state.sheets[TARGET_SHEET] (gleiche Array-Referenz)
+  s.rows         = rows;
+  s.hasSquad     = cols.indexOf('Squad')      >= 0;
+  s.hasIssueType = cols.indexOf('Issue-Type') >= 0;
 
   // Workflow state detection
   s.states = cols
@@ -565,7 +749,7 @@ function _processData(rows) {
       exitCol:  cols.indexOf('leaving_' + ec) >= 0 ? 'leaving_' + ec : null,
     }));
 
-  // stateOrder: base order from data columns (visuals manage their own saved order on top)
+  // stateOrder: Basis-Reihenfolge aus Daten-Spalten
   s.stateOrder = s.states.map(st => st.name);
 
   // Squads
@@ -582,12 +766,168 @@ function _processData(rows) {
     (!META_COLS.has(c) && !c.endsWith('_Count')) || c === 'Created (Status New)'
   );
 
-  // Update file badge
+  // File badge (Topbar)
   const badge = document.getElementById('file-badge');
   if (badge) badge.textContent = s.fileName + ' · ' + s.sheetName;
 
   _buildSquadDD();
   core.emit('data');
+}
+
+// ── Nav sperren / entsperren ──
+function _lockNav() {
+  const el = document.getElementById('sidebar-locked');
+  if (el) el.style.display = 'flex';
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.add('nav-locked'));
+}
+
+function _unlockNav() {
+  const el = document.getElementById('sidebar-locked');
+  if (el) el.style.display = 'none';
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('nav-locked'));
+}
+
+// ── Daten-Preview auf Upload-Screen (jetzt: Datencheck-Page im App-Screen) ──
+function _showDataPreview(sheetNames, sheets) {
+  _buildDatencheckPage(sheetNames, sheets);
+  _switchToAppScreen();
+}
+
+// ── Upload-Screen → App-Screen schalten (Datencheck-Page, gesperrt) ──
+function _switchToAppScreen() {
+  document.getElementById('upload-screen').style.display = 'none';
+  const app = document.getElementById('app-screen');
+  app.style.display = 'flex';
+  _lockNav();
+  core.showPage('datencheck');
+}
+
+// ── Datencheck-Page befüllen ──
+function _buildDatencheckPage(sheetNames, sheets) {
+  const s   = core.state;
+  const rows = s.rows;
+
+  // Fertige / aktive Tickets
+  const finished = rows.filter(r =>
+    (r['Resolved'] != null && r['Resolved'] !== '') ||
+    (r['Rejected'] != null && r['Rejected'] !== '')
+  ).length;
+  const active = rows.length - finished;
+
+  // Zeitraum aus allen Datumsspalten
+  let minDate = null, maxDate = null;
+  rows.forEach(r => {
+    s.dateCols.forEach(col => {
+      const d = core.toDate(r[col]);
+      if (!d) return;
+      if (!minDate || d < minDate) minDate = d;
+      if (!maxDate || d > maxDate) maxDate = d;
+    });
+  });
+  const fmtD = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '–';
+  const totalDays = (minDate && maxDate) ? (maxDate - minDate) / 86400000 : 0;
+  const months    = totalDays > 0 ? Math.round(totalDays / 30.5) : null;
+
+  // Durchsatz (fertige Tickets / 30 Tage)
+  const throughput = (finished > 0 && totalDays > 0)
+    ? Math.round(finished / totalDays * 30) : null;
+
+  // Auffällig alt: aktive Tickets deren erster Eintrag > 90 Tage zurückliegt
+  let oldCount = 0;
+  if (s.states.length > 0) {
+    const firstCol = s.states[0].entryCol;
+    const now = Date.now();
+    rows.forEach(r => {
+      if (r['Resolved'] != null || r['Rejected'] != null) return;
+      const d = core.toDate(r[firstCol]);
+      if (d && (now - d.getTime()) / 86400000 > 90) oldCount++;
+    });
+  }
+
+  // Issue-Typen
+  let issueTypes = [];
+  if (s.hasIssueType) {
+    issueTypes = [...new Set(rows.map(r => r['Issue-Type']).filter(Boolean).map(String))].slice(0, 8);
+  }
+
+  // State-Pills (leaving-States farbig)
+  const statePills = s.states.map(st => {
+    const isLeaving = st.exitCol !== null;
+    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${st.name}</span>`;
+  }).join('');
+
+  // Squad-Pills
+  const squadPills = s.allSquads.map(sq =>
+    `<span class="dc-pill">&#127968; ${sq}</span>`
+  ).join('');
+
+  // Type-Pills
+  const typePills = issueTypes.map(t =>
+    `<span class="dc-pill type">${t}</span>`
+  ).join('');
+
+  const page = document.getElementById('page-datencheck');
+  if (!page) return;
+
+  page.innerHTML = `
+    <div class="dc-wrap">
+      <div class="dc-badge">&#10003; Datei erkannt</div>
+      <h2 class="dc-title">Das haben wir in deinem Export gefunden</h2>
+      <div class="dc-sub">${s.fileName} &middot; Sheet &bdquo;${s.sheetName}&ldquo; &middot; ${rows.length} Tickets</div>
+
+      <div class="dc-stats">
+        <div class="dc-stat">
+          <div class="dc-stat-val">${rows.length}</div>
+          <div class="dc-stat-lbl">Tickets gesamt</div>
+          <div class="dc-stat-sub">${finished} fertig &middot; ${active} aktiv</div>
+        </div>
+        <div class="dc-stat">
+          <div class="dc-stat-val">${months != null ? months + '&thinsp;Mon.' : '&ndash;'}</div>
+          <div class="dc-stat-lbl">Zeitraum</div>
+          <div class="dc-stat-sub">${fmtD(minDate)} &ndash; ${fmtD(maxDate)}</div>
+        </div>
+        <div class="dc-stat">
+          <div class="dc-stat-val green">${throughput != null ? throughput : '&ndash;'}</div>
+          <div class="dc-stat-lbl">Durchsatz&thinsp;/&thinsp;30&thinsp;T.</div>
+          <div class="dc-stat-sub">Tickets fertig</div>
+        </div>
+        <div class="dc-stat">
+          <div class="dc-stat-val orange">${oldCount}</div>
+          <div class="dc-stat-lbl">Auffl&auml;llig alt</div>
+          <div class="dc-stat-sub">aktive &uuml;ber 90&thinsp;T.</div>
+        </div>
+      </div>
+
+      <div class="dc-cards">
+        <div class="dc-card">
+          <div class="dc-card-title">Workflow-Status erkannt</div>
+          <div class="dc-pills">${statePills || '<span class="dc-note">Keine Statusspalten erkannt</span>'}</div>
+          <div class="dc-note">Reihenfolge automatisch aus den Zeitstempeln abgeleitet &middot; sp&auml;ter anpassbar</div>
+        </div>
+        <div class="dc-card">
+          <div class="dc-card-title">Squads &amp; Typen</div>
+          <div class="dc-pills">${squadPills || '<span class="dc-note">Keine Squad-Spalte gefunden</span>'}</div>
+          ${typePills ? `<div class="dc-pills" style="margin-top:.35rem">${typePills}</div>` : ''}
+        </div>
+      </div>
+
+      <div class="dc-cta">
+        <button class="btn-cta" id="btn-goto-app">Weiter zu Lieferf&auml;higkeit &rarr;</button>
+        <span class="dc-cta-note">Alles erkannt &mdash; du kannst Stati &amp; Squads jederzeit sp&auml;ter feinjustieren.</span>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btn-goto-app')?.addEventListener('click', _launchApp);
+}
+
+// ── Daten bestätigt → Nav freischalten, Dashboard zeigen ──
+function _launchApp() {
+  _unlockNav();
+  const savedPage = core.load('fhwa_activePage', 'lieferfahigkeit');
+  // Nicht mehr auf Datencheck zurück, lieferfähigkeit als Fallback
+  core.showPage(savedPage === 'datencheck' ? 'lieferfahigkeit' : savedPage);
+  _initLayout();
 }
 
 // ════════════════════════════════════════════════
@@ -630,10 +970,10 @@ function _updateSquadBtn() {
   if (!btn) return;
   const a = core.state.squadFilter.length;
   if (!a) {
-    btn.textContent = '🏰 Squads';
-    btn.className   = 'btn-icon';
+    btn.textContent = 'SQUADS Alle ▽';
+    btn.classList.remove('pf-active');
   } else {
-    btn.textContent = `🏰 Squad (${a}/${core.state.allSquads.length})`;
-    btn.className   = 'btn-icon p-blue';
+    btn.textContent = `SQUADS ${a}/${core.state.allSquads.length} ▽`;
+    btn.classList.add('pf-active');
   }
 }

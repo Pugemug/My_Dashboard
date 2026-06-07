@@ -33,7 +33,7 @@ export function init() {
   const { cardEl, contentEl, headerExtraEl, diagEl } = core.createCard({
     id:          'scatter',
     title:       'Cycle Time<span class="hl"> Scatterplot</span>',
-    defaultGrid: { col: 8, row: 0, w: 4, h: 12 },
+    defaultGrid: { col: 0, row: 0, w: 12, h: 12 },
   });
 
   // ── 3. Header-Controls ───────────────────────

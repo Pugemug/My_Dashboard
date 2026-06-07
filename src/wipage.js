@@ -37,7 +37,7 @@ export function init() {
   const { cardEl, contentEl, headerExtraEl, diagEl } = core.createCard({
     id:          'wipage',
     title:       'WIP<span class="hl">Age</span>',
-    defaultGrid: { col: 0, row: 12, w: 8, h: 10 },
+    defaultGrid: { col: 0, row: 0, w: 12, h: 10 },
   });
 
   // ── 3. Header-Controls ───────────────────────

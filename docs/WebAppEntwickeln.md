@@ -1,8 +1,8 @@
 # Flow Analytics – Web App Entwicklungs-Leitfaden
 
-**Version:** 3.0  
-**Datum:** 2026-06-03  
-**Basis:** FlowAnalytics_Dashboard_Uebergabe.md v2.5 + pbiviz_entwickeln.md (Web-App-relevante Teile)  
+**Version:** 4.2  
+**Datum:** 2026-06-07  
+**Basis:** WebAppEntwickeln.md v3.1 + Architektur-Erweiterung (Navigation, Multi-Sheet, 5 neue Visuals)  
 **Vorgänger-Dateien:** `FlowAnalytics_Dashboard_Uebergabe.md` + `pbiviz_entwickeln.md` → zusammengeführt, Power BI entfällt
 
 ---
@@ -143,12 +143,15 @@ Oliver antwortet mit „Ja" oder korrigiert einzelne Punkte. Erst dann beginnt C
 - [x] Aktiv/Erledigt-Logik: erledigt = Resolved XOR Rejected
 
 ### Struktur & Integration
-- [x] Visual erzeugt eigene Card via core.createCard()
+- [x] Visual erzeugt eigene Card via `core.createCard()` (Deep-Dive) **oder** Tile via `core.createTile()` (Lieferfähigkeit)
 - [x] Config-State lokal im Visual (nie in core.state schreiben)
 - [x] localStorage-Key: fhwa_[visualId]
 - [x] Events abonniert: data, theme, filter, resize (+ settings wenn urlTemplate genutzt)
 - [x] index.html: import + init() ergänzt
-- [x] build.py: neues Visual an allen 4 Stellen eingetragen (falls neues Visual)
+- [x] build.py: neues Visual an allen 5 Stellen eingetragen (falls neues Visual):
+      `read()` · `strip_module_syntax()` · init-Rename · `wrap_iife()` · bootstrap + `bundled_js`
+- [x] Kein top-level `const`/`let` das mit anderen Visuals kollidieren könnte →
+      `build.py wrap_iife()` isoliert den Scope automatisch; lokale Konstanten sind kein Problem
 
 ### Design-Standards
 - [x] Tooltip: position:absolute im Card-Container, positionTooltip() mit Overflow-Prüfung
@@ -157,6 +160,10 @@ Oliver antwortet mit „Ja" oder korrigiert einzelne Punkte. Erst dann beginnt C
 - [x] Skalierung: alle Größen relativ zu Container-Breite/Höhe
 - [x/-] Reihenfolge-Panel: ▲/▼ + Drag / nicht benötigt
 - [x/-] Link-Feature: core.state.urlTemplate + window.open / nicht benötigt
+
+### Spec & Dokumentation (§0.10 M8)
+- [x] docs/specs/VisualName.md aktualisiert und zusammen mit .js übergeben
+- [x] Alle Änderungen in Akzeptanzkriterien (Block G) und Änderungshistorie eingetragen
 
 ### Manueller Test-Hinweis für Oliver
 - [ ] Tooltip an allen 4 Ecken des Visuals testen
@@ -223,26 +230,102 @@ Ausnahme: Kleine Bugfixes oder Erweiterungen an bestehendem Code brauchen keinen
 
 ---
 
+### 0.9 Maßnahme M7 – Datei-Check nach jeder Entwicklung
+
+**Wann:** Direkt nach jeder abgeschlossenen Entwicklung (neues Visual, Änderung, Bugfix).
+
+**Was Claude tut:** Prüfen welche Dateien von der Änderung betroffen sind und diese – wenn vorhanden – sofort aktualisieren. Fehlen Dateien, werden sie explizit angefordert.
+
+**Dateien die Claude prüft:**
+
+| Datei | Wann aktualisieren |
+|---|---|
+| `docs/specs/VisualName.md` | **Immer** – bei jeder Änderung am Visual |
+| `WebAppEntwickeln.md` | Bei Architektur-, Prozess- oder Protokolländerungen |
+| `src/core.js` | Wenn neue Core-Funktionen ergänzt oder geändert wurden |
+| `src/index.html` | Wenn neues Visual eingebunden oder Navigation geändert wurde |
+| `build.py` | Wenn neues Visual an allen 5 Stellen eingetragen werden muss |
+
+**Ablauf am Ende jeder Entwicklungseinheit:**
+
+```
+Datei-Check:
+- [x/–] docs/specs/VisualName.md     → [aktualisiert / nicht betroffen]
+- [x/–] WebAppEntwickeln.md          → [aktualisiert / nicht betroffen]
+- [x/–] core.js                      → [aktualisiert / nicht betroffen / bitte hochladen]
+- [x/–] index.html                   → [aktualisiert / nicht betroffen / bitte hochladen]
+- [x/–] build.py                     → [aktualisiert / nicht betroffen / bitte hochladen]
+```
+
+Wenn eine benötigte Datei nicht hochgeladen wurde, sagt Claude:
+
+> „Für diese Änderung muss auch `[Datei]` aktualisiert werden. Kannst du sie hochladen?"
+
+---
+
+### 0.10 Maßnahme M8 – Spec als lebendiges Dokument (Spec-First)
+
+**Grundsatz:** Die Spec-Datei ist die **einzige Quelle der Wahrheit** und muss den aktuellen Implementierungsstand widerspiegeln. Sie wird nicht am Ende ergänzt, sondern **während** der Entwicklung geführt.
+
+**Konkret:**
+
+- **Vor dem Code:** Wenn Anforderungen per Klärungsfragen geklärt werden (§0.3 M1), hält Claude die bestätigten Entscheidungen sofort in einem Spec-Entwurf fest – nicht erst nach der Implementierung.
+- **Mit dem Code:** Die aktualisierte Spec wird **zusammen mit der .js-Datei** übergeben, nicht als separater Nachschritt.
+- **Pre-Delivery Review** (§0.2) enthält deshalb einen Pflicht-Check: `Spec aktualisiert? [x]`
+
+**Warum:** Eine veraltete Spec ist keine Spec. Wenn Code und Spec auseinanderlaufen, verliert das Dokument seinen Wert als Grundlage für den nächsten Chat-Kontext.
+
+---
+
 ## Was die App macht
 
-Browser-basiertes Flow-Analytics-Dashboard: Vier Dateien in einem SharePoint-Ordner (kein Server, kein Build-System), die eine Excel-Datei einlesen und Visuals in einem frei konfigurierbaren Grid-Dashboard anzeigen.
+Browser-basiertes Flow-Analytics-Dashboard: Vier Dateien in einem SharePoint-Ordner (kein Server, kein Build-System), die eine Excel-Datei (mehrere Worksheets) einlesen und Visuals in einer navigierbaren Single-Page-App anzeigen.
 
-**Visual 1 – FlowHeatmap (`heatmap.js`):** Kumulative Verweildauer von Work Items in Workflow-Zuständen, gruppiert nach Issue-Type oder Squad, mit Status-Visibility-Steuerung und Lead-Time-Konfiguration.
+### Navigation & Seitenstruktur
+
+Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke Sidebar navigiert werden. Jede Page hat einen Namen und enthält eine definierte Menge von Visuals.
+
+| Page | Sidebar-Label | Visuals |
+|---|---|---|
+| `lieferfahigkeit` | Lieferfähigkeit | LeadTime KPI, Say_Do_Ratio, WIP, Flow Efficiency, Happiness Index, Akzeptanzkriterien |
+| `wipage` | Was liegt gerade rum? | WIPAge Chart |
+| `scatter` | Wie lange dauert ein Ticket? | CycleTime Scatterplot |
+| `heatmap` | Wo verbringen Tickets ihre Zeit? | FlowHeatmap |
+
+**Sidebar-Struktur:** Jeder Link hat Glyph-Icon (`▤ ◔ ◑ ◕`), Hauptname und technischen Untertitel (z.B. „WIP-Alter"). Die Links sind in zwei Sections aufgeteilt: „Überblick" (Lieferfähigkeit) und „Detailanalysen" (die 3 Deep-Dive-Pages).
+
+**Einstieg:** Nach dem Datei-Upload zeigt der Upload-Screen eine Data-Preview („Das haben wir in deinem Export gefunden") und leitet per CTA-Button zur Lieferfähigkeit-Page weiter.
+
+### Visuals — bestehend
+
+**Visual 1 – FlowHeatmap (`heatmap.js`):** Kumulative Verweildauer von Work Items in Workflow-Zuständen, gruppiert nach Issue-Type oder Squad.
 
 **Visual 2 – CycleTime Scatterplot (`scatter.js`):** Durchlaufzeit (CT) jedes Work Items über die Zeit, mit Perzentil-Linien, 3 Farb-Modi und Jira-Link im Tooltip.
 
-**Visual 3 – WIPAge Chart (`wipage.js`):** Scatterplot aktiver WIP-Items gruppiert nach aktuellem Status (X-Achse), mit dem Alter im aktuellen Status auf der Y-Achse. Rolling-Pace-Bänder (P25/P50/P85/P90) aus abgeschlossenen Items der letzten N Tage als gestaffelte Farbzonen (grün → rot) mit gestrichelten Linien. Dots wechseln ab einem konfigurierbaren Schwellwert die Farbe. Reihenfolge-Panel (▲/▼ + Drag) und Jira-Link im Tooltip.
+**Visual 3 – WIPAge Chart (`wipage.js`):** Scatterplot aktiver WIP-Items gruppiert nach aktuellem Status (X-Achse), Rolling-Pace-Bänder (P25/P50/P85/P90), Reihenfolge-Panel, Jira-Link.
 
-**Visual 4 – LeadTime BoxChart (`boxchart.js`):** Box-Plot-Diagramm zur Analyse der Lead Time von Work Items über Zeit. Zeigt pro Periode (Monat oder Quartal) die statistische Verteilung (P25 / Median / P85, Whisker, Ausreißer) in drei Modi: Box, Violin, Kombi. Dual-Period-Logik für ltStart/ltEnd. Konfigurierbare Spalten, Bandwidth, Periode. Jira-Link im Ausreißer-Tooltip.
+**Visual 4 – LeadTime BoxChart (`boxchart.js`):** Box-Plot zur Lead-Time-Analyse pro Periode (Monat/Quartal). Auf der Lieferfähigkeit-Page als KPI-Card dargestellt.
+
+### Visuals — neu (Lieferfähigkeit-Page)
+
+**Visual 5 – Say_Do_Ratio (`saydoratio.js`):** Verhältnis geplanter zu abgeschlossener Epics pro Quartal, als Verlauf über alle vorhandenen Quartale. Datenquelle: `Epics`-Sheet.
+
+**Visual 6 – WIP KPI (`wipkpi.js`):** Aktuelle WIP-Anzahl als KPI-Card mit Trend. Datenquelle: `JiraStories`-Sheet.
+
+**Visual 7 – Flow Efficiency (`flowefficiency.js`):** Anteil aktiver Bearbeitungszeit an der Gesamtdurchlaufzeit. Berechnung aus Warte-Zuständen (`JiraStories`) und `BlockedReasons`-Sheet. Verknüpfung über JiraId + Squad.
+
+**Visual 8 – Happiness Index (`happinessindex.js`):** KPI-Card mit Verlauf. Datenquelle: dediziertes Worksheet (Name noch offen – per SDD-Interview klären).
+
+**Visual 9 – Akzeptanzkriterien (`akzeptanz.js`):** KPI-Card mit Verlauf. Datenquelle: dediziertes Worksheet (Name noch offen – per SDD-Interview klären).
 
 ---
 
 ## Was die App NICHT macht
 
 - Kein Cross-Filter zwischen Visuals
-- Keine weiteren Diagrammtypen (CFD) – noch ausstehend
 - Kein Server, keine API, kein Power BI
 - Kein DAX, keine automatischen Aggregationen (wird alles in JS berechnet)
+- Keine URL-Routing / keine echten Seiten-URLs — reine SPA mit Tab-Switching
 
 ---
 
@@ -309,33 +392,49 @@ scatter_out = scatter_out.replace('function init()', 'function init_scatter()', 
 
 Die Funktion muss exakt `function init()` heißen – nicht `async function init()`, nicht `const init = () =>`. `replace(..., 1)` ersetzt nur das **erste** Vorkommen – `init()` darf nur einmal als Funktionsdeklaration erscheinen.
 
-### Neues Visual hinzufügen – vier Stellen in build.py
+### Neues Visual hinzufügen – fünf Stellen in build.py
 
 ```python
 # Stelle 1: Datei einlesen
-boxchart_js = read('boxchart.js')
+happiness_js = read('happiness.js')
 
-# Stelle 2: Transformieren + umbenennen
-boxchart_out = strip_module_syntax(boxchart_js)
-boxchart_out = boxchart_out.replace('function init()', 'function init_boxchart()', 1)
+# Stelle 2: Transformieren
+happiness_out = strip_module_syntax(happiness_js)
 
-# Stelle 3: In gebündeltes JS aufnehmen
+# Stelle 3: init()-Funktion umbenennen
+happiness_out = happiness_out.replace('function init()', 'function init_happiness()', 1)
+
+# Stelle 4: In IIFE einwickeln (verhindert top-level const/let Kollisionen zwischen Visuals)
+happiness_out = wrap_iife(happiness_out, 'init_happiness')
+
+# Stelle 5a: In gebündeltes JS aufnehmen
 bundled_js = (
     "// ── core.js ──\n" + core_out + "\n\n" +
-    "// ── heatmap.js ──\n" + heatmap_out + "\n\n" +
-    "// ── scatter.js ──\n" + scatter_out + "\n\n" +
-    "// ── boxchart.js ──\n" + boxchart_out + "\n\n" +  # ← neu
-    "// ── Bootstrap ──\n" + bootstrap + "\n"
+    # ... weitere Visuals ...
+    "// ── happiness.js ──\n" + happiness_out + "\n\n"  # ← neu
 )
 
-# Stelle 4: Bootstrap-Aufruf ergänzen
+# Stelle 5b: Bootstrap-Aufruf ergänzen
 bootstrap = (
     "  init_heatmap();\n"
-    "  init_scatter();\n"
-    "  init_boxchart();\n"   # ← neu
+    "  init_happiness();\n"   # ← neu
     "  core.initApp();"
 )
 ```
+
+**`wrap_iife()` – Pflicht für alle Visuals:**
+
+```python
+def wrap_iife(js, fn_name):
+    return (
+        "(function() {\n" +
+        js + "\n" +
+        f"window.{fn_name} = {fn_name};\n" +
+        "})();"
+    )
+```
+
+Isoliert den Visual-Code in einer IIFE. Dadurch sind `const`/`let`-Deklarationen auf oberster Datei-Ebene lokal und können nicht mit gleichnamigen Konstanten anderer Visuals kollidieren. Die `init_*`-Funktion wird über `window.*` exponiert, damit der Bootstrap-Code sie aufrufen kann. **Ohne IIFE-Wrapping bricht das Bundle mit `SyntaxError: Identifier already been declared`.**
 
 **Fehler der Vergangenheit:** Neues Visual in `index.html` eingetragen aber `build.py` vergessen → das gebündelte `FlowAnalytics.html` lud das neue Visual nicht.
 
@@ -347,6 +446,24 @@ python build.py
 ---
 
 ## Excel-Datenstruktur
+
+Die Excel-Datei enthält **mehrere Worksheets**. `core.js` lädt alle Sheets beim Upload und stellt sie über `core.state.sheets` bereit (siehe Multi-Sheet-Loading).
+
+### Worksheets — Übersicht
+
+| Sheet-Name | Status | Genutzt von | Inhalt |
+|---|---|---|---|
+| `JiraStories` | ✅ Pflicht | alle bestehenden Visuals | Work-Item-Daten |
+| `Epics` | optional | Say_Do_Ratio | Epics mit Iterations-/Quartalszuordnung |
+| `BlockedReasons` | optional | Flow Efficiency | JiraId · Squad · Blocked-Grund |
+| `Happiness Faktor` | optional | Happiness Index | Monats-Happiness (1–5) pro Squad; Custom-Header in Zeile 3 → `sheetsRaw` verwenden |
+| *(Acceptance-Sheet)* | optional | Akzeptanzkriterien | Name per SDD-Interview klären |
+
+**Regel Standard-Header:** Fehlt ein optionales Sheet → `core.state.sheets['Name']` gibt `[]` zurück → das zugehörige Visual zeigt einen Leerzustand. Kein Fehler, kein Core-Umbau.
+
+**Regel Custom-Header (Header-Zeile nicht in Zeile 1):** `core.state.sheetsRaw['Name']` verwenden (2D-Array-Format). Header-Zeile per `findIndex` suchen, nie hardcodierte Zeilennummern verwenden.
+
+### JiraStories — Spalten
 
 Sheet-Name: **`JiraStories`** (Pflicht, Fallback: erstes Sheet)
 
@@ -386,6 +503,48 @@ Threshold für „gleich": Datums-Differenz < 0,5 Tage (43.200.000 ms).
 
 ---
 
+## Multi-Sheet-Loading (extensibles Pattern)
+
+`core.js` lädt beim Excel-Upload **alle vorhandenen Worksheets** und stellt sie in einer generischen Map bereit. Dieses Pattern ist bewusst erweiterbar — neue Worksheets in der Excel-Datei werden automatisch ohne Core-Änderungen verfügbar.
+
+### core.state.sheets
+
+```javascript
+// Nach dem Upload:
+core.state.sheets = {
+  'JiraStories':    [ ...rows ],   // Pflicht-Sheet
+  'Epics':          [ ...rows ],   // wenn vorhanden
+  'BlockedReasons': [ ...rows ],   // wenn vorhanden
+  // alle weiteren Sheets landen hier automatisch
+}
+
+// core.state.rows bleibt als Alias erhalten (Kompatibilität bestehender Visuals):
+core.state.rows === core.state.sheets['JiraStories']  // true
+```
+
+### Zugriff in Visuals
+
+```javascript
+// Sicher: gibt [] zurück wenn Sheet fehlt → kein Fehler, kein Core-Umbau
+const epics   = core.state.sheets['Epics']          ?? [];
+const blocked = core.state.sheets['BlockedReasons'] ?? [];
+
+// Leerzustand prüfen
+if (!epics.length) {
+  diagEl.textContent = 'Epics-Sheet nicht gefunden';
+  return;
+}
+```
+
+### Platzhalter-Regel
+
+Visuals deren Sheet noch nicht definiert ist (Happiness, Akzeptanzkriterien) werden zunächst als **Platzhalter** implementiert:
+- Card existiert und ist in der Lieferfähigkeit-Page eingebettet
+- Zeigt „–" oder „Daten folgen" wenn Sheet fehlt oder leer
+- Vollständige Logik kommt im jeweiligen SDD-Interview wenn Sheet-Struktur bekannt ist
+
+---
+
 ## Architektur
 
 ### Prinzip: Jedes Visual ist eine eigenständige Datei
@@ -411,16 +570,26 @@ Jedes Visual:
 
 ```
 <body>
-  #upload-screen      Drag&Drop + Datei-Picker
+  #upload-screen      Drag&Drop + Datei-Picker + Data-Preview
   #app-screen
-    .topbar           Logo · File-Badge · 🏰 Squads · ⚙ Einstellungen · ☀/🌙 Theme · Neue Datei
-    #dashboard        overflow:auto — scrollt wenn Cards über Viewport hinausgehen
-      #dash-canvas    position:relative — wächst mit Cards mit (_updateCanvasH)
-        #card-heatmap position:absolute  ← von heatmap.js erzeugt
-        #card-scatter position:absolute  ← von scatter.js erzeugt
-        #card-wipage  position:absolute  ← von wipage.js erzeugt
+    .sidebar          Persistente linke Navigation (Logo + Section-Labels + Page-Links mit Glyph)
+    .main-content     Rechter Bereich, zeigt aktive Page
+      #page-lieferfahigkeit
+        #tile-canvas-lieferfahigkeit   CSS-Grid (minmax 300px) für kompakte KPI-Kacheln
+        #page-canvas-lieferfahigkeit   display:none · Fallback bis boxchart.js migriert
+      #page-wipage            position:relative · WIPAge Card
+      #page-scatter           position:relative · CycleTime Card
+      #page-heatmap           position:relative · Heatmap Card
   [Tooltips]          von jedem Visual eigenständig erzeugt und an body gehängt
 ```
+
+**Zwei Rendering-Modelle:**
+- **Tile-Canvas** (Lieferfähigkeit-Page): kompakte `.tile`-Elemente in CSS-Grid, feste Höhe `var(--tile-h, 220px)` · kein Drag/Resize. Visuals rufen `core.createTile()` auf.
+- **Page-Canvas** (Deep-Dive-Pages wipage/scatter/heatmap): `position:absolute`-Cards im Grid-System. Visuals rufen `core.createCard()` auf.
+
+**Page-Switching:** `core.showPage(pageId)` blendet alle Pages aus, zeigt die gewählte, setzt `core.state.activePage` und speichert in `fhwa_activePage` (localStorage). Aktiver Sidebar-Link erhält Klasse `.active`.
+
+**Kein Drag-Grid auf neuen Pages:** Die Lieferfähigkeit-Page nutzt ein festes CSS-Grid-Layout für die KPI-Cards. Das Drag-Resize-System (`fhwa_layout2`) bleibt für die bestehenden Single-Visual-Pages erhalten, wird aber pro Page separat initialisiert.
 
 ### Neues Visual registrieren (2 Schritte + build.py)
 
@@ -433,7 +602,7 @@ import { init as initBoxChart } from './boxchart.js';
 initBoxChart();
 ```
 
-**Schritt 3** – In `build.py` an allen 4 Stellen eintragen (siehe Deployment-Abschnitt).
+**Schritt 3** – In `build.py` an allen 5 Stellen eintragen (siehe Deployment-Abschnitt).
 
 ---
 
@@ -444,7 +613,13 @@ initBoxChart();
 ### Shared State (nur lesen, nie direkt schreiben)
 
 ```javascript
-core.state.rows          // Row[] — alle geladenen Excel-Zeilen
+core.state.rows          // Row[] — JiraStories (Kompatibilität: identisch mit core.state.sheets['JiraStories'])
+core.state.sheets        // { [sheetName]: Row[] } — alle geladenen Worksheets (Standard-Header in Zeile 1)
+                         // Zugriff: core.state.sheets['Epics'] ?? []
+core.state.sheetsRaw     // { [sheetName]: any[][] } — 2D-Array-Format (header:1) für Sheets mit
+                         // Custom-Header-Zeile (nicht Zeile 1), z.B. 'Happiness Faktor'
+                         // Zugriff: (core.state.sheetsRaw || {})['Happiness Faktor'] ?? []
+                         // Header-Zeile finden: raw.findIndex(row => row.some(c => c === 'Schlüsselwert'))
 core.state.dateCols      // string[] — alle Datumsspalten
 core.state.states        // { name, entryCol, exitCol }[] — erkannte Workflow-Zustände
 core.state.stateOrder    // string[] — aktuelle Reihenfolge der Zustände
@@ -455,6 +630,7 @@ core.state.squadFilter   // string[] — aktiver globaler Filter ([] = alle)
 core.state.fileName      // string
 core.state.sheetName     // string
 core.state.urlTemplate   // string — globales Jira URL-Template (⚙ Einstellungen-Panel)
+core.state.activePage    // string — aktuell sichtbare Page-ID
 ```
 
 ### Event Bus
@@ -468,6 +644,13 @@ core.on('settings', fn)    // Globale Einstellung geändert (z.B. urlTemplate) �
 core.emit(event)           // intern; Visuals rufen das nicht auf
 ```
 
+### Navigation
+
+```javascript
+core.showPage(pageId)    // Page wechseln: blendet alle Pages aus, zeigt pageId, speichert in localStorage
+core.activePage()        // → string — aktuell sichtbare Page-ID
+```
+
 ### Card Factory
 
 ```javascript
@@ -476,11 +659,27 @@ const { cardEl, contentEl, headerExtraEl, diagEl } = core.createCard({
   title:       'WIP<span class="hl">Age</span>',
   defaultGrid: { col: 0, row: 0, w: 6, h: 10 },
 });
-// cardEl         → das .card-Element
+// cardEl         → das .card-Element (Drag/Resize, Grid)
 // contentEl      → .card-content (hier rein rendern)
 // headerExtraEl  → freier Bereich im Card-Header für eigene Buttons/Toggles
 // diagEl         → .diag-bar (Diagnose-Zeile unten)
 ```
+
+### Tile Factory (Lieferfähigkeit-Page)
+
+```javascript
+const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
+  id:    'boxchart',                          // wird zu #tile-boxchart
+  title: 'Lead<span class="hl">Time</span>',
+});
+// tileEl         → das .tile-Element (kein Drag/Resize, CSS-Grid)
+// contentEl      → .tile-content (flex:1, hier rein rendern)
+// headerExtraEl  → freier Bereich im Tile-Header für Badges/Toggles
+// diagEl         → .diag-bar (Diagnose-Zeile unten)
+// Höhe:          var(--tile-h, 220px) · konfigurierbar via Settings-Slider
+```
+
+Routing für beide Factories über `CARD_PAGE_MAP` in `core.js`. Lieferfähigkeit-Visuals hängen automatisch am `tile-canvas-lieferfahigkeit`.
 
 ### Daten-Utilities
 
@@ -572,12 +771,19 @@ export function init() {
 | Key | Datei | Inhalt |
 |---|---|---|
 | `fhwa_layout2` | core.js | `{ [visualId]: { col, row, w, h } }` für alle Cards |
+| `fhwa_activePage` | core.js | zuletzt aktive Page-ID |
+| `fhwa_tileHeight` | index.html | Kachel-Höhe in px (160–320, Default 220) |
 | `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenStates[], stateOrder[] |
 | `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
 | `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected'`), stateOrder[] |
 | `fhwa_global` | core.js | squadFilter[], urlTemplate |
 | `fhwa_theme` | core.js | `'dark'` \| `'light'` |
-| `fhwa_boxchart` | boxchart.js | *(noch nicht implementiert)* |
+| `fhwa_boxchart` | boxchart.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_saydoratio` | saydoratio.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_wipkpi` | wipkpi.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_flowefficiency` | flowefficiency.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_happinessindex` | happinessindex.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_akzeptanz` | akzeptanz.js | *(per SDD-Interview zu definieren)* |
 
 **Hinweis:** `fhwa_layout` (ohne `2`) war der Key der alten Single-File-Version (v1.x). Wird ignoriert.
 
@@ -935,7 +1141,7 @@ Symptome, die zum Neuschreiben zwingen:
 - [ ] Link-Feature in SDD Block F entschieden?
 
 ### Phase 2: Beim Entwickeln
-- [ ] Visual erzeugt eigene Card via `core.createCard()`?
+- [ ] Visual erzeugt eigene Card via `core.createCard()`? (Deep-Dive-Pages) **oder** Tile via `core.createTile()`? (Lieferfähigkeit-Page)
 - [ ] Config-State lokal im Visual (nie in `core.state` schreiben)?
 - [ ] localStorage-Key nach Schema `fhwa_[visualId]`?
 - [ ] Events korrekt abonniert (data, theme, filter, resize, ggf. settings)?
@@ -1125,6 +1331,7 @@ localStorage-Key: `fhwa_[visualId]`
 | Feature | Datei | Aufwand | Hinweis |
 |---|---|---|---|
 | ~~**LeadTime BoxChart**~~ | ~~`boxchart.js`~~ | ~~mittel~~ | ✅ Implementiert v2.5 |
+| ~~**Happiness Index**~~ | ~~`happiness.js`~~ | ~~mittel~~ | ✅ Implementiert v1.0 (Sheet: `Happiness Faktor`) |
 | **CFD (Cumulative Flow)** | `cfd.js` | groß | Stapelflächen über Zeit |
 | **Card-Titel editierbar** | index.html | klein | `contenteditable` auf `.card-title` |
 | **Card minimieren** | core.js | klein | `.card-content` auf `height:0` klappen |
@@ -1137,17 +1344,20 @@ localStorage-Key: `fhwa_[visualId]`
 
 | Vorhaben | Zusätzlich hochladen |
 |---|---|
+| **Phase 1a: Multi-Sheet + Navigation** | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/index.html` |
 | Neues Visual schreiben | `docs/WebAppEntwickeln.md` + `src/core.js` |
 | Bestehendes Visual ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + betroffene `.js`-Datei |
 | WIPAge ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/wipage.js` |
+| Happiness ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/happiness.js` |
 | BoxChart ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/boxchart.js` |
 | index.html anpassen | `docs/WebAppEntwickeln.md` + `src/index.html` |
 | Spec nachschlagen / ändern | `docs/WebAppEntwickeln.md` + `docs/specs/VisualName.md` |
 
-**Einstiegssatz:**
-> „Wir entwickeln das Flow Analytics Dashboard weiter. Lies bitte WebAppEntwickeln.md und core.js. Ich möchte [Feature] ergänzen."
+**Einstiegssatz für Phase 1 (nächster Chat):**
+> „Wir entwickeln das Flow Analytics Dashboard weiter. Lies bitte WebAppEntwickeln.md, core.js und index.html. Wir starten jetzt Phase 1a: Multi-Sheet-Loading und Navigation/Sidebar."
 
-Für neue Visuals: Claude startet automatisch das SDD-Interview (§0.0) bevor Code geschrieben wird.
+**Einstiegssatz für neues Visual:**
+> „Wir entwickeln das Flow Analytics Dashboard weiter. Lies bitte WebAppEntwickeln.md und core.js. Ich möchte [Visual] ergänzen."
 
 **Wichtig:**
 - Neue Visuals immer in eigener `.js`-Datei — nie bestehende Dateien erweitern
@@ -1156,8 +1366,14 @@ Für neue Visuals: Claude startet automatisch das SDD-Interview (§0.0) bevor Co
 - localStorage-Key nach Schema `fhwa_[visualId]` benennen
 - Zeitberechnungen immer mit Dual-Period-Logik (`_first`-Spalten beachten) — gilt für alle Visuals
 - Aktiv/Erledigt-Logik: erledigt = `Resolved` XOR `Rejected` gefüllt
+- Extra-Sheet-Daten (Standard-Header in Zeile 1): `core.state.sheets['SheetName'] ?? []`
+- Extra-Sheet-Daten (Custom-Header, nicht Zeile 1): `(core.state.sheetsRaw || {})['SheetName'] ?? []` → 2D-Array; Header-Zeile per `row.some(c => c === 'Schlüsselwert')` finden
 
 ---
 
 *Erstellt: 2026-06-03 · Autor: Oliver Wolter*  
-*v3.1: Projektstruktur auf project-root/docs/specs/ umgestellt. Spec-Dateinamen ohne „SDD"-Suffix (docs/specs/VisualName.md). Alle internen Referenzen aktualisiert. Chat-Start-Tabelle um src/-Pfade und specs/-Zeile ergänzt.*
+*v3.1: Projektstruktur auf project-root/docs/specs/ umgestellt.*  
+*v4.0 (2026-06-06): Navigation/Sidebar-Struktur, Multi-Sheet-Loading (generisches `core.state.sheets`-Pattern), 5 neue Visuals (Say_Do_Ratio, WIP KPI, Flow Efficiency, Happiness Index, Akzeptanzkriterien), Phasenplan, Chat-Start-Tabelle aktualisiert.*  
+*v4.1 (2026-06-07): Phase 1b — Sidebar Glyph/Tech-Untertitel/Section-Labels, Tile-Canvas Lieferfähigkeit (`createTile()`, CSS-Grid minmax 300px), `--tile-h` Slider (160–320 px, `fhwa_tileHeight`), Heatmap-Label korrigiert.*
+*v4.2 (2026-06-07): M7 (Datei-Check nach jeder Entwicklung) und M8 (Spec als lebendiges Dokument, Spec-First) ergänzt. Pre-Delivery Review um Spec-Pflicht-Check erweitert.*
+*v4.3 (2026-06-07): Happiness Faktor Visual (`happiness.js`) implementiert. `core.state.sheetsRaw` ergänzt (2D-Array-Format für Custom-Header-Sheets). `build.py` um `wrap_iife()`-Pattern erweitert (verhindert `const`/`let`-Kollisionen im Bundle, jetzt 5 Stellen statt 4). Dokumentation entsprechend aktualisiert.*
