@@ -44,20 +44,20 @@ project-root/
 - Config-State immer **lokal im Visual** via `core.load('fhwa_[id]', defaults)` – nie in `core.state` schreiben
 - localStorage-Keys nach Schema: **`fhwa_[visualId]`**
 - Events abonnieren: `core.on('data' | 'theme' | 'filter' | 'resize', render)` + `'settings'` wenn `core.state.urlTemplate` genutzt wird
-- Neues Visual: **3 Stellen** aktualisieren – neue `.js`-Datei, `index.html` (import + init + Page-Zuordnung), `build.py` (4 Stellen)
+- Neues Visual: **3 Stellen** aktualisieren – neue `.js`-Datei, `index.html` (import + init + Page-Zuordnung), `build.py` (5 Stellen)
 - **Lieferfähigkeit-Visuals** → `core.createTile({ id, title })` · **Deep-Dive-Visuals** → `core.createCard({ id, title, defaultGrid })`
 
 ### Zwei Rendering-Modelle
 
 | Modell | Factory | Container | Seiten |
 |---|---|---|---|
-| **Tile** | `core.createTile()` | `#tile-canvas-[pageId]` (CSS-Grid) | lieferfahigkeit |
+| **Tile** | `core.createTile()` | `#tile-canvas-[pageId]` (Flexbox, flex-wrap) | lieferfahigkeit |
 | **Card** | `core.createCard()` | `#page-canvas-[pageId]` (`.page-detail-canvas`, `flex:1`) | wipage, scatter, heatmap |
 
 > **Detail-Pages (wipage / scatter / heatmap):** Cards füllen den Canvas via CSS (`position:absolute; inset:0; !important`). Drag-Handle und Resize-Handle sind ausgeblendet. Die Visual-JS-Dateien brauchen keine Kenntnis davon.
 
 ```javascript
-// Tile (Lieferfähigkeit) – kein Drag/Resize, feste Höhe var(--tile-h)
+// Tile (Lieferfähigkeit) – kein Drag/Resize, Breite var(--tile-w) × Höhe var(--tile-h) (16:10, Default 550×344 px)
 const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
   id: 'wipkpi', title: 'WIP<span class="hl">KPI</span>',
 });

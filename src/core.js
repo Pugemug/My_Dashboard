@@ -810,7 +810,7 @@ function _showDataPreview(sheetNames, sheets) {
 function _switchToAppScreen() {
   document.getElementById('upload-screen').style.display = 'none';
   const app = document.getElementById('app-screen');
-  app.style.display = 'flex';
+  app.style.display = 'block';
   _lockNav();
   core.showPage('datencheck');
 }

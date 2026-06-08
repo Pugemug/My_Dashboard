@@ -14,7 +14,7 @@
   --blue:#38bdf8;--red:#f87171;--green:#4ade80;--yellow:#fbbf24;
   --purple:#c084fc;--orange:#fb923c;
   --sans:'DM Sans',system-ui,sans-serif;--mono:'DM Mono','Courier New',monospace;
-  --tile-h:220px;
+  --tile-w:550px;--tile-h:344px;
   color-scheme:dark;
 }
 [data-theme="light"]{
@@ -68,7 +68,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 
 /* ── APP LAYOUT ── */
 #app-screen{display:none;height:100vh;overflow:hidden}
-.app-body{display:flex;height:100%;overflow:hidden}
+.app-body{display:flex;height:100%;width:100%;overflow:hidden}
 
 /* ── TOPBAR (deprecated – kept für Fallback-Kompatibilität) ── */
 .topbar{display:none}
@@ -190,8 +190,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .dc-cta-note{font-size:.7rem;color:var(--dim)}
 
 /* ── TILE CONTAINER (Lieferfähigkeit-Seite) ── */
-.tile-container{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.75rem;padding:.75rem;align-content:start}
-.tile{height:var(--tile-h,220px);background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+.tile-container{display:flex;flex-wrap:wrap;justify-content:center;align-content:start;gap:.75rem;padding:.75rem}
+.tile{width:var(--tile-w,550px);height:var(--tile-h,344px);flex-shrink:0;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;overflow:hidden}
+.tile-content svg{display:block;width:100%;height:100%}
 .tile-header{display:flex;align-items:center;gap:.3rem;padding:.28rem .5rem;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;min-height:32px}
 .tile-title{font-size:.72rem;font-weight:700;letter-spacing:-.02em;flex-shrink:0;white-space:nowrap}
 .tile-title .hl{color:var(--blue)}
@@ -438,9 +439,9 @@ td.td-lt{background:rgba(192,132,252,.04)}
               <span class="settings-hint">{issueKey} wird durch die Jira-ID ersetzt</span>
             </div>
             <div class="settings-row settings-row--disabled" id="settings-tile-row">
-              <span class="settings-label">Kachel-H&ouml;he</span>
-              <input class="settings-range" id="settings-tile-height" type="range" min="160" max="320" step="10" value="220">
-              <span class="settings-hint">Aktuell: <span id="tile-h-display">220</span>&thinsp;px</span>
+              <span class="settings-label">Kachelgr&ouml;&szlig;e</span>
+              <input class="settings-range" id="settings-tile-height" type="range" min="390" max="720" step="10" value="550">
+              <span class="settings-hint">Aktuell: <span id="tile-h-display">400 &times; 250</span>&thinsp;px (16&thinsp;:&thinsp;10)</span>
             </div>
           </div>
         </div>
@@ -546,30 +547,34 @@ td.td-lt{background:rgba(192,132,252,.04)}
   // Core-App initialisieren (Theme, globaler State, File-Upload-Listener, Sidebar)
   core.initApp();
 
-  // ── Kachel-Höhe: laden, anwenden, Slider verdrahten ──
+  // ── Kachelgröße: laden, anwenden, Slider verdrahten ──
   (function() {
-    const KEY     = 'fhwa_tileHeight';
-    const DEFAULT = 220;
-    const clamp   = (v) => Math.max(160, Math.min(320, v));
+    const KEY      = 'fhwa_tileHeight';
+    const DEFAULT  = 550;
+    const RATIO    = 10 / 16;
+    const clampW   = (v) => Math.max(390, Math.min(720, v));
 
-    function applyTileH(v) {
-      v = clamp(parseInt(v, 10) || DEFAULT);
-      document.documentElement.style.setProperty('--tile-h', v + 'px');
+    function applyTileSize(w) {
+      w = clampW(parseInt(w, 10) || DEFAULT);
+      const h = Math.round(w * RATIO);
+      document.documentElement.style.setProperty('--tile-w', w + 'px');
+      document.documentElement.style.setProperty('--tile-h', h + 'px');
       const disp   = document.getElementById('tile-h-display');
       const slider = document.getElementById('settings-tile-height');
-      if (disp)   disp.textContent = v;
-      if (slider) slider.value     = v;
-      return v;
+      if (disp)   disp.textContent = w + ' \u00d7 ' + h;
+      if (slider) slider.value     = w;
+      core.emit('resize');
+      return w;
     }
 
     // Gespeicherten Wert laden und sofort setzen
-    applyTileH(core.load(KEY, DEFAULT));
+    applyTileSize(core.load(KEY, DEFAULT));
 
     // Slider live verdrahten
     const slider = document.getElementById('settings-tile-height');
     if (slider) {
       slider.addEventListener('input', () => {
-        const v = applyTileH(slider.value);
+        const v = applyTileSize(slider.value);
         core.save(KEY, v);
       });
     }

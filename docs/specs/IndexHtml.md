@@ -1,7 +1,7 @@
 # index.html – Spezifikation
 
-**Version:** 1.2  
-**Datum:** 2026-06-07  
+**Version:** 1.6  
+**Datum:** 2026-06-08  
 **Status:** Implementiert · wird bei Änderungen aktualisiert
 
 ---
@@ -47,7 +47,7 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
           .page-filterbar   Squad · Issue-Typ · Zeitraum · Filter zurücksetzen
             #squad-dd-wrap  Nur noch der Trigger-Button (#btn-squad .btn-squad-trigger)
           .page-scroll
-            #tile-canvas-lieferfahigkeit  CSS-Grid (minmax 300px) — Tiles via core.createTile()
+            #tile-canvas-lieferfahigkeit  CSS-Grid (auto-fill var(--tile-w), zentriert, max. 3 Spalten) — Tiles via core.createTile()
             #page-canvas-lieferfahigkeit  display:none — Fallback
         #page-wipage  (.page-flex)
           .page-filterbar   „Was liegt gerade rum?" · Squad · Issue-Typ · Zeitraum · Reset
@@ -165,7 +165,7 @@ Alle Buttons sind `.sidebar-bottom-btn`. Aktiver Zustand: `.sb-active`.
 |---|---|---|
 | Einstellungen | `#btn-settings` | Öffnet `#settings-panel` (position:fixed, rechts neben Sidebar) |
 | Jira-URL-Input | `#settings-url-input` | Setzt `core.state.urlTemplate`, emittiert `'settings'` |
-| Kachel-Höhe-Slider | `#settings-tile-height` | Setzt `--tile-h` (160–320 px); disabled bis Datei geladen |
+| Kachelgröße-Slider | `#settings-tile-height` | Setzt `--tile-w` + `--tile-h` (16:10, 390–720 px); disabled bis Datei geladen |
 | Theme-Toggle | `#btn-theme` | `core.toggleTheme()` · Text: `☀ Light` / `🌙 Dark` |
 | Datencheck | `#btn-datencheck` | `core.showPage('datencheck')` |
 | Neue Datei | `#btn-reset` | Zurück zum Upload-Screen |
@@ -200,7 +200,7 @@ pf-spacer
 ### Scrollbarer Inhalt (`.page-scroll`)
 
 ```
-#tile-canvas-lieferfahigkeit   CSS-Grid (repeat(auto-fill, minmax(300px,1fr)))
+#tile-canvas-lieferfahigkeit   Flexbox (flex-wrap:wrap, justify-content:center) — auto 3→2→1 Spalten
 #page-canvas-lieferfahigkeit   display:none (Fallback bis boxchart.js migriert)
 ```
 
@@ -210,8 +210,8 @@ pf-spacer
 
 **Tile-Canvas** (Lieferfähigkeit-Page):
 ```css
-#tile-canvas-lieferfahigkeit { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); }
-.tile { height:var(--tile-h,220px); }   /* konfigurierbar 160–320 px via Settings-Slider */
+.tile-container { display:flex; flex-wrap:wrap; justify-content:center; align-content:start; gap:.75rem; padding:.75rem; }
+.tile { width:var(--tile-w,550px); height:var(--tile-h,344px); flex-shrink:0; }  /* 16:10 · 390–720 px via Slider */
 ```
 Tiles werden über `core.createTile()` erzeugt und hängen sich selbst ein. Kein Drag, kein Resize.
 
@@ -256,7 +256,8 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 | `--yellow` | `#fbbf24` | `#b45309` | Warn, Drag-Highlight |
 | `--purple` | `#c084fc` | `#7c3aed` | Select-Focus |
 | `--orange` | `#fb923c` | `#c2410c` | Locked-Banner, Zustandsspalten-Hint |
-| `--tile-h` | `220px` | `220px` | Kachel-Höhe Lieferfähigkeit-Page (160–320 px) |
+| `--tile-w` | `550px` | `550px` | Kachelbreite Lieferfähigkeit-Page (390–720 px) |
+| `--tile-h` | `344px` | `344px` | Kachelhöhe = `--tile-w * 10/16` (abgeleitet, nicht direkt gesetzt) |
 
 ### Komponenten-Klassen (vollständige Liste)
 
@@ -323,12 +324,13 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 
 | Klasse | Beschreibung |
 |---|---|
-| `.tile-container` | CSS-Grid (`repeat(auto-fill, minmax(300px, 1fr))`) |
-| `.tile` | Kompakte Kachel, feste Höhe `var(--tile-h)`; kein Drag/Resize |
+| `.tile-container` | Flexbox (`flex-wrap:wrap; justify-content:center`) — volle Containerbreite, auto 3→2→1 Spalten |
+| `.tile` | Kompakte Kachel; feste Breite `var(--tile-w, 550px)` und Höhe `var(--tile-h, 344px)` (16:10); `flex-shrink:0`; kein Drag/Resize |
 | `.tile-header` | Titel-Zeile (`min-height:32px`) |
 | `.tile-title` | Kachel-Titel, `.hl` für blaue Hervorhebung |
 | `.tile-spacer` | `flex:1` — schiebt `headerExtraEl` an den rechten Rand |
 | `.tile-content` | `flex:1; overflow:hidden` — Render-Bereich |
+| `.tile-content svg` | `display:block; width:100%; height:100%` — SVG füllt Tile-Content vollständig aus |
 
 #### Cards (Deep-Dive-Pages)
 
@@ -373,7 +375,7 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
 | Element | ID | Funktion |
 |---|---|---|
 | Jira-URL-Input | `#settings-url-input` | Setzt `core.state.urlTemplate`, emittiert `'settings'` |
-| Kachel-Höhe-Slider | `#settings-tile-height` | Setzt `--tile-h` (160–320 px), `fhwa_tileHeight`; disabled bis Datei geladen |
+| Kachelgröße-Slider | `#settings-tile-height` | Setzt `--tile-w` (390–720 px) + `--tile-h` (abgeleitet 16:10); emittiert `resize`; `fhwa_tileHeight`; disabled bis Datei geladen |
 
 ---
 
@@ -396,8 +398,8 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
 
   core.initApp();
 
-  // Kachel-Höhe: laden, anwenden, Slider verdrahten
-  // (localStorage-Key: fhwa_tileHeight, Default 220, Clamp 160–320)
+  // Kachelgröße: laden, anwenden, Slider verdrahten
+  // (localStorage-Key: fhwa_tileHeight, Default 550px Breite, Ratio 10:16, Clamp 390–720)
 
   // Filter-Reset aller Pages: wird von core.js via .squad-filter-reset behandelt
   // (nicht mehr im Bootstrap-Block)
@@ -430,3 +432,6 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
 | 2026-06-07 | 1.1 | Phase 1b: Sidebar Glyph/Tech/Section, Tile-Container + Tile-CSS, Settings-Slider `--tile-h`, HTML-Struktur aktualisiert |
 | 2026-06-07 | 1.2 | Phase 1c: Globaler Topbar entfernt → Sidebar-Bottom (Einstellungen, Theme, Datencheck, Neue Datei). Neuer App-Flow: File-Load → `#page-datencheck` (Nav gesperrt) → Bestätigung → Dashboard. `#page-lieferfahigkeit` mit `.page-filterbar` + `.page-scroll` + `.page-flex`. Squad-Filter in Filterleiste. `settings-panel` auf `position:fixed`. Neue CSS-Klassen: `.sidebar-filebadge`, `.sidebar-locked`, `.sidebar-bottom`, `.sidebar-bottom-btn`, `.page-filterbar`, `.pf-*`, `.page-scroll`, `.page-flex`, `.dc-*`. |
 | 2026-06-08 | 1.3 | Detail-Pages Neustrukturierung: `#page-wipage/scatter/heatmap` erhalten `.page-flex` + `.page-filterbar` (Squad/Issue-Typ/Zeitraum/Reset) + `.page-detail-canvas`. `#squad-dropdown` auf `position:fixed` auf `#app-screen`-Ebene verschoben (shared). Squad-Button auf allen Pages via `.btn-squad-trigger`. Filter-Reset via `.squad-filter-reset` (handled by core.js). Drag-Handle/Resize-Handle auf Detail-Pages via CSS ausgeblendet. Neue Klassen: `.page-detail-canvas`, `.btn-squad-trigger`, `.squad-filter-reset`. |
+| 2026-06-08 | 1.4 | Tile-Layout überarbeitet: `--tile-w` (400 px) + `--tile-h` (250 px, 16:10 abgeleitet) als CSS-Variablen. `.tile-container` auf `repeat(auto-fill, var(--tile-w))` + `justify-content:center` + `max-width` (max. 3 Spalten). `.tile` bekommt explizite Breite. `.tile-content svg` füllt Tile vollständig. Kachelgröße-Slider (280–600 px) steuert Breite + Höhe gemeinsam, emittiert `resize`. |
+| 2026-06-08 | 1.5 | Bugfix Layout-Vollbreite: `.app-body` bekommt `width:100%`. `core.js` öffnete `#app-screen` mit `display:flex` statt `display:block` → `.app-body` schrumpfte als Flex-Item auf Inhaltsbreite. Tile-Container auf Flexbox (`flex-wrap:wrap`) umgestellt — entfernt `max-width`-Constraint der Filterleiste einschränkte. |
+| 2026-06-08 | 1.6 | Default-Kachelgröße auf 550 × 344 px angehoben. Slider-Range auf ±30 % (390–720 px, step 10). Alle veralteten CSS-Grid- und 220/400-px-Referenzen in der Spec bereinigt. |

@@ -575,7 +575,7 @@ Jedes Visual:
     .sidebar          Persistente linke Navigation (Logo + Section-Labels + Page-Links mit Glyph)
     .main-content     Rechter Bereich, zeigt aktive Page
       #page-lieferfahigkeit
-        #tile-canvas-lieferfahigkeit   CSS-Grid (minmax 300px) für kompakte KPI-Kacheln
+        #tile-canvas-lieferfahigkeit   Flexbox (flex-wrap, justify-content:center) für kompakte KPI-Kacheln
         #page-canvas-lieferfahigkeit   display:none · Fallback bis boxchart.js migriert
       #page-wipage            position:relative · WIPAge Card
       #page-scatter           position:relative · CycleTime Card
@@ -584,7 +584,7 @@ Jedes Visual:
 ```
 
 **Zwei Rendering-Modelle:**
-- **Tile-Canvas** (Lieferfähigkeit-Page): kompakte `.tile`-Elemente in CSS-Grid, feste Höhe `var(--tile-h, 220px)` · kein Drag/Resize. Visuals rufen `core.createTile()` auf.
+- **Tile-Canvas** (Lieferfähigkeit-Page): kompakte `.tile`-Elemente in Flexbox (`flex-wrap:wrap`, `justify-content:center`), feste Breite `var(--tile-w, 550px)` + Höhe `var(--tile-h, 344px)` im 16:10-Verhältnis · kein Drag/Resize. Visuals rufen `core.createTile()` auf.
 - **Page-Canvas** (Deep-Dive-Pages wipage/scatter/heatmap): `position:absolute`-Cards im Grid-System. Visuals rufen `core.createCard()` auf.
 
 **Page-Switching:** `core.showPage(pageId)` blendet alle Pages aus, zeigt die gewählte, setzt `core.state.activePage` und speichert in `fhwa_activePage` (localStorage). Aktiver Sidebar-Link erhält Klasse `.active`.
@@ -672,11 +672,11 @@ const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
   id:    'boxchart',                          // wird zu #tile-boxchart
   title: 'Lead<span class="hl">Time</span>',
 });
-// tileEl         → das .tile-Element (kein Drag/Resize, CSS-Grid)
+// tileEl         → das .tile-Element (kein Drag/Resize, Flexbox-Wrap)
 // contentEl      → .tile-content (flex:1, hier rein rendern)
 // headerExtraEl  → freier Bereich im Tile-Header für Badges/Toggles
 // diagEl         → .diag-bar (Diagnose-Zeile unten)
-// Höhe:          var(--tile-h, 220px) · konfigurierbar via Settings-Slider
+// Größe:         --tile-w (550px Default) × --tile-h (344px, 16:10) · via Settings-Slider (390–720 px)
 ```
 
 Routing für beide Factories über `CARD_PAGE_MAP` in `core.js`. Lieferfähigkeit-Visuals hängen automatisch am `tile-canvas-lieferfahigkeit`.
@@ -772,7 +772,7 @@ export function init() {
 |---|---|---|
 | `fhwa_layout2` | core.js | `{ [visualId]: { col, row, w, h } }` für alle Cards |
 | `fhwa_activePage` | core.js | zuletzt aktive Page-ID |
-| `fhwa_tileHeight` | index.html | Kachel-Höhe in px (160–320, Default 220) |
+| `fhwa_tileHeight` | index.html | Kachelbreite in px (390–720, Default 550) · Höhe wird als 16:10 abgeleitet |
 | `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenStates[], stateOrder[] |
 | `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
 | `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected'`), stateOrder[] |
@@ -1374,6 +1374,7 @@ localStorage-Key: `fhwa_[visualId]`
 *Erstellt: 2026-06-03 · Autor: Oliver Wolter*  
 *v3.1: Projektstruktur auf project-root/docs/specs/ umgestellt.*  
 *v4.0 (2026-06-06): Navigation/Sidebar-Struktur, Multi-Sheet-Loading (generisches `core.state.sheets`-Pattern), 5 neue Visuals (Say_Do_Ratio, WIP KPI, Flow Efficiency, Happiness Index, Akzeptanzkriterien), Phasenplan, Chat-Start-Tabelle aktualisiert.*  
-*v4.1 (2026-06-07): Phase 1b — Sidebar Glyph/Tech-Untertitel/Section-Labels, Tile-Canvas Lieferfähigkeit (`createTile()`, CSS-Grid minmax 300px), `--tile-h` Slider (160–320 px, `fhwa_tileHeight`), Heatmap-Label korrigiert.*
+*v4.1 (2026-06-07): Phase 1b — Sidebar Glyph/Tech-Untertitel/Section-Labels, Tile-Canvas Lieferfähigkeit (`createTile()`, Flexbox flex-wrap), `--tile-w/h` Slider, Heatmap-Label korrigiert.*
 *v4.2 (2026-06-07): M7 (Datei-Check nach jeder Entwicklung) und M8 (Spec als lebendiges Dokument, Spec-First) ergänzt. Pre-Delivery Review um Spec-Pflicht-Check erweitert.*
 *v4.3 (2026-06-07): Happiness Faktor Visual (`happiness.js`) implementiert. `core.state.sheetsRaw` ergänzt (2D-Array-Format für Custom-Header-Sheets). `build.py` um `wrap_iife()`-Pattern erweitert (verhindert `const`/`let`-Kollisionen im Bundle, jetzt 5 Stellen statt 4). Dokumentation entsprechend aktualisiert.*
+*v4.4 (2026-06-08): Layout-Bugfix: `core.js` öffnete `#app-screen` mit `display:flex` (→ `display:block`). `--tile-w` + `--tile-h` (16:10-Ratio) ersetzen altes `--tile-h`-only-System. Tile-Container auf Flexbox (`flex-wrap:wrap`, `justify-content:center`) umgestellt — volle Fensterbreite, automatisch 3→2→1 Spalten. Default 550 × 344 px, Slider-Range 390–720 px (±30 %).*
