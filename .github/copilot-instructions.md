@@ -52,7 +52,9 @@ project-root/
 | Modell | Factory | Container | Seiten |
 |---|---|---|---|
 | **Tile** | `core.createTile()` | `#tile-canvas-[pageId]` (CSS-Grid) | lieferfahigkeit |
-| **Card** | `core.createCard()` | `#page-canvas-[pageId]` (position:relative) | wipage, scatter, heatmap |
+| **Card** | `core.createCard()` | `#page-canvas-[pageId]` (`.page-detail-canvas`, `flex:1`) | wipage, scatter, heatmap |
+
+> **Detail-Pages (wipage / scatter / heatmap):** Cards füllen den Canvas via CSS (`position:absolute; inset:0; !important`). Drag-Handle und Resize-Handle sind ausgeblendet. Die Visual-JS-Dateien brauchen keine Kenntnis davon.
 
 ```javascript
 // Tile (Lieferfähigkeit) – kein Drag/Resize, feste Höhe var(--tile-h)
@@ -77,6 +79,9 @@ Die App hat eine persistente **linke Sidebar** mit 4 Pages:
 | `wipage` | Was liegt gerade rum? | wipage |
 | `scatter` | Wie lange dauert ein Ticket? | scatter |
 | `heatmap` | Wo verbringen Tickets ihre Zeit? | heatmap |
+
+Alle 4 Dashboard-Pages haben Klasse `.page-flex` → `showPage()` setzt `display:flex`.  
+Detail-Pages (wipage/scatter/heatmap) haben je eine eigene Filter-Leiste mit `.btn-squad-trigger` (öffnet den shared `#squad-dropdown`, `position:fixed`, App-Screen-Ebene).
 
 ```javascript
 core.showPage('lieferfahigkeit');   // Page wechseln

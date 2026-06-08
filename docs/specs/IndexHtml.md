@@ -23,6 +23,7 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
 <body>
   #upload-screen            Drag&Drop + Datei-Picker + Hint-Box
   #app-screen
+    #squad-dropdown         position:fixed – shared Squad-Dropdown (alle Pages)
     .app-body               Sidebar + Main-Content (kein globaler Topbar)
       .sidebar              Persistente linke Navigation
         .sidebar-logo       FlowAnalytics
@@ -42,18 +43,21 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
           #btn-reset        Neue Datei laden
       .main-content
         #page-datencheck    Daten-Bestätigung nach File-Load (dynamisch befüllt von core.js)
-        #page-lieferfahigkeit
+        #page-lieferfahigkeit  (.page-flex)
           .page-filterbar   Squad · Issue-Typ · Zeitraum · Filter zurücksetzen
-            #squad-dd-wrap  Squad-Filter-Dropdown (#btn-squad, #squad-dropdown)
+            #squad-dd-wrap  Nur noch der Trigger-Button (#btn-squad .btn-squad-trigger)
           .page-scroll
             #tile-canvas-lieferfahigkeit  CSS-Grid (minmax 300px) — Tiles via core.createTile()
             #page-canvas-lieferfahigkeit  display:none — Fallback
-        #page-wipage
-          #page-canvas-wipage        position:relative — Cards via core.createCard()
-        #page-scatter
-          #page-canvas-scatter       position:relative — Cards via core.createCard()
-        #page-heatmap
-          #page-canvas-heatmap       position:relative — Cards via core.createCard()
+        #page-wipage  (.page-flex)
+          .page-filterbar   „Was liegt gerade rum?" · Squad · Issue-Typ · Zeitraum · Reset
+          .page-detail-canvas  id="page-canvas-wipage" — Card füllt inset:0
+        #page-scatter  (.page-flex)
+          .page-filterbar   „Wie lange dauert ein Ticket?" · Squad · Issue-Typ · Zeitraum · Reset
+          .page-detail-canvas  id="page-canvas-scatter" — Card füllt inset:0
+        #page-heatmap  (.page-flex)
+          .page-filterbar   „Wo verbringen Tickets ihre Zeit?" · Squad · Issue-Typ · Zeitraum · Reset
+          .page-detail-canvas  id="page-canvas-heatmap" — Card füllt inset:0
   <script type="module"> ES-Module-Bootstrap
 ```
 
@@ -180,11 +184,13 @@ Hat Klasse `.page-flex` → `showPage()` setzt `display:flex` (statt `block`) da
 ```
 pf-page-title  „Lieferfähigkeit"
 pf-sep
-#squad-dd-wrap (btn-squad + squad-dropdown)   Squad-Filter (global)
+#squad-dd-wrap
+  #btn-squad (.btn-squad-trigger)   Squad-Filter-Button — öffnet shared #squad-dropdown
+  (dropdown ist jetzt auf #app-screen-Ebene, position:fixed)
 .pf-filter-chip.pf-disabled   „ISSUE-TYP Alle ▽"   (Platzhalter, noch nicht implementiert)
 .pf-filter-chip.pf-disabled   „ZEITRAUM Gesamt ▽"  (Platzhalter, noch nicht implementiert)
 pf-spacer
-#lf-filter-reset   „↻ Filter zurücksetzen"
+#lf-filter-reset (.squad-filter-reset)   „↻ Filter zurücksetzen" — handled by core.js
 ```
 
 **Squad-Filter:** `#btn-squad` trägt Klasse `.pf-filter-chip` (statt `.btn-icon`). Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateSquadBtn()` in core.js: `„SQUADS Alle ▽"` / `„SQUADS N/M ▽"`.
@@ -288,7 +294,7 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 | `.pf-filter-chip.pf-disabled` | `opacity:0.5; cursor:not-allowed` — nicht implementiert |
 | `.pf-reset` | Reset-Chip (transparent, kein Rand) |
 | `.page-scroll` | `flex:1; overflow:auto` — scrollbarer Inhalt unter Filterleiste |
-| `.page-flex` | Klasse auf Pages die `display:flex` benötigen (aktuell: `#page-lieferfahigkeit`) |
+| `.page-flex` | Klasse auf Pages die `display:flex` benötigen (lieferfahigkeit, wipage, scatter, heatmap) |
 
 #### Datencheck-Page
 
@@ -328,12 +334,20 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 
 | Klasse | Beschreibung |
 |---|---|
-| `.card` | Absolut positionierte Karte; `flex-direction:column` |
-| `.card-header` | Drag-Handle · Titel · Controls |
-| `.card-drag-handle` | `⠿`-Icon, `cursor:grab` |
+| `.card` | Card-Element; auf Detail-Pages via CSS `inset:0 !important` auf volle Canvas-Größe gezwungen |
+| `.card-header` | Drag-Handle (ausgeblendet auf Detail-Pages) · Titel · Controls |
+| `.card-drag-handle` | `⠿`-Icon — `display:none !important` auf `.page-detail-canvas .card` |
 | `.card-title` | Fett, `.hl` für blaue Hervorhebung |
 | `.card-content` | `flex:1; overflow:auto` — hier rendert das Visual |
-| `.card-resize-handle` | Ecke rechts unten, `cursor:nwse-resize` |
+| `.card-resize-handle` | Ecke rechts unten — `display:none !important` auf `.page-detail-canvas .card` |
+
+#### Detail-Page-Canvas
+
+| Klasse | Beschreibung |
+|---|---|
+| `.page-detail-canvas` | `flex:1; position:relative; overflow:hidden` — Canvas für wipage/scatter/heatmap |
+| `.btn-squad-trigger` | Squad-Filter-Button auf jeder Page — öffnet shared `#squad-dropdown` |
+| `.squad-filter-reset` | Filter-zurücksetzen-Button auf jeder Page — handled by core.js |
 
 #### Sonstige
 
@@ -385,8 +399,8 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
   // Kachel-Höhe: laden, anwenden, Slider verdrahten
   // (localStorage-Key: fhwa_tileHeight, Default 220, Clamp 160–320)
 
-  // Lieferfähigkeit Filter-Reset (#lf-filter-reset):
-  // setzt alle Squad-Checkboxen auf checked + feuert sdd-all-Click
+  // Filter-Reset aller Pages: wird von core.js via .squad-filter-reset behandelt
+  // (nicht mehr im Bootstrap-Block)
 </script>
 ```
 
@@ -415,3 +429,4 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
 | 2026-06-03 | 1.0 | Initiales Dokument |
 | 2026-06-07 | 1.1 | Phase 1b: Sidebar Glyph/Tech/Section, Tile-Container + Tile-CSS, Settings-Slider `--tile-h`, HTML-Struktur aktualisiert |
 | 2026-06-07 | 1.2 | Phase 1c: Globaler Topbar entfernt → Sidebar-Bottom (Einstellungen, Theme, Datencheck, Neue Datei). Neuer App-Flow: File-Load → `#page-datencheck` (Nav gesperrt) → Bestätigung → Dashboard. `#page-lieferfahigkeit` mit `.page-filterbar` + `.page-scroll` + `.page-flex`. Squad-Filter in Filterleiste. `settings-panel` auf `position:fixed`. Neue CSS-Klassen: `.sidebar-filebadge`, `.sidebar-locked`, `.sidebar-bottom`, `.sidebar-bottom-btn`, `.page-filterbar`, `.pf-*`, `.page-scroll`, `.page-flex`, `.dc-*`. |
+| 2026-06-08 | 1.3 | Detail-Pages Neustrukturierung: `#page-wipage/scatter/heatmap` erhalten `.page-flex` + `.page-filterbar` (Squad/Issue-Typ/Zeitraum/Reset) + `.page-detail-canvas`. `#squad-dropdown` auf `position:fixed` auf `#app-screen`-Ebene verschoben (shared). Squad-Button auf allen Pages via `.btn-squad-trigger`. Filter-Reset via `.squad-filter-reset` (handled by core.js). Drag-Handle/Resize-Handle auf Detail-Pages via CSS ausgeblendet. Neue Klassen: `.page-detail-canvas`, `.btn-squad-trigger`, `.squad-filter-reset`. |

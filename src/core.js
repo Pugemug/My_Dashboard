@@ -614,12 +614,22 @@ function _initSidebarButtons() {
     core.state.sheetsRaw = {};
   });
 
-  // Squad dropdown toggle
-  document.getElementById('btn-squad')?.addEventListener('click', () => {
-    const dd   = document.getElementById('squad-dropdown');
-    const open = dd.classList.toggle('open');
-    document.getElementById('btn-squad').classList.toggle('p-blue', open);
-    document.getElementById('btn-squad').classList.toggle('pf-active', open);
+  // Squad dropdown toggle – shared across all pages via .btn-squad-trigger
+  document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const dd   = document.getElementById('squad-dropdown');
+      const open = dd.classList.toggle('open');
+      if (open) {
+        const rect = btn.getBoundingClientRect();
+        dd.style.top  = (rect.bottom + 4) + 'px';
+        dd.style.left = rect.left + 'px';
+      }
+      document.querySelectorAll('.btn-squad-trigger').forEach(b => {
+        b.classList.toggle('p-blue',    open);
+        b.classList.toggle('pf-active', open || core.state.squadFilter.length > 0);
+      });
+    });
   });
 
   // Squad select all / none
@@ -658,6 +668,14 @@ function _initSidebarButtons() {
     });
   }
 
+  // Filter zurücksetzen – alle Seiten
+  document.querySelectorAll('.squad-filter-reset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#squad-opts input[type=checkbox]').forEach(cb => cb.checked = true);
+      _onSquadFilterChange();
+    });
+  });
+
   // Close settings panel on outside click
   document.addEventListener('click', e => {
     const wrap = document.getElementById('settings-wrap');
@@ -669,14 +687,9 @@ function _initSidebarButtons() {
 
   // Close squad dropdown on outside click
   document.addEventListener('click', e => {
-    const wrap = document.getElementById('squad-dd-wrap');
-    if (wrap && !wrap.contains(e.target)) {
+    if (!e.target.closest('.btn-squad-trigger') && !e.target.closest('#squad-dropdown')) {
       document.getElementById('squad-dropdown')?.classList.remove('open');
-      const btn = document.getElementById('btn-squad');
-      if (btn && !core.state.squadFilter.length) {
-        btn.classList.remove('p-blue');
-        btn.classList.remove('pf-active');
-      }
+      _updateSquadBtn();
     }
   });
 }
@@ -966,14 +979,11 @@ function _onSquadFilterChange() {
 }
 
 function _updateSquadBtn() {
-  const btn = document.getElementById('btn-squad');
-  if (!btn) return;
-  const a = core.state.squadFilter.length;
-  if (!a) {
-    btn.textContent = 'SQUADS Alle ▽';
-    btn.classList.remove('pf-active');
-  } else {
-    btn.textContent = `SQUADS ${a}/${core.state.allSquads.length} ▽`;
-    btn.classList.add('pf-active');
-  }
+  const a    = core.state.squadFilter.length;
+  const text = a ? `SQUADS ${a}/${core.state.allSquads.length} \u25bd` : 'SQUADS Alle \u25bd';
+  document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
+    btn.textContent = text;
+    btn.classList.toggle('pf-active', a > 0);
+    btn.classList.remove('p-blue'); // nur blau wenn Dropdown offen
+  });
 }

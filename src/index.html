@@ -91,7 +91,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 
 /* ── SQUAD DROPDOWN ── */
 .squad-dd-wrap{position:relative;flex-shrink:0}
-.squad-dropdown{position:absolute;top:calc(100% + 6px);left:0;min-width:200px;max-width:280px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 32px rgba(0,0,0,.5);z-index:200;padding:.4rem 0;display:none}
+.squad-dropdown{position:fixed;top:0;left:0;min-width:200px;max-width:280px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 32px rgba(0,0,0,.5);z-index:200;padding:.4rem 0;display:none}
 .squad-dropdown.open{display:block}
 .squad-dd-header{display:flex;gap:.3rem;padding:.3rem .55rem .4rem;border-bottom:1px solid var(--border);margin-bottom:.25rem}
 .sdd-btn{font-size:.63rem;font-family:var(--mono);padding:.15rem .4rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer}
@@ -147,7 +147,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 /* ── MAIN CONTENT & PAGES ── */
 .main-content{flex:1;overflow:hidden;min-width:0;display:flex;flex-direction:column}
 .page{display:none;height:100%;overflow:auto;background:var(--bg);flex-direction:column}
-.page.page-flex{display:none;flex-direction:column}
+.page.page-flex{display:none;flex-direction:column;overflow:hidden}
 /* page-canvas: absoluter Positionierungsraum für Drag-Cards */
 .page-canvas{position:relative;min-height:100%}
 
@@ -317,6 +317,20 @@ td.td-lt{background:rgba(192,132,252,.04)}
 .state-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 2rem;gap:.4rem;text-align:center}
 .state-msg h3{color:var(--text);font-size:.88rem}.state-msg p{color:var(--dim);font-size:.7rem;font-family:var(--mono)}
 .sc-nodata h3{color:var(--dim);font-size:.85rem}.sc-nodata p{color:var(--dimmer);font-size:.7rem;font-family:var(--mono)}
+
+/* ── DETAIL PAGES (scatter / wipage / heatmap) ── */
+/* Canvas füllt den Restbereich nach der Filter-Leiste */
+.page-detail-canvas{flex:1;position:relative;min-height:0;overflow:hidden}
+/* Card auf Detail-Pages: immer inset:0, kein Drag-Grid */
+.page-detail-canvas .card{
+  position:absolute!important;left:0!important;top:0!important;
+  right:0!important;bottom:0!important;
+  width:auto!important;height:auto!important;
+  border-radius:0!important;
+  border-left:none!important;border-right:none!important;border-bottom:none!important}
+/* Drag-Handle und Resize-Handle ausblenden */
+.page-detail-canvas .card-drag-handle,
+.page-detail-canvas .card-resize-handle{display:none!important}
 </style>
 </head>
 <body>
@@ -357,6 +371,15 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
 <!-- ══ APP ══ -->
 <div id="app-screen">
+
+  <!-- Shared squad dropdown – position:fixed, geöffnet von jeder .btn-squad-trigger -->
+  <div class="squad-dropdown" id="squad-dropdown">
+    <div class="squad-dd-header">
+      <button class="sdd-btn" id="sdd-all">Alle</button>
+      <button class="sdd-btn" id="sdd-none">Keine</button>
+    </div>
+    <div id="squad-opts"></div>
+  </div>
 
   <!-- App-Body: Sidebar + Main-Content (kein globaler Topbar mehr) -->
   <div class="app-body">
@@ -441,19 +464,13 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <!-- Squad-Filter (global, hier in der LF-Page) -->
           <div class="squad-dd-wrap" id="squad-dd-wrap">
-            <button class="pf-filter-chip" id="btn-squad">SQUADS Alle &#9661;</button>
-            <div class="squad-dropdown" id="squad-dropdown">
-              <div class="squad-dd-header">
-                <button class="sdd-btn" id="sdd-all">Alle</button>
-                <button class="sdd-btn" id="sdd-none">Keine</button>
-              </div>
-              <div id="squad-opts"></div>
-            </div>
+            <button class="pf-filter-chip btn-squad-trigger" id="btn-squad">SQUADS Alle &#9661;</button>
+            <!-- #squad-dropdown wurde auf #app-screen-Ebene verschoben (position:fixed, shared) -->
           </div>
           <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
           <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
           <div class="pf-spacer"></div>
-          <button class="pf-reset pf-filter-chip" id="lf-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+          <button class="pf-reset pf-filter-chip squad-filter-reset" id="lf-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
         <!-- Scrollbarer Inhalt -->
         <div class="page-scroll">
@@ -464,18 +481,45 @@ td.td-lt{background:rgba(192,132,252,.04)}
       </div>
 
       <!-- Page: WIPAge -->
-      <div class="page" id="page-wipage">
-        <div class="page-canvas" id="page-canvas-wipage"></div>
+      <div class="page page-flex" id="page-wipage">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Was liegt gerade rum?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-wipage">SQUADS Alle &#9661;</button>
+          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-detail-canvas" id="page-canvas-wipage"></div>
       </div>
 
       <!-- Page: CycleTime Scatterplot -->
-      <div class="page" id="page-scatter">
-        <div class="page-canvas" id="page-canvas-scatter"></div>
+      <div class="page page-flex" id="page-scatter">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Wie lange dauert ein Ticket?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-scatter">SQUADS Alle &#9661;</button>
+          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-detail-canvas" id="page-canvas-scatter"></div>
       </div>
 
       <!-- Page: FlowHeatmap -->
-      <div class="page" id="page-heatmap">
-        <div class="page-canvas" id="page-canvas-heatmap"></div>
+      <div class="page page-flex" id="page-heatmap">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Wo verbringen Tickets ihre Zeit?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-heatmap">SQUADS Alle &#9661;</button>
+          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-detail-canvas" id="page-canvas-heatmap"></div>
       </div>
 
     </div><!-- .main-content -->
@@ -537,12 +581,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
     }
   })();
 
-  // ── Lieferfähigkeit Filter-Reset ──
-  document.getElementById('lf-filter-reset')?.addEventListener('click', () => {
-    document.querySelectorAll('#squad-opts input[type=checkbox]')
-      .forEach(cb => { cb.checked = true; });
-    document.getElementById('sdd-all')?.dispatchEvent(new Event('click'));
-  });
+  // ── Lieferfähigkeit Filter-Reset wird jetzt in core.js via .squad-filter-reset behandelt ──
 </script>
 </body>
 </html>

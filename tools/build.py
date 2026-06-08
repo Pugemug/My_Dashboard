@@ -157,16 +157,7 @@ def build():
         "    }\n"
         "  })();\n"
         "\n"
-        "  // ── Lieferfähigkeit Filter-Reset ──\n"
-        "  var lfReset = document.getElementById('lf-filter-reset');\n"
-        "  if (lfReset) {\n"
-        "    lfReset.addEventListener('click', function() {\n"
-        "      document.querySelectorAll('#squad-opts input[type=checkbox]')\n"
-        "        .forEach(function(cb) { cb.checked = true; });\n"
-        "      var allBtn = document.getElementById('sdd-all');\n"
-        "      if (allBtn) allBtn.dispatchEvent(new Event('click'));\n"
-        "    });\n"
-        "  }\n"
+        "  // Filter-Reset aller Pages wird von core.js via .squad-filter-reset behandelt.\n"
     )
 
     # Gebündeltes JS zusammensetzen
