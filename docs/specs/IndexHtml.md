@@ -1,7 +1,7 @@
 # index.html – Spezifikation
 
-**Version:** 1.6  
-**Datum:** 2026-06-08  
+**Version:** 1.7  
+**Datum:** 2026-06-09  
 **Status:** Implementiert · wird bei Änderungen aktualisiert
 
 ---
@@ -389,12 +389,14 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
   import { init as initWipage }    from './wipage.js';
   import { init as initBoxChart }  from './boxchart.js';
   import { init as initHappiness } from './happiness.js';
+  import { init as initWip }       from './wip.js';
 
   initHeatmap();
   initScatter();
   initWipage();
   initBoxChart();
   initHappiness();
+  initWip();
 
   core.initApp();
 
@@ -434,4 +436,5 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
 | 2026-06-08 | 1.3 | Detail-Pages Neustrukturierung: `#page-wipage/scatter/heatmap` erhalten `.page-flex` + `.page-filterbar` (Squad/Issue-Typ/Zeitraum/Reset) + `.page-detail-canvas`. `#squad-dropdown` auf `position:fixed` auf `#app-screen`-Ebene verschoben (shared). Squad-Button auf allen Pages via `.btn-squad-trigger`. Filter-Reset via `.squad-filter-reset` (handled by core.js). Drag-Handle/Resize-Handle auf Detail-Pages via CSS ausgeblendet. Neue Klassen: `.page-detail-canvas`, `.btn-squad-trigger`, `.squad-filter-reset`. |
 | 2026-06-08 | 1.4 | Tile-Layout überarbeitet: `--tile-w` (400 px) + `--tile-h` (250 px, 16:10 abgeleitet) als CSS-Variablen. `.tile-container` auf `repeat(auto-fill, var(--tile-w))` + `justify-content:center` + `max-width` (max. 3 Spalten). `.tile` bekommt explizite Breite. `.tile-content svg` füllt Tile vollständig. Kachelgröße-Slider (280–600 px) steuert Breite + Höhe gemeinsam, emittiert `resize`. |
 | 2026-06-08 | 1.5 | Bugfix Layout-Vollbreite: `.app-body` bekommt `width:100%`. `core.js` öffnete `#app-screen` mit `display:flex` statt `display:block` → `.app-body` schrumpfte als Flex-Item auf Inhaltsbreite. Tile-Container auf Flexbox (`flex-wrap:wrap`) umgestellt — entfernt `max-width`-Constraint der Filterleiste einschränkte. |
+| 2026-06-09 | 1.7 | `wip.js` (WIP pro Person) ergänzt: `import { init as initWip }` + `initWip()` im Bootstrap-Block. |
 | 2026-06-08 | 1.6 | Default-Kachelgröße auf 550 × 344 px angehoben. Slider-Range auf ±30 % (390–720 px, step 10). Alle veralteten CSS-Grid- und 220/400-px-Referenzen in der Spec bereinigt. |

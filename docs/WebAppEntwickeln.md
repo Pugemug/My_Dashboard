@@ -1129,6 +1129,16 @@ Symptome, die zum Neuschreiben zwingen:
 - Ursache: Falsche Perzentil-Auswahl; keine Flächen-Darstellung
 - Fix: Umstellung auf P25/P50/P85/P90; SVG-Rechtecke als Farbzonen hinter den Linien
 
+**Bug 8: WIP pro Person – Header-Zeile in SquadDaten nicht gefunden**
+- Symptom: „Header-Zeile ('Squad') nicht in SquadDaten gefunden" obwohl Sheet vorhanden und Squad-Name korrekt
+- Ursache: `row[1] === 'Squad'` hardcodierte Spalte B; 'Squad' steht im realen Sheet in einer anderen Spalte
+- Fix: `row.some(c => c === 'Squad')` für Header-Suche; Spaltenposition per `hRow.indexOf('Squad')` dynamisch ermitteln; alle weiteren Zugriffe über `squadCol`-Variable statt fester Index
+
+**Bug 9: WIP pro Person – keine Daten wenn Squad nicht in SquadDaten**
+- Symptom: „Keine Zeitraumdaten verfügbar" obwohl JiraStories Daten enthält
+- Ursache: Monate wurden nur aus der gefundenen Squad-Zeile befüllt; fehlende Zeile = leere Monatsliste = Abbruch
+- Fix: Monate immer aus Header-Spalten ableiten; Squad nicht gefunden → teamsize=1 für alle Header-Monate (Diag-Hinweis in Diag-Bar)
+
 ---
 
 ## Workflow-Checklisten

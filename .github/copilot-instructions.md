@@ -27,6 +27,7 @@ project-root/
     wipkpi.js          ← WIP KPI-Card (JiraStories)
     flowefficiency.js  ← Flow Efficiency (JiraStories + BlockedReasons JOIN)
     happiness.js       ← Happiness Faktor Visual (Sheet: 'Happiness Faktor')
+    wip.js             ← WIP pro Person Visual (Sheet: 'SquadDaten', JiraStories)
     akzeptanz.js       ← Akzeptanzkriterien KPI (dediziertes Sheet)
   tools/
     build.py        ← Bündelt ES-Module zu FlowAnalytics.html
@@ -75,7 +76,7 @@ Die App hat eine persistente **linke Sidebar** mit 4 Pages:
 
 | Page-ID | Label | Visuals |
 |---|---|---|
-| `lieferfahigkeit` | Lieferfähigkeit | boxchart, saydoratio, wipkpi, flowefficiency, happinessfaktor, akzeptanz |
+| `lieferfahigkeit` | Lieferfähigkeit | boxchart, saydoratio, wipkpi, flowefficiency, happinessfaktor, wip, akzeptanz |
 | `wipage` | Was liegt gerade rum? | wipage |
 | `scatter` | Wie lange dauert ein Ticket? | scatter |
 | `heatmap` | Wo verbringen Tickets ihre Zeit? | heatmap |

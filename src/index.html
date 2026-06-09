@@ -536,6 +536,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   import { init as initWipage }    from './wipage.js';
   import { init as initBoxChart }  from './boxchart.js';
   import { init as initHappiness } from './happiness.js';
+  import { init as initWip }       from './wip.js';
 
   // Visuals registrieren ihre Cards (werden an den richtigen Page-Canvas gehängt)
   initHeatmap();
@@ -543,6 +544,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   initWipage();
   initBoxChart();
   initHappiness();
+  initWip();
 
   // Core-App initialisieren (Theme, globaler State, File-Upload-Listener, Sidebar)
   core.initApp();

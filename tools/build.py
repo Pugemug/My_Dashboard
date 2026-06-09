@@ -85,6 +85,7 @@ def build():
     wipage_js    = read('wipage.js')
     boxchart_js  = read('boxchart.js')
     happiness_js = read('happiness.js')
+    wip_js       = read('wip.js')
 
     print("▶ Transformiere JS (entferne import/export) …")
     core_out      = strip_module_syntax(core_js)
@@ -93,6 +94,7 @@ def build():
     wipage_out    = strip_module_syntax(wipage_js)
     boxchart_out  = strip_module_syntax(boxchart_js)
     happiness_out = strip_module_syntax(happiness_js)
+    wip_out       = strip_module_syntax(wip_js)
 
     # init()-Funktionen umbenennen um Kollisionen zu vermeiden
     heatmap_out   = heatmap_out.replace(  'function init()', 'function init_heatmap()',   1)
@@ -100,6 +102,7 @@ def build():
     wipage_out    = wipage_out.replace(   'function init()', 'function init_wipage()',    1)
     boxchart_out  = boxchart_out.replace( 'function init()', 'function init_boxchart()',  1)
     happiness_out = happiness_out.replace('function init()', 'function init_happiness()', 1)
+    wip_out       = wip_out.replace(      'function init()', 'function init_wip()',       1)
 
     # Jedes Visual in eine IIFE einwickeln:
     # Verhindert, dass gleichnamige top-level const/let zwischen Visuals kollidieren.
@@ -117,6 +120,7 @@ def build():
     wipage_out    = wrap_iife(wipage_out,    'init_wipage')
     boxchart_out  = wrap_iife(boxchart_out,  'init_boxchart')
     happiness_out = wrap_iife(happiness_out, 'init_happiness')
+    wip_out       = wrap_iife(wip_out,       'init_wip')
 
     # Inline-Bootstrap (ersetzt den <script type="module">-Block aus index.html)
     # WICHTIG: Alle Logik aus dem Modul-Script muss hier vollständig enthalten sein,
@@ -127,6 +131,7 @@ def build():
         "  init_wipage();\n"
         "  init_boxchart();\n"
         "  init_happiness();\n"
+        "  init_wip();\n"
         "  core.initApp();\n"
         "\n"
         "  // ── Kachelgröße: laden, anwenden, Slider verdrahten (16:10) ──\n"
@@ -171,6 +176,7 @@ def build():
         "// ── wipage.js ──\n"     + wipage_out    + "\n\n" +
         "// ── boxchart.js ──\n"   + boxchart_out  + "\n\n" +
         "// ── happiness.js ──\n"  + happiness_out + "\n\n" +
+        "// ── wip.js ──\n"        + wip_out        + "\n\n" +
         "// ── Bootstrap ──\n"     + bootstrap      + "\n"
     )
 
