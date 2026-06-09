@@ -1,7 +1,7 @@
 # Flow Analytics – Web App Entwicklungs-Leitfaden
 
-**Version:** 4.2  
-**Datum:** 2026-06-07  
+**Version:** 4.5  
+**Datum:** 2026-06-09  
 **Basis:** WebAppEntwickeln.md v3.1 + Architektur-Erweiterung (Navigation, Multi-Sheet, 5 neue Visuals)  
 **Vorgänger-Dateien:** `FlowAnalytics_Dashboard_Uebergabe.md` + `pbiviz_entwickeln.md` → zusammengeführt, Power BI entfällt
 
@@ -113,6 +113,7 @@ Kern-Entscheidungen:
 - Datenmodell: [N Excel-Spalten] – [Erkennungslogik]
 - Config: [N Properties] in localStorage-Key fhwa_[visualId]
 - Design: Tooltip ✓ · N-Anzeige: [wo] · Reihenfolge: [ja/nein] · Link: [ja/nein]
+- Layout-Freeze: Seite [lieferfahigkeit / wipage / scatter / heatmap] · Tile oder Card · [Beschreibung Hauptbereiche]
 - Akzeptanzkriterien: [N Punkte in SDD Block G]
 
 Offene Punkte die noch nicht in der SDD stehen:
@@ -165,10 +166,12 @@ Oliver antwortet mit „Ja" oder korrigiert einzelne Punkte. Erst dann beginnt C
 - [x] docs/specs/VisualName.md aktualisiert und zusammen mit .js übergeben
 - [x] Alle Änderungen in Akzeptanzkriterien (Block G) und Änderungshistorie eingetragen
 
-### Manueller Test-Hinweis für Oliver
+### Manueller Test-Hinweis für Oliver (§0.11 M9 Smoke-Test)
+- [ ] Dateien ins Projektverzeichnis legen + `build.py` ausführen
+- [ ] Zur neuen/geänderten Seite navigieren → öffnet sie, oder ist sie leer?
+- [ ] Wichtigste Interaktionen testen (Einstellungen, Squad-Filter, Theme-Toggle)
+- [ ] Excel laden → Visual erscheint?
 - [ ] Tooltip an allen 4 Ecken des Visuals testen
-- [ ] Theme-Toggle: Visual neu rendern ohne Artefakte
-- [ ] Visual auf kleines Format skalieren → Elemente passen sich an?
 - [ ] Browser-Reload: Config-State erhalten?
 ```
 
@@ -274,6 +277,161 @@ Wenn eine benötigte Datei nicht hochgeladen wurde, sagt Claude:
 - **Pre-Delivery Review** (§0.2) enthält deshalb einen Pflicht-Check: `Spec aktualisiert? [x]`
 
 **Warum:** Eine veraltete Spec ist keine Spec. Wenn Code und Spec auseinanderlaufen, verliert das Dokument seinen Wert als Grundlage für den nächsten Chat-Kontext.
+
+**Keine Ausnahmen:** Auch wenn es „nur ein kleiner Umbau" ist — jede Änderung die das Verhalten des Visuals ändert, erfordert einen Spec-Update. Die Versuchung, den Spec-Update als „nachträglichen Schritt" zu behandeln, ist der häufigste Grund für veraltete Specs.
+
+---
+
+### 0.11 Maßnahme M9 – Manueller Smoke-Test vor Chat-Ende
+
+**Wann:** Direkt bevor Oliver die gelieferten Dateien als fertig akzeptiert — noch im selben Chat, in dem entwickelt wurde.
+
+**Was Oliver tut:** Gelieferte Dateien ins Projektverzeichnis legen, `build.py` ausführen, `FlowAnalytics.html` im Browser öffnen, und drei Dinge prüfen:
+
+```
+1. Zur neuen/geänderten Seite navigieren → öffnet sie, oder ist sie leer?
+2. Wichtigste Interaktionen testen → Einstellungen öffnen, Squad wählen, Theme wechseln
+3. Eine Excel-Datei laden → erscheint das Visual?
+```
+
+Dauer: ca. 2 Minuten.
+
+**Warum vor dem Chat-Ende:** Wenn ein Bug im selben Chat gefunden wird, hat Claude noch den vollen Kontext und kann ihn direkt fixen. Wird der Bug erst im nächsten Chat gemeldet, muss Claude alle Dateien neu einlesen — das kostet 5–10× mehr Aufwand.
+
+**Was bei einem Fund passiert:**
+> Oliver beschreibt kurz was er sieht → Claude fixt im selben Chat → Oliver wiederholt den Test.
+
+---
+
+### 0.12 Maßnahme M10 – Screenshot bei Design-Änderungen
+
+**Wann:** Immer wenn ein bestehendes Visual optisch verändert wird (Layout, Farben, Positionierung von Elementen).
+
+**Was Oliver tut:** Einen Screenshot des Visuals **vor** und **nach** der Änderung machen und im Chat anhängen wenn etwas nicht stimmt.
+
+**Was Claude tut:** Bei Design-Änderungen an bestehenden Visuals explizit darauf hinweisen:
+> „Diese Änderung betrifft das Layout. Kannst du nach dem Test einen Screenshot schicken, damit wir sehen ob alles stimmt?"
+
+**Warum:** Mehrere Design-Regressions (Scatterplot verschwunden, Sidebar falsch positioniert) wurden erst nach mehreren Chat-Runden entdeckt, weil kein visueller Abgleich stattfand.
+
+---
+
+### 0.13 Maßnahme M11 – build.py Selbst-Check
+
+**Wann:** Am Ende jedes `build.py`-Runs automatisch.
+
+**Was `build.py` tut:** Nach dem Bündeln prüfen ob alle registrierten `init_*`-Funktionen im Bootstrap-Block vorhanden sind:
+
+```python
+# Am Ende von build.py ergänzen:
+expected = ['init_heatmap', 'init_scatter', 'init_wipage',
+            'init_boxchart', 'init_happiness']  # ← Liste pflegen
+for fn in expected:
+    if fn not in bundled_js:
+        print(f"⚠️  WARNUNG: {fn}() fehlt im Bundle!")
+    else:
+        print(f"✓  {fn}() vorhanden")
+```
+
+**Warum:** `build.py` hat mehrfach ein valides Bundle geliefert, dem ein `init_*()`-Aufruf im Bootstrap fehlte. Die App lud das Visual dann stillschweigend nicht — kein Fehler in der Console, nur ein leeres Panel.
+
+---
+
+### 0.14 Maßnahme M12 – Architecture Decision Log (ADL)
+
+Architektur-Entscheidungen die über eine Sitzung hinaus gelten, werden in einem eigenen Abschnitt dieser Datei festgehalten (siehe „Architecture Decision Log" weiter unten).
+
+**Was dort eingetragen wird:** Entscheidungen die nicht offensichtlich sind und deren Begründung im nächsten Chat nicht mehr sichtbar ist — z.B. warum `var` statt `const/let` im Bootstrap, warum `clientWidth`-Fallback auf `window.innerWidth`, warum IIFE statt Modul-Scope.
+
+**Was Claude tut:** Wenn im Chat eine solche Entscheidung getroffen wird, ergänzt Claude am Ende automatisch einen ADL-Eintrag.
+
+---
+
+### 0.15 Maßnahme M13 – Strukturiertes Chat-Abschluss-Protokoll
+
+Ergänzung zu M4 (§0.6): Ab Nachricht 15 nicht nur ein Übergabe-Dokument anbieten, sondern am Chat-Ende **immer** ein strukturiertes Abschluss-Protokoll ausgeben:
+
+```
+## Chat-Abschluss
+
+**Was wurde getan:**
+- [Visual / Feature / Bugfix] implementiert (v[X.Y])
+- [Datei] aktualisiert
+
+**Offen / Nächster Schritt:**
+- [Backlog-Eintrag oder Folgeaufgabe]
+
+**Für den nächsten Chat hochladen:**
+- WebAppEntwickeln.md (diese Datei, aktualisierte Version)
+- [weitere Dateien je nach Aufgabe]
+
+**Einstiegssatz:**
+> „[konkreter Startpunkt für den nächsten Chat]"
+```
+
+**Warum:** Mehrere Chats endeten informell. Der nächste Chat begann dann ohne klaren Anknüpfungspunkt — Zeit ging für Orientierung verloren.
+
+---
+
+### 0.16 Maßnahme M14 – Chat-Scope begrenzen
+
+**Regel:** Pro Chat maximal **eine** klar abgegrenzte Aufgabe:
+- Ein neues Visual (SDD-Interview + Implementierung)
+- Ein Bugfix oder eine Erweiterung an einem bestehenden Visual
+- Eine Architektur-/Layout-Änderung
+
+**Was Claude tut:** Wenn Oliver mehrere Aufgaben in einer Nachricht ankündigt, schlägt Claude vor, sie auf mehrere Chats aufzuteilen:
+> „Das sind zwei unabhängige Themen. Ich schlage vor, wir nehmen [Aufgabe A] heute und starten für [Aufgabe B] einen neuen Chat — so bleibt der Kontext zuverlässig."
+
+**Warum:** Chats die mehrere Visuals oder eine Migration + einen Bugfix + eine Spec-Aktualisierung kombinieren, füllten das Kontextfenster so stark, dass am Ende Tool-Results wegfielen und Fehler entstanden die vorher nicht da waren.
+
+---
+
+### 0.17 Maßnahme M15 – Fachbegriffe-Glossar
+
+Projektspezifische Begriffe die in Missverständnisse geführt haben, werden in einem Glossar am Ende dieser Datei geführt (siehe „Glossar" weiter unten).
+
+**Was Claude tut:** Wenn im Chat ein Begriff verwendet wird, der noch nicht im Glossar steht und missverständlich sein könnte, schlägt Claude eine Definition vor:
+> „Ich nehme an du meinst mit ‚Iteration' dasselbe wie ‚Sprint / Quartal'. Soll ich das ins Glossar eintragen?"
+
+---
+
+### 0.18 Maßnahme M16 – Scope-Check bei explorativen Themen
+
+**Wann:** Wenn ein Chat über eine Idee oder Architektur diskutiert ohne direkten Implementierungsauftrag (z.B. „Können wir Jira direkt abfragen?").
+
+**Was Claude tut:** Am Ende einer explorativen Diskussion explizit abschließen:
+> „Sollen wir das als Backlog-Eintrag festhalten, oder ist die Idee verworfen?"
+
+**Ziel:** Kein Chat endet ohne konkretes Ergebnis — entweder eine Entscheidung, ein Backlog-Eintrag oder ein explizites „zurückgestellt".
+
+---
+
+### 0.19 Maßnahme M17 – Standard-Testdatensatz
+
+**Ziel:** Eine dedizierte Excel-Datei mit bekannten Werten und gezielten Edge Cases, die für alle manuellen Tests aus Block G der Spec-Dateien verwendet wird.
+
+**Was die Testdatei enthalten soll** (gemeinsam mit Oliver zu definieren):
+- Items mit `_first`-Spalten die gleich und verschieden sind (Dual-Period-Logik)
+- Items ohne `Resolved`-Datum (aktive WIP-Items)
+- Items mit `Rejected` gefüllt
+- Leere Squad-Spalte
+- Squad mit genau 1 Item, Squad mit 50 Items
+- Fehlende optionale Sheets (kein `Epics`-Sheet → Say_Do_Ratio Leerzustand)
+
+**Status:** Noch nicht erstellt — auf Oliver warten. Claude erinnert beim nächsten passenden Anlass:
+> „Das wäre ein guter Fall für unseren Standard-Testdatensatz (M17). Sollen wir den heute definieren?"
+
+---
+
+### 0.20 Maßnahme M18 – Backlog-Priorisierung am Chat-Start
+
+**Wann:** Am Beginn jedes Chats bei dem kein konkreter Auftrag vorliegt.
+
+**Was Claude tut:** Den aktuellen Backlog nennen und Oliver entscheiden lassen:
+> „Im Backlog stehen: CFD, Card-Titel editierbar, Card minimieren. Was nehmen wir heute?"
+
+**Warum:** Ohne Ritual dominieren Bugfixes die Entwicklung. Features im Backlog bleiben liegen, obwohl sie für den Mehrwert der App wichtiger wären.
 
 ---
 
@@ -1336,6 +1494,39 @@ localStorage-Key: `fhwa_[visualId]`
 
 ---
 
+## Architecture Decision Log (ADL)
+
+Begründungen für Architektur-Entscheidungen die nicht offensichtlich sind. Wird von Claude automatisch ergänzt wenn eine solche Entscheidung getroffen wird (§0.14 M12).
+
+| Datum | Entscheidung | Begründung | Alternativen verworfen |
+|---|---|---|---|
+| 2026-06-07 | `var` statt `const/let` im Bootstrap-Block in `build.py` | Das gebündelte `<script>` ist kein Modul — `var` verhindert Fehler bei erneutem Scriptausführen (z.B. Hot-Reload in SharePoint) | `const/let`: führt zu `SyntaxError: Identifier already been declared` bei Re-Execution |
+| 2026-06-07 | `wrap_iife()` für alle Visuals in `build.py` | `const`/`let` auf oberster Datei-Ebene in mehreren Visuals kollidieren im Bundle ohne IIFE-Scope | Kein IIFE: bricht mit `SyntaxError`; ES-Module: nicht überall über `file://` nutzbar |
+| 2026-06-07 | `clientWidth`-Fallback auf `window.innerWidth` in `_getColW()` | Pages die `display:none` sind liefern `clientWidth = 0` → Cards bekämen negative Breite | Kein Fallback: Cards auf versteckten Pages werden unsichtbar initialisiert |
+| 2026-06-07 | Layout-Key `fhwa_layout2` (nicht `fhwa_layout`) | Verhindert dass altes gespeichertes Layout aus v1.x die neue Architektur bricht | Gleicher Key: alter State würde Grid-Positionen falsch setzen |
+| 2026-06-07 | `core.state.sheetsRaw` als separater State neben `core.state.sheets` | Sheets mit Custom-Header-Zeile (nicht Zeile 1) können nicht als Row-Array normalisiert werden | Alles in `sheets`: würde Custom-Header als Datenzeile interpretieren |
+
+---
+
+## Glossar
+
+Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führen könnten (§0.17 M15).
+
+| Begriff | Definition | Nicht verwechseln mit |
+|---|---|---|
+| **Iteration** | Ein Sprint oder Quartal als Zeitraum für Planung und Messung | „Periode" (veraltet, nicht mehr verwenden) |
+| **WIP** | Work in Progress — Anzahl aktiver Items in Bearbeitung | WIPAge (das Visual) |
+| **WIPAge** | Das Visual das das Alter aktiver Items zeigt (wipage.js) | WIP als Metrik |
+| **Squad** | Ein Team-Name aus den Jira-Daten — entspricht dem `Squad`-Feld in JiraStories | Kein Synonym für „Team" im allgemeinen Sinn |
+| **Status_first / leaving_Status_first** | Eintritts-/Austrittsdatum beim **ersten** Durchlauf durch einen Status | `Status` / `leaving_Status` = letzter/aktueller Durchlauf |
+| **Dual-Period-Logik** | Berechnungsregel für Items die einen Status zweimal durchlaufen (beide Zeiträume werden addiert) | Einfache CT-Berechnung (end − start) |
+| **Smoke-Test** | Kurze manuelle Prüfung (M9) ob das Visual grundsätzlich funktioniert — kein vollständiger Test | Akzeptanztest (Block G der Spec) |
+| **Glättung** | KDE-Bandwidth für Violin-Charts: steuert wie glatt die Kurve ist | „Bandwidth" (alter Begriff, nicht mehr verwenden) |
+| **Tile** | Kompakte KPI-Karte auf der Lieferfähigkeit-Page (`core.createTile()`) | Card (Deep-Dive-Pages, `core.createCard()`) |
+| **Card** | Visualisierungs-Container auf Deep-Dive-Pages mit Drag/Resize | Tile (Lieferfähigkeit-Page, kein Drag) |
+
+---
+
 ## Nächste mögliche Features (Backlog)
 
 | Feature | Datei | Aufwand | Hinweis |
@@ -1369,6 +1560,26 @@ localStorage-Key: `fhwa_[visualId]`
 **Einstiegssatz für neues Visual:**
 > „Wir entwickeln das Flow Analytics Dashboard weiter. Lies bitte WebAppEntwickeln.md und core.js. Ich möchte [Visual] ergänzen."
 
+**Chat-Abschluss-Protokoll (§0.15 M13) — Claude gibt das am Ende jedes Chats aus:**
+
+```
+## Chat-Abschluss
+
+**Was wurde getan:**
+- [Visual / Feature / Bugfix] implementiert (v[X.Y])
+- [Datei] aktualisiert
+
+**Offen / Nächster Schritt:**
+- [Backlog-Eintrag oder Folgeaufgabe]
+
+**Für den nächsten Chat hochladen:**
+- WebAppEntwickeln.md (aktualisierte Version aus diesem Chat)
+- [weitere Dateien je nach Aufgabe — siehe Tabelle oben]
+
+**Einstiegssatz:**
+> „[konkreter Startpunkt für den nächsten Chat]"
+```
+
 **Wichtig:**
 - Neue Visuals immer in eigener `.js`-Datei — nie bestehende Dateien erweitern
 - Config-State immer lokal im Visual halten — nie in `core.state` schreiben
@@ -1388,3 +1599,4 @@ localStorage-Key: `fhwa_[visualId]`
 *v4.2 (2026-06-07): M7 (Datei-Check nach jeder Entwicklung) und M8 (Spec als lebendiges Dokument, Spec-First) ergänzt. Pre-Delivery Review um Spec-Pflicht-Check erweitert.*
 *v4.3 (2026-06-07): Happiness Faktor Visual (`happiness.js`) implementiert. `core.state.sheetsRaw` ergänzt (2D-Array-Format für Custom-Header-Sheets). `build.py` um `wrap_iife()`-Pattern erweitert (verhindert `const`/`let`-Kollisionen im Bundle, jetzt 5 Stellen statt 4). Dokumentation entsprechend aktualisiert.*
 *v4.4 (2026-06-08): Layout-Bugfix: `core.js` öffnete `#app-screen` mit `display:flex` (→ `display:block`). `--tile-w` + `--tile-h` (16:10-Ratio) ersetzen altes `--tile-h`-only-System. Tile-Container auf Flexbox (`flex-wrap:wrap`, `justify-content:center`) umgestellt — volle Fensterbreite, automatisch 3→2→1 Spalten. Default 550 × 344 px, Slider-Range 390–720 px (±30 %).*
+*v4.5 (2026-06-09): Maßnahmen M9–M18 ergänzt (aus Zusammenarbeits-Analyse): M9 Smoke-Test, M10 Screenshot bei Design-Änderungen, M11 build.py Selbst-Check, M12 Architecture Decision Log, M13 Chat-Abschluss-Protokoll, M14 Chat-Scope begrenzen, M15 Glossar, M16 Scope-Check explorative Themen, M17 Standard-Testdatensatz, M18 Backlog-Priorisierung. Gate 1 um Layout-Freeze ergänzt. ADL mit 5 initialen Einträgen. Glossar mit 10 Begriffen. Pre-Delivery Review um Smoke-Test-Checkliste erweitert. M8 um Ausnahmen-Hinweis verschärft.*
