@@ -44,7 +44,7 @@ project-root/
 - Jedes Visual ist eine **eigenständige `.js`-Datei** – nie bestehende Visuals erweitern
 - Config-State immer **lokal im Visual** via `core.load('fhwa_[id]', defaults)` – nie in `core.state` schreiben
 - localStorage-Keys nach Schema: **`fhwa_[visualId]`**
-- Events abonnieren: `core.on('data' | 'theme' | 'filter' | 'resize', render)` + `'settings'` wenn `core.state.urlTemplate` genutzt wird
+- Events abonnieren: `core.on('data' | 'theme' | 'filter' | 'resize', render)` + `'settings'` wenn `core.state.urlTemplate` genutzt wird + **`'statusOrder'`** wenn das Visual ein Order-Panel hat
 - Neues Visual: **3 Stellen** aktualisieren – neue `.js`-Datei, `index.html` (import + init + Page-Zuordnung), `build.py` (5 Stellen)
 - **Lieferfähigkeit-Visuals** → `core.createTile({ id, title })` · **Deep-Dive-Visuals** → `core.createCard({ id, title, defaultGrid })`
 
@@ -177,7 +177,10 @@ const r = Math.max(3, Math.min(8, containerWidth / 100)) * (cfg.dotSize / 4);
 ```
 
 ### Reihenfolge-Panel
-Immer ▲/▼ + Drag-Handle – nie Textfeld oder Dropdown. Gespeichert in `cfg.stateOrder` via `core.save()`.
+Immer ▲/▼ + Drag-Handle — nie Textfeld oder Dropdown.  
+**Status-Reihenfolge ist global:** nie in `cfg` persistieren. Lesen: `core.loadGlobalStatusOrder(knownNames)`. Schreiben: `core.saveGlobalStatusOrder(order)` → emittiert `'statusOrder'`-Event.  
+`statusOrder`-Handler: `cfg.stateOrder` **vor** `_updateOrderPanel()` neu laden.  
+Extra-Status (nicht in `DEFAULT_STATUS_ORDER`): CSS-Klasse `.o-extra` auf Order-Panel-Item; in SVG: Label-Farbe `var(--orange)`, in Heatmap-Header: `.th-extra`.
 
 ### N-Anzeige
 Immer vorhanden. Scatterplot: oben links im Plot. Kategorie-Charts: unter jeder X-Achsen-Beschriftung.

@@ -1,6 +1,6 @@
 # index.html – Spezifikation
 
-**Version:** 1.7  
+**Version:** 1.8  
 **Datum:** 2026-06-09  
 **Status:** Implementiert · wird bei Änderungen aktualisiert
 
@@ -163,7 +163,7 @@ Alle Buttons sind `.sidebar-bottom-btn`. Aktiver Zustand: `.sb-active`.
 
 | Element | ID | Funktion |
 |---|---|---|
-| Einstellungen | `#btn-settings` | Öffnet `#settings-panel` (position:fixed, rechts neben Sidebar) |
+| Einstellungen | `#btn-settings` | Öffnet `#settings-panel` als zentriertes Overlay (position:fixed, transform:translate(-50%,-50%)) |
 | Jira-URL-Input | `#settings-url-input` | Setzt `core.state.urlTemplate`, emittiert `'settings'` |
 | Kachelgröße-Slider | `#settings-tile-height` | Setzt `--tile-w` + `--tile-h` (16:10, 390–720 px); disabled bis Datei geladen |
 | Theme-Toggle | `#btn-theme` | `core.toggleTheme()` · Text: `☀ Light` / `🌙 Dark` |
@@ -171,7 +171,7 @@ Alle Buttons sind `.sidebar-bottom-btn`. Aktiver Zustand: `.sb-active`.
 | Neue Datei | `#btn-reset` | Zurück zum Upload-Screen |
 
 **Settings-Panel-Positionierung:**  
-`position:fixed; z-index:500`. Beim Öffnen wird die Position dynamisch per `getBoundingClientRect()` berechnet → Panel erscheint rechts neben `#btn-settings` (außerhalb der Sidebar).
+`position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:500`. Backdrop `#settings-backdrop` (`z-index:490`) schließt Panel bei Klick außerhalb. Open/Close-Logik im Bootstrap-Block von index.html — **nicht** in core.js.
 
 ---
 
@@ -360,22 +360,38 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 | `.btn-icon.p-blue/yellow/…` | Aktiver Zustand (farbig) |
 | `.diag-bar` | Fixe Zeile unten in jeder Card/Tile |
 | `.sub-panel` | Aufklappbares Panel innerhalb Card/Tile |
+| `.settings-backdrop` | `position:fixed; inset:0` — Overlay-Hintergrund; `z-index:490`; Klick schließt Settings-Panel |
+| `.settings-close-btn` | ×-Button in der Panel-Kopfzeile |
+| `.settings-panel-header` | Flex-Zeile mit Titel + Close-Button |
+| `.settings-divider` | `<hr>` Trennlinie zwischen Panel-Abschnitten |
+| `.settings-section-label` | Abschnitts-Überschrift im Settings-Panel (uppercase, klein) |
+| `.settings-order-list` | Flex-Wrap-Container für Status-Reihenfolge-Items (benutzt `.order-item`) |
+| `.settings-order-reset` | „↩ Standard"-Button im Status-Reihenfolge-Abschnitt |
 | `.settings-range` | Range-Input mit `accent-color:var(--blue)` |
 | `.settings-row--disabled` | `opacity:0.4; pointer-events:none` |
 | `.order-item` | Drag-fähiges Element im Reihenfolge-Panel |
+| `.o-extra` | **Extra-Status** (nicht in DEFAULT_STATUS_ORDER) — orangefarbener Rahmen + Name in `var(--orange)`; gilt für `.order-item` in allen Order-Panels |
+| `.th-extra` | Extra-Status Tabellen-Header in der Heatmap — Spaltenname in `var(--orange)` |
 | `.tt-*` | Tooltip-Stile (`tt-title`, `tt-row`, `tt-lbl`, `tt-val`, `tt-link`) |
 
 ---
 
 ## Settings-Panel
 
-Sitzt in `.sidebar-bottom > #settings-wrap`.  
-`position:fixed; z-index:500; width:300px` — öffnet rechts neben der Sidebar.
+**Position:** `position:fixed; top:50%; left:50%; transform:translate(-50%,-50%)` — zentriertes Overlay.  
+Breite: `min(540px, 92vw)` · max-height: `82vh` (scrollbar) · `z-index:500`.  
+Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,.42); z-index:490`).
 
-| Element | ID | Funktion |
+Öffnen/Schließen: Button `#btn-settings` → `openSettings()` · Backdrop-Klick → `closeSettings()` · Close-Button `#settings-close-btn` → `closeSettings()`.  
+**Hinweis:** Open/Close-Logik liegt komplett im `<script type="module">`-Bootstrap von index.html. core.js hat keinen Settings-Button-Handler mehr.
+
+### Abschnitte im Panel
+
+| Abschnitt | Element-IDs | Inhalt |
 |---|---|---|
-| Jira-URL-Input | `#settings-url-input` | Setzt `core.state.urlTemplate`, emittiert `'settings'` |
-| Kachelgröße-Slider | `#settings-tile-height` | Setzt `--tile-w` (390–720 px) + `--tile-h` (abgeleitet 16:10); emittiert `resize`; `fhwa_tileHeight`; disabled bis Datei geladen |
+| **Jira** | `#settings-url-input` | URL-Template; setzt `core.state.urlTemplate`, emittiert `'settings'` |
+| **Darstellung** | `#settings-tile-height`, `#tile-h-display`, `#settings-tile-row` | Kachelgröße-Slider (390–720 px, 16:10); `fhwa_tileHeight`; disabled bis Datei geladen |
+| **Status-Reihenfolge** | `#settings-order-list`, `#settings-order-reset` | Drag&Drop-Liste + ▲▼ + „↩ Standard"-Button; liest/schreibt `core.loadGlobalStatusOrder()` / `core.saveGlobalStatusOrder()`; Extra-Status mit `.o-extra` markiert; aktualisiert sich bei `statusOrder`-Event |
 
 ---
 
@@ -383,7 +399,7 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
 
 ```html
 <script type="module">
-  import { core }                  from './core.js';
+  import { core, DEFAULT_STATUS_ORDER }  from './core.js';
   import { init as initHeatmap }   from './heatmap.js';
   import { init as initScatter }   from './scatter.js';
   import { init as initWipage }    from './wipage.js';
@@ -391,20 +407,15 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
   import { init as initHappiness } from './happiness.js';
   import { init as initWip }       from './wip.js';
 
-  initHeatmap();
-  initScatter();
-  initWipage();
-  initBoxChart();
-  initHappiness();
-  initWip();
-
+  initHeatmap(); initScatter(); initWipage(); initBoxChart(); initHappiness(); initWip();
   core.initApp();
+
+  // Settings-Panel: Overlay-Logik (open/close, Backdrop, Status-Reihenfolge-Liste)
+  // → openSettings(), closeSettings(), _rebuildOrderList(), _moveOrderItem()
+  // → core.on('statusOrder', _rebuildOrderList) für bidirektionalen Sync
 
   // Kachelgröße: laden, anwenden, Slider verdrahten
   // (localStorage-Key: fhwa_tileHeight, Default 550px Breite, Ratio 10:16, Clamp 390–720)
-
-  // Filter-Reset aller Pages: wird von core.js via .squad-filter-reset behandelt
-  // (nicht mehr im Bootstrap-Block)
 </script>
 ```
 
@@ -438,3 +449,4 @@ Sitzt in `.sidebar-bottom > #settings-wrap`.
 | 2026-06-08 | 1.5 | Bugfix Layout-Vollbreite: `.app-body` bekommt `width:100%`. `core.js` öffnete `#app-screen` mit `display:flex` statt `display:block` → `.app-body` schrumpfte als Flex-Item auf Inhaltsbreite. Tile-Container auf Flexbox (`flex-wrap:wrap`) umgestellt — entfernt `max-width`-Constraint der Filterleiste einschränkte. |
 | 2026-06-09 | 1.7 | `wip.js` (WIP pro Person) ergänzt: `import { init as initWip }` + `initWip()` im Bootstrap-Block. |
 | 2026-06-08 | 1.6 | Default-Kachelgröße auf 550 × 344 px angehoben. Slider-Range auf ±30 % (390–720 px, step 10). Alle veralteten CSS-Grid- und 220/400-px-Referenzen in der Spec bereinigt. |
+| 2026-06-09 | 1.8 | Settings-Panel zu zentriertem Overlay umgebaut (`position:fixed; transform:translate(-50%,-50%)`, Breite 540px, max-height 82vh). Neuer Abschnitt „Status-Reihenfolge" mit `#settings-order-list` (Drag&Drop + ▲▼), `#settings-order-reset` und `#settings-backdrop`. Open/Close-Logik aus core.js in Bootstrap-Block verschoben. `DEFAULT_STATUS_ORDER` im Import ergänzt. Neue CSS-Klassen: `.settings-backdrop`, `.settings-close-btn`, `.settings-panel-header`, `.settings-divider`, `.settings-section-label`, `.settings-order-list`, `.settings-order-reset`, `.o-extra`, `.th-extra`. |

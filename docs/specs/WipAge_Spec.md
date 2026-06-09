@@ -1,7 +1,7 @@
 # WIPAge Chart – Spezifikation (SDD)
 
-**Version:** 1.0  
-**Datum:** 2026-06-01  
+**Version:** 1.1  
+**Datum:** 2026-06-09  
 **Datei:** `wipage.js`  
 **Status:** ✅ Bestätigt (Gate 1) · ✅ Implementiert (v2.4)
 
@@ -270,15 +270,16 @@ jitter(j, n) = n > 1 ? ((j / (n-1)) × 2 − 1) × jitterRange : 0
 | `statusAgeDays` | number | `5` | 0 | – | Alert-Schwellwert: Dot-Farbe wechselt | `Math.max(0, parseInt(v))` |
 | `dotSize` | number | `4` | 1 | 12 | Basis-Radius-Multiplikator | `Math.max(1, Math.min(12, parseInt(v)))` |
 | `showBands` | bool | `true` | – | – | Farbzonen + Pace-Linien ein/aus | – |
-| `excludeList` | string | `'Rejected'` | – | – | Komma-getrennte Status ausblenden | `split(/[,;]/).map(trim)` |
+| `excludeList` | string | `'Rejected, Resume'` | – | – | Komma-getrennte Status ausblenden | `split(/[,;]/).map(trim)` |
 | `alertColor` | string | `'var(--red)'` | – | – | Farbe für Dots ≥ statusAgeDays | Hex `#rrggbb` oder CSS-Var |
-| `stateOrder` | string[] | `[]` | – | – | Reihenfolge der Status-Spalten | Auto-sync mit gefundenen Status |
+
+> **`stateOrder` wird nicht mehr in `fhwa_wipage` persistiert.** Die Status-Reihenfolge liegt global in `fhwa_status_order` und wird via `core.loadGlobalStatusOrder()` geladen. Änderungen über das Order-Panel schreiben direkt in `core.saveGlobalStatusOrder()`.
 
 ### Storage
 
 localStorage-Key: `fhwa_wipage`  
-Gespeicherter State: alle 7 Properties aus der Tabelle oben.  
-Automatische Migration: `core.load('fhwa_wipage', defaults)` — fehlende Keys werden mit Defaults befüllt.
+Gespeicherter State: alle 6 Properties aus der Tabelle oben (kein `stateOrder`).  
+Status-Reihenfolge: `fhwa_status_order` (global, via `core.loadGlobalStatusOrder()` / `core.saveGlobalStatusOrder()`).
 
 ---
 
@@ -289,7 +290,9 @@ Automatische Migration: `core.load('fhwa_wipage', defaults)` — fehlende Keys w
 | Tooltip boundary-safe | ✅ Implementiert | `_posTooltip(cx, cy)` mit `window.innerWidth/Height`-Prüfung (§9.3) |
 | Tooltip mit Links | ✅ Implementiert | Hover-Delay 120ms + `pointerEvents: all` wenn URL vorhanden (§4.9) |
 | N-Anzeige | ✅ Implementiert | SVG-Text unter jeder Status-Spalte: `n=X` (§9.4) |
-| Reihenfolge-Panel | ✅ Implementiert | `⠿` Drag-Handle + ▲/▼ Buttons, localStorage-persistent (§9.1) |
+| Reihenfolge-Panel | ✅ Implementiert | `⠿` Drag-Handle + ▲/▼ Buttons; **schreibt global** via `core.saveGlobalStatusOrder()`; abonniert `core.on('statusOrder')` für Sync aus anderen Visuals (§9.1) |
+| N=0-Hiding | ✅ Implementiert | Spalten ohne aktive WIP-Items (`items.length === 0`) werden ausgeblendet; Diag-Bar zeigt Anzahl ausgeblendeter Spalten |
+| Extra-Status-Markierung | ✅ Implementiert | Status nicht in `DEFAULT_STATUS_ORDER` → SVG-Label in `var(--orange)` + kleines ▲; Order-Panel-Item mit `.o-extra`-Klasse (orangefarbener Rahmen) |
 | Skalierung | ✅ Implementiert | Dot-Radius: `Math.max(3, Math.min(8, pW/100)) × (cfg.dotSize/4)` (§9.5) |
 | Diagnosemodus | ✅ Implementiert | Diag-Bar (immer sichtbar): WIP-Count, Status-Count, Pace-Coverage, Alert-Schwellwert (§9.2) |
 | Icon | – nicht anwendbar | Standalone Web-App, kein pbiviz-Icon (§9.6) |
@@ -334,6 +337,7 @@ Automatische Migration: `core.load('fhwa_wipage', defaults)` — fehlende Keys w
 | Datum | Version | Änderung | Bestätigt von |
 |---|---|---|---|
 | 2026-06-01 | 1.0 | Initiale Spec — rückwirkend aus implementiertem wipage.js v2.4 erstellt | Oliver |
+| 2026-06-09 | 1.1 | Unified Status Order: `stateOrder` aus `fhwa_wipage` entfernt (→ `fhwa_status_order` global); `excludeList` Default auf `'Rejected, Resume'`; N=0-Hiding (Spalten ohne aktive Items); Extra-Status-Markierung (`.o-extra` + orange SVG-Label); `statusOrder`-Event abonniert; `statusOrder`-Handler aktualisiert `cfg.stateOrder` vor `_updateOrderPanel()` | Oliver |
 
 ---
 

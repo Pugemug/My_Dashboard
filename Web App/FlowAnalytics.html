@@ -101,11 +101,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .squad-opt input[type=checkbox]{accent-color:var(--blue);width:12px;height:12px;cursor:pointer;flex-shrink:0}
 .squad-opt label{font-size:.72rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 
-/* ── SETTINGS PANEL ── */
+/* ── SETTINGS PANEL (Overlay, zentriert) ── */
 .settings-wrap{position:relative;flex-shrink:0}
-.settings-panel{position:fixed;width:300px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 32px rgba(0,0,0,.5);z-index:500;padding:.6rem .75rem;display:none}
+.settings-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:490;display:none}
+.settings-backdrop.open{display:block}
+.settings-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(540px,92vw);max-height:82vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 56px rgba(0,0,0,.6);z-index:500;padding:.75rem .9rem;display:none;scrollbar-width:thin}
 .settings-panel.open{display:block}
-.settings-panel-title{font-size:.65rem;font-family:var(--mono);color:var(--dimmer);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem}
+.settings-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
+.settings-panel-title{font-size:.65rem;font-family:var(--mono);color:var(--dimmer);text-transform:uppercase;letter-spacing:.05em}
+.settings-close-btn{background:none;border:none;color:var(--dimmer);cursor:pointer;font-size:.9rem;padding:.1rem .3rem;border-radius:4px;line-height:1;transition:color .12s}
+.settings-close-btn:hover{color:var(--text);background:var(--bg3)}
+.settings-divider{border:none;border-top:1px solid var(--border);margin:.5rem 0}
+.settings-section-label{font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--dimmer);margin-bottom:.35rem}
 .settings-row{display:flex;flex-direction:column;gap:.25rem;margin-bottom:.5rem}
 .settings-row:last-child{margin-bottom:0}
 .settings-label{font-size:.7rem;color:var(--dim)}
@@ -114,6 +121,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .settings-hint{font-size:.62rem;color:var(--dimmer)}
 .settings-range{width:100%;cursor:pointer;accent-color:var(--blue);margin:.15rem 0}
 .settings-row--disabled{opacity:.4;pointer-events:none}
+/* Status-Reihenfolge im Settings-Panel */
+.settings-order-list{display:flex;flex-wrap:wrap;gap:.25rem;align-items:flex-start;margin-top:.25rem}
+.settings-order-reset{font-size:.6rem;padding:.12rem .38rem;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.25);border-radius:4px;color:var(--blue);cursor:pointer;font-family:var(--mono);transition:background .12s}
+.settings-order-reset:hover{background:rgba(56,189,248,.18)}
 
 /* ── SIDEBAR ── */
 .sidebar{width:196px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
@@ -263,6 +274,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .obtn{width:16px;height:16px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--dimmer);cursor:pointer;font-size:.56rem;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
 .obtn:hover:not(:disabled){color:var(--yellow);border-color:rgba(251,191,36,.5)}
 .obtn:disabled{opacity:.15;cursor:default}
+/* Extra-Status (nicht in DEFAULT_STATUS_ORDER) */
+.o-extra{background:rgba(251,146,60,.1);border-color:rgba(251,146,60,.3)}
+.o-extra .o-name{color:var(--orange)}
+.o-extra.drag-over-item{border-color:var(--orange);background:rgba(251,146,60,.18)}
+th.th-extra{color:var(--orange);opacity:.9}
 
 /* ── SCATTER PANELS ── */
 .sc-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
@@ -428,22 +444,45 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
       <!-- Sidebar-Bottom: Einstellungen · Theme · Datencheck · Neue Datei -->
       <div class="sidebar-bottom">
-        <!-- Einstellungen mit Panel -->
+        <!-- Einstellungen mit Overlay-Panel -->
         <div class="settings-wrap" id="settings-wrap" style="position:relative">
           <button class="sidebar-bottom-btn" id="btn-settings">&#9881; Einstellungen</button>
-          <div class="settings-panel" id="settings-panel">
-            <div class="settings-panel-title">Einstellungen</div>
-            <div class="settings-row" id="settings-url-row">
-              <span class="settings-label">Jira URL-Template</span>
-              <input class="settings-input" id="settings-url-input" type="text" placeholder="https://jira.company.com/browse/{issueKey}" spellcheck="false"/>
-              <span class="settings-hint">{issueKey} wird durch die Jira-ID ersetzt</span>
-            </div>
-            <div class="settings-row settings-row--disabled" id="settings-tile-row">
-              <span class="settings-label">Kachelgr&ouml;&szlig;e</span>
-              <input class="settings-range" id="settings-tile-height" type="range" min="390" max="720" step="10" value="550">
-              <span class="settings-hint">Aktuell: <span id="tile-h-display">400 &times; 250</span>&thinsp;px (16&thinsp;:&thinsp;10)</span>
-            </div>
+        </div>
+        <!-- Backdrop (außerhalb settings-wrap, damit es den ganzen Viewport abdeckt) -->
+        <div class="settings-backdrop" id="settings-backdrop"></div>
+        <div class="settings-panel" id="settings-panel">
+          <div class="settings-panel-header">
+            <span class="settings-panel-title">Einstellungen</span>
+            <button class="settings-close-btn" id="settings-close-btn" title="Schließen">&#x2715;</button>
           </div>
+
+          <!-- Abschnitt: Jira -->
+          <div class="settings-section-label">Jira</div>
+          <div class="settings-row" id="settings-url-row">
+            <span class="settings-label">URL-Template</span>
+            <input class="settings-input" id="settings-url-input" type="text" placeholder="https://jira.company.com/browse/{issueKey}" spellcheck="false"/>
+            <span class="settings-hint">{issueKey} wird durch die Jira-ID ersetzt</span>
+          </div>
+
+          <hr class="settings-divider"/>
+
+          <!-- Abschnitt: Darstellung -->
+          <div class="settings-section-label">Darstellung</div>
+          <div class="settings-row settings-row--disabled" id="settings-tile-row">
+            <span class="settings-label">Kachelgr&ouml;&szlig;e</span>
+            <input class="settings-range" id="settings-tile-height" type="range" min="390" max="720" step="10" value="550">
+            <span class="settings-hint">Aktuell: <span id="tile-h-display">400 &times; 250</span>&thinsp;px (16&thinsp;:&thinsp;10)</span>
+          </div>
+
+          <hr class="settings-divider"/>
+
+          <!-- Abschnitt: Status-Reihenfolge -->
+          <div class="settings-section-label" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Status-Reihenfolge</span>
+            <button class="settings-order-reset" id="settings-order-reset" title="Auf Standard-Reihenfolge zurücksetzen">&#8617; Standard</button>
+          </div>
+          <span class="settings-hint" style="display:block;margin-bottom:.35rem">&#8596; ziehen oder &#9650;&#9660; &ndash; gilt f&uuml;r WIPAge &amp; Heatmap</span>
+          <div class="settings-order-list" id="settings-order-list"></div>
         </div>
         <button class="sidebar-bottom-btn" id="btn-theme">&#9728; Light</button>
         <button class="sidebar-bottom-btn" id="btn-datencheck">&#10558; Datencheck</button>
@@ -542,6 +581,32 @@ const TARGET_SHEET      = 'JiraStories';
 const LT_START_DEFAULT  = 'Ready4Progress_first';
 const LT_END_DEFAULT    = 'Resolved';
 
+// ── Default Status-Reihenfolge (globaler Standard für alle Visuals) ──
+// Queue-Status: New → Evaluated → Refinement → Ready4Progress
+// WIP-Status:   In Progress, Blocked, Ready4Test, in Test, Ready4QS, In QS,
+//               Ready4Review, Ready4E2E-Test, Ready4Production
+// Done:         Resolved
+// Versteckt:    Rejected, Resume (am Ende, per excludeList/hiddenGlobal ausgeblendet)
+const DEFAULT_STATUS_ORDER = [
+  'New',
+  'Evaluated',
+  'Analysed',          // Queue Status – zwischen Evaluated und Refinement
+  'Refinement',
+  'Ready4Progress',
+  'In Progress',
+  'Blocked',
+  'Ready4Test',
+  'In Test',           // war 'in Test' – Schreibweise an Echtdaten angepasst
+  'Ready4QS',
+  'In QS',
+  'Ready4Review',
+  'Ready4E2E-Test',
+  'Ready4Production',
+  'Resolved',
+  'Rejected',
+  'Resume',
+];
+
 const GRID_COLS  = 12;
 const GRID_ROW_H = 70;   // px per grid row
 
@@ -629,6 +694,43 @@ const core = {
       const v = localStorage.getItem(key);
       return v != null ? JSON.parse(v) : def;
     } catch (e) { return def; }
+  },
+
+  // ── Globale Status-Reihenfolge ──────────────────
+  /**
+   * Lädt die globale Status-Reihenfolge aus localStorage.
+   * Basis ist DEFAULT_STATUS_ORDER (falls noch nicht gespeichert).
+   * Wenn knownNames übergeben: unbekannte Namen werden ans Ende angehängt.
+   * @param {string[]} [knownNames]  – aus Excel erkannte Status-Namen
+   * @returns {string[]}
+   */
+  loadGlobalStatusOrder(knownNames) {
+    let saved = null;
+    try {
+      const v = localStorage.getItem('fhwa_status_order');
+      if (v) saved = JSON.parse(v);
+    } catch (e) {}
+    const base = saved ? [...saved] : [...DEFAULT_STATUS_ORDER];
+    if (knownNames && knownNames.length) {
+      // Case-insensitive Dedup: verhindert dass z.B. 'In Test' als Extra angehängt
+      // wird, wenn der gespeicherte Order noch 'in Test' enthält.
+      const baseLower = base.map(n => n.toLowerCase());
+      knownNames.forEach(n => {
+        if (base.indexOf(n) < 0 && baseLower.indexOf(n.toLowerCase()) < 0) {
+          base.push(n);
+        }
+      });
+    }
+    return base;
+  },
+
+  /**
+   * Speichert die globale Status-Reihenfolge und benachrichtigt alle Visuals.
+   * @param {string[]} order
+   */
+  saveGlobalStatusOrder(order) {
+    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch (e) {}
+    core.emit('statusOrder');
   },
 
   // ── Data utilities ─────────────────────────────
@@ -1175,23 +1277,9 @@ function _initSidebarButtons() {
     _onSquadFilterChange();
   });
 
-  // Settings panel – position:fixed, dynamisch neben dem Sidebar-Button platzieren
+  // Settings panel – URL-Template verdrahten (Open/Close wird in index.html verwaltet)
   const urlInput = document.getElementById('settings-url-input');
   if (urlInput) urlInput.value = core.state.urlTemplate;
-
-  document.getElementById('btn-settings')?.addEventListener('click', (e) => {
-    const panel = document.getElementById('settings-panel');
-    const btn   = document.getElementById('btn-settings');
-    const open  = panel.classList.toggle('open');
-    btn.classList.toggle('sb-active', open);
-    if (open) {
-      // Panel rechts neben der Sidebar positionieren
-      const rect = btn.getBoundingClientRect();
-      panel.style.left   = (rect.right + 8) + 'px';
-      const top = Math.min(rect.top, window.innerHeight - 180);
-      panel.style.top    = Math.max(8, top) + 'px';
-    }
-  });
 
   if (urlInput) {
     urlInput.addEventListener('input', () => {
@@ -1207,15 +1295,6 @@ function _initSidebarButtons() {
       document.querySelectorAll('#squad-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onSquadFilterChange();
     });
-  });
-
-  // Close settings panel on outside click
-  document.addEventListener('click', e => {
-    const wrap = document.getElementById('settings-wrap');
-    if (wrap && !wrap.contains(e.target)) {
-      document.getElementById('settings-panel')?.classList.remove('open');
-      document.getElementById('btn-settings')?.classList.remove('sb-active');
-    }
   });
 
   // Close squad dropdown on outside click
@@ -1539,8 +1618,8 @@ function init_heatmap() {
     filter:       'resolved',
     ltStart:      '',
     ltEnd:        '',
-    hiddenGlobal: [],
-    stateOrder:   [],
+    hiddenGlobal: ['Rejected', 'Resume'],
+    // stateOrder wird NICHT persistiert – liegt in fhwa_status_order (global)
   });
 
   // Runtime-only state (nicht persistiert)
@@ -1560,7 +1639,7 @@ function init_heatmap() {
       ltStart:      cfg.ltStart,
       ltEnd:        cfg.ltEnd,
       hiddenGlobal: [...hiddenGlobal],
-      stateOrder:   cfg.stateOrder,
+      // stateOrder wird NICHT persistiert – liegt in fhwa_status_order (global)
     });
   }
 
@@ -1875,8 +1954,10 @@ function init_heatmap() {
     orderList.innerHTML = '';
     const hidden = _getHiddenStates();
     cfg.stateOrder.forEach((name, idx) => {
+      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
       const item = document.createElement('div');
-      item.className = 'order-item'; item.draggable = true; item.dataset.name = name;
+      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
+      item.draggable = true; item.dataset.name = name;
       if (hidden.has(name)) item.style.opacity = '.4';
 
       item.addEventListener('dragstart', e => { panelDragSrc = name; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
@@ -1890,7 +1971,8 @@ function init_heatmap() {
         if (fi < 0 || ti < 0) return;
         arr.splice(fi, 1); arr.splice(ti, 0, panelDragSrc);
         cfg.stateOrder = arr; panelDragSrc = null;
-        saveConfig(); _updateOrderPanel(); _updateStatusPanel(); render();
+        core.saveGlobalStatusOrder(cfg.stateOrder);
+        _updateOrderPanel(); _updateStatusPanel(); render();
       });
       item.addEventListener('dragend', () => { item.classList.remove('dragging'); panelDragSrc = null; });
 
@@ -1908,7 +1990,9 @@ function init_heatmap() {
     const ni = idx + dir;
     if (ni < 0 || ni >= cfg.stateOrder.length) return;
     const a = [...cfg.stateOrder]; [a[idx], a[ni]] = [a[ni], a[idx]];
-    cfg.stateOrder = a; saveConfig(); _updateOrderPanel(); _updateStatusPanel(); render();
+    cfg.stateOrder = a;
+    core.saveGlobalStatusOrder(cfg.stateOrder);
+    _updateOrderPanel(); _updateStatusPanel(); render();
   }
 
   // ── Stats helpers ─────────────────────────────
@@ -1937,7 +2021,8 @@ function init_heatmap() {
     if (fi < 0 || ti < 0) return;
     arr.splice(fi, 1); arr.splice(ti, 0, colDrag.name);
     cfg.stateOrder = arr; colDrag.name = null;
-    saveConfig(); _updateOrderPanel(); _updateStatusPanel(); render();
+    core.saveGlobalStatusOrder(cfg.stateOrder);
+    _updateOrderPanel(); _updateStatusPanel(); render();
   }
 
   // ── Cell builder ──────────────────────────────
@@ -2000,7 +2085,7 @@ function init_heatmap() {
     const isDrill  = !!drillSquad;
     const canDrill = gcol === 'Squad' && core.state.hasSquad && !isDrill;
     const hidden   = _getHiddenStates();
-    const ordStates = cfg.stateOrder.map(n => core.state.states.find(s => s.name === n)).filter(s => s && !hidden.has(s.name));
+    const allOrdStates = cfg.stateOrder.map(n => core.state.states.find(s => s.name === n)).filter(s => s && !hidden.has(s.name));
 
     let groups;
     if (hasGrp) {
@@ -2015,12 +2100,30 @@ function init_heatmap() {
       groups = [['Alle Items', fRows]];
     }
 
-    if (!groups.length || !ordStates.length) { _showMsg('Keine Daten', 'Filter prüfen oder Spalten konfigurieren.'); return; }
+    if (!groups.length || !allOrdStates.length) { _showMsg('Keine Daten', 'Filter prüfen oder Spalten konfigurieren.'); return; }
 
-    const data = groups.map(([gName, gRows]) => ({
+    // Alle Stats vorberechnen (für N=0-Filter)
+    const dataAll = groups.map(([gName, gRows]) => ({
       gName, gRows,
-      stStats: ordStates.map(s => _stateStats(gRows, s)),
+      stStats: allOrdStates.map(s => _stateStats(gRows, s)),
       ltStat:  _hasLT() ? _ltStats(gRows) : null,
+    }));
+
+    // ── N=0 Hiding: Spalten ausblenden wo ALLE Gruppen null-Stats haben ──
+    const ordStates = allOrdStates.filter((s, i) =>
+      dataAll.some(d => d.stStats[i] !== null)
+    );
+    const hiddenN0Count = allOrdStates.length - ordStates.length;
+
+    // data mit gefilterten States neu aufbauen
+    const data = dataAll.map(d => ({
+      gName:   d.gName,
+      gRows:   d.gRows,
+      ltStat:  d.ltStat,
+      stStats: ordStates.map(s => {
+        const oi = allOrdStates.indexOf(s);
+        return d.stStats[oi];
+      }),
     }));
 
     let gMax = 0;
@@ -2035,7 +2138,10 @@ function init_heatmap() {
     if (_hasLT()) { const th = document.createElement('th'); th.textContent = 'Lead Time'; hr.appendChild(th); }
 
     ordStates.forEach(s => {
-      const th = document.createElement('th'); th.textContent = s.name; th.className = 'draggable-col';
+      const isExtra = DEFAULT_STATUS_ORDER.indexOf(s.name) < 0;
+      const th = document.createElement('th');
+      th.textContent = s.name;
+      th.className = 'draggable-col' + (isExtra ? ' th-extra' : '');
       th.draggable = true; th.dataset.stateName = s.name;
       th.addEventListener('dragstart', e => _onColDragStart(e, s.name));
       th.addEventListener('dragover',  e => _onColDragOver(e, th));
@@ -2092,7 +2198,9 @@ function init_heatmap() {
     const fStr     = (cfg.filter === 'resolved' && _hasLT()) ? `resolved (${resolved}/${total})` : `alle (${total})`;
     const sqCtx    = drillSquad ? ` · Drill: ${drillSquad}` : (core.state.squadFilter.length ? ` · Squads: ${core.state.squadFilter.length}` : '');
     diagEl.textContent =
-      `${core.state.rows.length} Items${sqCtx} · ${groups.length} Gruppen · ${ordStates.length}/${cfg.stateOrder.length} Status · ` +
+      `${core.state.rows.length} Items${sqCtx} · ${groups.length} Gruppen · ` +
+      `${ordStates.length}/${cfg.stateOrder.length} Status` +
+      (hiddenN0Count > 0 ? ` (${hiddenN0Count} leer ausgeblendet)` : '') + ` · ` +
       `Metrik: ${cfg.metric === 'med' ? 'Median' : cfg.metric.toUpperCase()} · Filter: ${fStr} · LT: ${_hasLT() ? cfg.ltStart + ' → ' + cfg.ltEnd : 'inaktiv'}`;
   }
 
@@ -2102,10 +2210,9 @@ function init_heatmap() {
   core.on('data', () => {
     const s = core.state;
 
-    // Validate/migrate saved state order against current states
-    const savedOrd  = (cfg.stateOrder || []).filter(n => s.states.find(st => st.name === n));
-    const newNames  = s.states.filter(st => savedOrd.indexOf(st.name) < 0).map(st => st.name);
-    cfg.stateOrder  = [...savedOrd, ...newNames];
+    // Globale Reihenfolge laden – neue Status aus Excel ans Ende anhängen
+    const detectedNames = s.states.map(st => st.name);
+    cfg.stateOrder = core.loadGlobalStatusOrder(detectedNames);
 
     // Validate saved LT columns
     if (!s.dateCols.includes(cfg.ltStart))
@@ -2125,9 +2232,14 @@ function init_heatmap() {
     render();
   });
 
-  core.on('theme',  () => render());
-  core.on('filter', () => render());
-  core.on('resize', () => {});   // Heatmap is DOM/table → no SVG re-render needed
+  core.on('theme',       () => render());
+  core.on('filter',      () => render());
+  core.on('resize',      () => {});   // Heatmap ist DOM/table → kein SVG-Rerender nötig
+  core.on('statusOrder', () => {
+    // Globale Reihenfolge neu laden (ohne knownNames – bestehende Reihenfolge übernehmen)
+    cfg.stateOrder = core.loadGlobalStatusOrder(core.state.states.map(st => st.name));
+    _updateOrderPanel(); _updateStatusPanel(); render();
+  });
 }
 
 // ════════════════════════════════════════════════
@@ -2705,9 +2817,11 @@ function init_wipage() {
     alertColor:    'var(--red)',
     dotSize:       4,
     showBands:     true,
-    excludeList:   'Rejected',
-    stateOrder:    [],
+    excludeList:   'Rejected, Resume',
   });
+
+  // stateOrder: Runtime-only, nicht persistiert – kommt von core.loadGlobalStatusOrder()
+  cfg.stateOrder = [];
 
   let panelDragSrc = null;
 
@@ -2719,7 +2833,7 @@ function init_wipage() {
       dotSize:       cfg.dotSize,
       showBands:     cfg.showBands,
       excludeList:   cfg.excludeList,
-      stateOrder:    cfg.stateOrder,
+      // stateOrder wird NICHT persistiert – liegt in fhwa_status_order (global)
     });
   }
 
@@ -2913,8 +3027,9 @@ function init_wipage() {
   function _updateOrderPanel() {
     orderList.innerHTML = '';
     cfg.stateOrder.forEach((name, idx) => {
+      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
       const item = document.createElement('div');
-      item.className = 'order-item';
+      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
       item.draggable = true;
       item.dataset.name = name;
 
@@ -2939,7 +3054,8 @@ function init_wipage() {
         arr.splice(ti, 0, panelDragSrc);
         cfg.stateOrder = arr;
         panelDragSrc = null;
-        saveConfig(); _updateOrderPanel(); render();
+        core.saveGlobalStatusOrder(cfg.stateOrder);
+        _updateOrderPanel(); render();
       });
       item.addEventListener('dragend', () => {
         item.classList.remove('dragging');
@@ -2971,7 +3087,8 @@ function init_wipage() {
     const a = [...cfg.stateOrder];
     const tmp = a[idx]; a[idx] = a[ni]; a[ni] = tmp;
     cfg.stateOrder = a;
-    saveConfig(); _updateOrderPanel(); render();
+    core.saveGlobalStatusOrder(cfg.stateOrder);
+    _updateOrderPanel(); render();
   }
 
   // ── 9. Render ─────────────────────────────────
@@ -3011,20 +3128,15 @@ function init_wipage() {
       ? cfg.excludeList.split(/[,;]/).map(s => s.trim().toLowerCase()).filter(Boolean)
       : [];
 
-    // ── stateOrder mit gefundenen Status abgleichen ──
+    // ── stateOrder: Globale Reihenfolge laden + mit gefundenen Status abgleichen ──
     const foundStatuses = [];
     activeRows.forEach(r => {
       const s = String(r['Issue-Status'] || '').trim();
       if (s && foundStatuses.indexOf(s) < 0) foundStatuses.push(s);
     });
 
-    const savedOrd = (cfg.stateOrder || []).filter(n => foundStatuses.indexOf(n) >= 0);
-    const newNames = foundStatuses.filter(n => savedOrd.indexOf(n) < 0);
-    if (savedOrd.length !== cfg.stateOrder.length || newNames.length) {
-      cfg.stateOrder = [...savedOrd, ...newNames];
-      saveConfig();
-      _updateOrderPanel();
-    }
+    cfg.stateOrder = core.loadGlobalStatusOrder(foundStatuses);
+    _updateOrderPanel();
 
     const visibleStatuses = cfg.stateOrder.filter(n =>
       excluded.indexOf(n.toLowerCase()) < 0
@@ -3040,7 +3152,7 @@ function init_wipage() {
     // Altersberechnung mit _first-Logik:
     //   X_first == X (gleicher Tag) → age = heute − X
     //   X_first != X               → age = (leaving_X_first − X_first) + (heute − X)
-    const statusGroups = visibleStatuses.map(statusName => {
+    const allStatusGroups = visibleStatuses.map(statusName => {
       const items = activeRows
         .filter(r => String(r['Issue-Status'] || '').trim() === statusName)
         .map(r => {
@@ -3053,10 +3165,9 @@ function init_wipage() {
           if (entryReg != null) {
             const ageReg = Math.max(0, Math.round((today_ms - entryReg.getTime()) / 86400000));
 
-            // Prüfen ob _first einen anderen (früheren) Zeitraum darstellt
             const hasTwoPeriods = entryFirst != null
               && leavingFirst != null
-              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2; // > halber Tag Abstand
+              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2;
 
             if (hasTwoPeriods) {
               const firstPeriod = Math.max(0, Math.round(
@@ -3067,7 +3178,6 @@ function init_wipage() {
               age = ageReg;
             }
           } else if (entryFirst != null) {
-            // Nur _first vorhanden
             age = Math.max(0, Math.round((today_ms - entryFirst.getTime()) / 86400000));
           }
 
@@ -3081,7 +3191,18 @@ function init_wipage() {
       return { statusName, items };
     });
 
-    // ── Rolling Pace (nur Resolved-Items, kein Rejected) ──
+    // ── N=0 Hiding: Spalten ohne aktive Items ausblenden ──
+    const statusGroups = allStatusGroups.filter(g => g.items.length > 0);
+
+    // ── Effektiv sichtbare Status (nach N=0-Filter) ──
+    const renderedStatuses = statusGroups.map(g => g.statusName);
+
+    if (!renderedStatuses.length) {
+      diagEl.textContent = activeRows.length + ' aktive Items – alle Spalten haben n=0';
+      _renderMsg('Keine sichtbaren Spalten', 'Alle Status haben 0 aktive Items');
+      return;
+    }
+
     const cutoff_ms = today_ms - cfg.rollingDays * 86400000;
     const completedRows = allRows.filter(r => {
       const res = core.toDate(r['Resolved']);
@@ -3089,7 +3210,7 @@ function init_wipage() {
     });
 
     const pace = {}; // statusName → { p25, p50, p85, p90, n } | null
-    visibleStatuses.forEach(sName => {
+    renderedStatuses.forEach(sName => {
       const durations = completedRows
         .map(r => {
           const entryFirst   = core.toDate(r[sName + '_first']);
@@ -3144,7 +3265,7 @@ function init_wipage() {
     // ── Y-Skala ───────────────────────────────
     let maxAge = 1;
     statusGroups.forEach(g => g.items.forEach(d => { if (d.age > maxAge) maxAge = d.age; }));
-    visibleStatuses.forEach(s => {
+    renderedStatuses.forEach(s => {
       const p = pace[s];
       if (p && p.p90 != null && p.p90 > maxAge) maxAge = p.p90;
     });
@@ -3153,7 +3274,7 @@ function init_wipage() {
     function yScale(v) { return MAR.top + pH - (v / maxAge) * pH; }
 
     // ── X-Skala (Band) ────────────────────────
-    const nCols = visibleStatuses.length;
+    const nCols = renderedStatuses.length;
     const colW  = pW / nCols;
     function xMid(i) { return MAR.left + colW * i + colW / 2; }
 
@@ -3236,9 +3357,15 @@ function init_wipage() {
       }
 
       // X-Achse: Status-Label
+      const isExtra   = DEFAULT_STATUS_ORDER.indexOf(statusName) < 0;
+      const labelColor = isExtra ? 'var(--orange)' : C.axisLabel;
       const labelTxt = statusName.length > 14 ? statusName.slice(0, 13) + '…' : statusName;
       const labelY   = MAR.top + pH + 18;
-      parts.push(`<text x="${cx.toFixed(1)}" y="${labelY}" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="${C.axisLabel}">${_escAttr(labelTxt)}</text>`);
+      parts.push(`<text x="${cx.toFixed(1)}" y="${labelY}" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="${labelColor}">${_escAttr(labelTxt)}</text>`);
+      if (isExtra) {
+        // Kleines "★" über dem Label als visueller Hinweis
+        parts.push(`<text x="${cx.toFixed(1)}" y="${labelY - 1}" text-anchor="middle" font-size="7" font-family="var(--mono)" fill="var(--orange)" opacity="0.6">▲</text>`);
+      }
 
       // N-Anzeige
       parts.push(`<text x="${cx.toFixed(1)}" y="${labelY + 14}" text-anchor="middle" font-size="9" font-family="var(--mono)" fill="${C.axisLabel}" opacity="0.6">n=${items.length}</text>`);
@@ -3310,10 +3437,10 @@ function init_wipage() {
 
     // ── Diag-Bar ──────────────────────────────
     const totalWip  = statusGroups.reduce((s, g) => s + g.items.length, 0);
-    const paceCount = visibleStatuses.filter(s => pace[s] != null).length;
+    const paceCount = renderedStatuses.filter(s => pace[s] != null).length;
     diagEl.textContent =
-      `${totalWip} WIP-Items · ${visibleStatuses.length} Status · ` +
-      `Rolling Pace: ${paceCount}/${visibleStatuses.length} mit Daten (${cfg.rollingDays}d) · ` +
+      `${totalWip} WIP-Items · ${renderedStatuses.length} Status (${allStatusGroups.length - renderedStatuses.length} leer ausgeblendet) · ` +
+      `Rolling Pace: ${paceCount}/${renderedStatuses.length} mit Daten (${cfg.rollingDays}d) · ` +
       `Alert ab ${cfg.statusAgeDays}d`;
   }
 
@@ -3426,18 +3553,23 @@ function init_wipage() {
 
   // ── 10. Events abonnieren ─────────────────────
   core.on('data', () => {
-    // stateOrder mit neuen Daten abgleichen (analog heatmap.js)
-    const s = core.state;
-    // Alle Issue-Status-Werte aus aktiven Rows vorab ermitteln ist nicht möglich
-    // ohne filteredRows() – das übernimmt render() beim ersten Aufruf.
     _updateOrderPanel();
     render();
   });
 
-  core.on('theme',    () => render());
-  core.on('filter',   () => render());
-  core.on('resize',   () => render());
-  core.on('settings', () => render());
+  core.on('theme',       () => render());
+  core.on('filter',      () => render());
+  core.on('resize',      () => render());
+  core.on('settings',    () => render());
+  core.on('statusOrder', () => {
+    // Globale Reihenfolge sofort übernehmen, DANN Panel + Render
+    const allKnown = (core.state.rows || [])
+      .map(r => String(r['Issue-Status'] || '').trim())
+      .filter((v, i, a) => v && a.indexOf(v) === i);
+    cfg.stateOrder = core.loadGlobalStatusOrder(allKnown);
+    _updateOrderPanel();
+    render();
+  });
 }
 
 // ── Modul-private DOM-Helfer ────────────────────
@@ -5262,6 +5394,108 @@ window.init_wip = init_wip;
   init_happiness();
   init_wip();
   core.initApp();
+
+  // ── Settings-Panel: Overlay-Logik ──────────────────
+  (function() {
+    var btn      = document.getElementById('btn-settings');
+    var panel    = document.getElementById('settings-panel');
+    var backdrop = document.getElementById('settings-backdrop');
+    var closeBtn = document.getElementById('settings-close-btn');
+
+    function openSettings() {
+      _rebuildOrderList();
+      panel.classList.add('open');
+      backdrop.classList.add('open');
+    }
+    function closeSettings() {
+      panel.classList.remove('open');
+      backdrop.classList.remove('open');
+    }
+
+    if (btn)      btn.addEventListener('click', openSettings);
+    if (closeBtn) closeBtn.addEventListener('click', closeSettings);
+    if (backdrop) backdrop.addEventListener('click', closeSettings);
+
+    // ── Status-Reihenfolge im Settings-Panel ──────
+    var orderList = document.getElementById('settings-order-list');
+    var resetBtn  = document.getElementById('settings-order-reset');
+    var dragSrc   = null;
+
+    function _rebuildOrderList() {
+      if (!orderList) return;
+      orderList.innerHTML = '';
+      var order = core.loadGlobalStatusOrder();
+      order.forEach(function(name, idx) {
+        var isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
+        var item = document.createElement('div');
+        item.className = 'order-item' + (isExtra ? ' o-extra' : '');
+        item.draggable = true;
+        item.dataset.name = name;
+
+        item.addEventListener('dragstart', function(e) {
+          dragSrc = name;
+          item.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          item.classList.add('drag-over-item');
+        });
+        item.addEventListener('dragleave', function() {
+          item.classList.remove('drag-over-item');
+        });
+        item.addEventListener('drop', function(e) {
+          e.preventDefault();
+          item.classList.remove('drag-over-item');
+          if (!dragSrc || dragSrc === name) return;
+          var cur = core.loadGlobalStatusOrder();
+          var fi = cur.indexOf(dragSrc), ti = cur.indexOf(name);
+          if (fi < 0 || ti < 0) return;
+          cur.splice(fi, 1); cur.splice(ti, 0, dragSrc);
+          dragSrc = null;
+          core.saveGlobalStatusOrder(cur);
+          _rebuildOrderList();
+        });
+        item.addEventListener('dragend', function() {
+          item.classList.remove('dragging');
+          dragSrc = null;
+        });
+
+        var handle = document.createElement('span'); handle.className = 'o-handle'; handle.textContent = '⠇';
+        var num    = document.createElement('span'); num.className = 'o-num';    num.textContent = (idx + 1) + '.';
+        var lbl    = document.createElement('span'); lbl.className = 'o-name';   lbl.textContent = name;
+        var bu     = document.createElement('button'); bu.className = 'obtn'; bu.textContent = '▲';
+        bu.disabled = idx === 0;
+        bu.onclick = function() { _moveOrderItem(idx, -1); };
+        var bd     = document.createElement('button'); bd.className = 'obtn'; bd.textContent = '▼';
+        bd.disabled = idx === order.length - 1;
+        bd.onclick = function() { _moveOrderItem(idx, 1); };
+
+        item.appendChild(handle); item.appendChild(num); item.appendChild(lbl);
+        item.appendChild(bu); item.appendChild(bd);
+        orderList.appendChild(item);
+      });
+    }
+
+    function _moveOrderItem(idx, dir) {
+      var ni  = idx + dir;
+      var cur = core.loadGlobalStatusOrder();
+      if (ni < 0 || ni >= cur.length) return;
+      var tmp = cur[idx]; cur[idx] = cur[ni]; cur[ni] = tmp;
+      core.saveGlobalStatusOrder(cur);
+      _rebuildOrderList();
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function() {
+        core.saveGlobalStatusOrder(DEFAULT_STATUS_ORDER.slice());
+        _rebuildOrderList();
+      });
+    }
+
+    // Liste aktualisieren wenn ein Visual die Reihenfolge ändert
+    core.on('statusOrder', _rebuildOrderList);
+  })();
 
   // ── Kachelgröße: laden, anwenden, Slider verdrahten (16:10) ──
   (function() {

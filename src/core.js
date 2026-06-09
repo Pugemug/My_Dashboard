@@ -9,6 +9,32 @@ export const TARGET_SHEET      = 'JiraStories';
 export const LT_START_DEFAULT  = 'Ready4Progress_first';
 export const LT_END_DEFAULT    = 'Resolved';
 
+// ── Default Status-Reihenfolge (globaler Standard für alle Visuals) ──
+// Queue-Status: New → Evaluated → Refinement → Ready4Progress
+// WIP-Status:   In Progress, Blocked, Ready4Test, in Test, Ready4QS, In QS,
+//               Ready4Review, Ready4E2E-Test, Ready4Production
+// Done:         Resolved
+// Versteckt:    Rejected, Resume (am Ende, per excludeList/hiddenGlobal ausgeblendet)
+export const DEFAULT_STATUS_ORDER = [
+  'New',
+  'Evaluated',
+  'Analysed',          // Queue Status – zwischen Evaluated und Refinement
+  'Refinement',
+  'Ready4Progress',
+  'In Progress',
+  'Blocked',
+  'Ready4Test',
+  'In Test',           // war 'in Test' – Schreibweise an Echtdaten angepasst
+  'Ready4QS',
+  'In QS',
+  'Ready4Review',
+  'Ready4E2E-Test',
+  'Ready4Production',
+  'Resolved',
+  'Rejected',
+  'Resume',
+];
+
 const GRID_COLS  = 12;
 const GRID_ROW_H = 70;   // px per grid row
 
@@ -96,6 +122,43 @@ export const core = {
       const v = localStorage.getItem(key);
       return v != null ? JSON.parse(v) : def;
     } catch (e) { return def; }
+  },
+
+  // ── Globale Status-Reihenfolge ──────────────────
+  /**
+   * Lädt die globale Status-Reihenfolge aus localStorage.
+   * Basis ist DEFAULT_STATUS_ORDER (falls noch nicht gespeichert).
+   * Wenn knownNames übergeben: unbekannte Namen werden ans Ende angehängt.
+   * @param {string[]} [knownNames]  – aus Excel erkannte Status-Namen
+   * @returns {string[]}
+   */
+  loadGlobalStatusOrder(knownNames) {
+    let saved = null;
+    try {
+      const v = localStorage.getItem('fhwa_status_order');
+      if (v) saved = JSON.parse(v);
+    } catch (e) {}
+    const base = saved ? [...saved] : [...DEFAULT_STATUS_ORDER];
+    if (knownNames && knownNames.length) {
+      // Case-insensitive Dedup: verhindert dass z.B. 'In Test' als Extra angehängt
+      // wird, wenn der gespeicherte Order noch 'in Test' enthält.
+      const baseLower = base.map(n => n.toLowerCase());
+      knownNames.forEach(n => {
+        if (base.indexOf(n) < 0 && baseLower.indexOf(n.toLowerCase()) < 0) {
+          base.push(n);
+        }
+      });
+    }
+    return base;
+  },
+
+  /**
+   * Speichert die globale Status-Reihenfolge und benachrichtigt alle Visuals.
+   * @param {string[]} order
+   */
+  saveGlobalStatusOrder(order) {
+    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch (e) {}
+    core.emit('statusOrder');
   },
 
   // ── Data utilities ─────────────────────────────
@@ -642,23 +705,9 @@ function _initSidebarButtons() {
     _onSquadFilterChange();
   });
 
-  // Settings panel – position:fixed, dynamisch neben dem Sidebar-Button platzieren
+  // Settings panel – URL-Template verdrahten (Open/Close wird in index.html verwaltet)
   const urlInput = document.getElementById('settings-url-input');
   if (urlInput) urlInput.value = core.state.urlTemplate;
-
-  document.getElementById('btn-settings')?.addEventListener('click', (e) => {
-    const panel = document.getElementById('settings-panel');
-    const btn   = document.getElementById('btn-settings');
-    const open  = panel.classList.toggle('open');
-    btn.classList.toggle('sb-active', open);
-    if (open) {
-      // Panel rechts neben der Sidebar positionieren
-      const rect = btn.getBoundingClientRect();
-      panel.style.left   = (rect.right + 8) + 'px';
-      const top = Math.min(rect.top, window.innerHeight - 180);
-      panel.style.top    = Math.max(8, top) + 'px';
-    }
-  });
 
   if (urlInput) {
     urlInput.addEventListener('input', () => {
@@ -674,15 +723,6 @@ function _initSidebarButtons() {
       document.querySelectorAll('#squad-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onSquadFilterChange();
     });
-  });
-
-  // Close settings panel on outside click
-  document.addEventListener('click', e => {
-    const wrap = document.getElementById('settings-wrap');
-    if (wrap && !wrap.contains(e.target)) {
-      document.getElementById('settings-panel')?.classList.remove('open');
-      document.getElementById('btn-settings')?.classList.remove('sb-active');
-    }
   });
 
   // Close squad dropdown on outside click

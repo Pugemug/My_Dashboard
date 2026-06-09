@@ -1,6 +1,6 @@
 # Flow Analytics – Web App Entwicklungs-Leitfaden
 
-**Version:** 4.5  
+**Version:** 4.6  
 **Datum:** 2026-06-09  
 **Basis:** WebAppEntwickeln.md v3.1 + Architektur-Erweiterung (Navigation, Multi-Sheet, 5 neue Visuals)  
 **Vorgänger-Dateien:** `FlowAnalytics_Dashboard_Uebergabe.md` + `pbiviz_entwickeln.md` → zusammengeführt, Power BI entfällt
@@ -794,12 +794,13 @@ core.state.activePage    // string — aktuell sichtbare Page-ID
 ### Event Bus
 
 ```javascript
-core.on('data',     fn)    // Excel wurde geladen, state.rows gefüllt
-core.on('theme',    fn)    // Dark/Light gewechselt → neu rendern
-core.on('filter',   fn)    // Squad-Filter geändert → neu rendern
-core.on('resize',   fn)    // Card wurde gezogen/resized → SVG neu rendern
-core.on('settings', fn)    // Globale Einstellung geändert (z.B. urlTemplate) → neu rendern
-core.emit(event)           // intern; Visuals rufen das nicht auf
+core.on('data',        fn)    // Excel wurde geladen, state.rows gefüllt
+core.on('theme',       fn)    // Dark/Light gewechselt → neu rendern
+core.on('filter',      fn)    // Squad-Filter geändert → neu rendern
+core.on('resize',      fn)    // Card wurde gezogen/resized → SVG neu rendern
+core.on('settings',    fn)    // Globale Einstellung geändert (z.B. urlTemplate) → neu rendern
+core.on('statusOrder', fn)    // Globale Status-Reihenfolge geändert → neu rendern + Panel aktualisieren
+core.emit(event)              // intern; Visuals rufen das nicht auf
 ```
 
 ### Navigation
@@ -868,6 +869,25 @@ core.save(key, value)        // localStorage.setItem mit JSON.stringify
 core.load(key, default)      // localStorage.getItem mit JSON.parse + Fallback
 ```
 
+### Globale Status-Reihenfolge
+
+```javascript
+// Exportierte Konstante (17 Status in Default-Reihenfolge)
+DEFAULT_STATUS_ORDER         // string[] — Queue → WIP → Done + Rejected/Resume (versteckt)
+
+// Reihenfolge laden (mit case-insensitiver Dedup für neue Status aus Excel)
+core.loadGlobalStatusOrder(knownNames?)  // → string[] — gespeicherte oder Default-Reihenfolge
+                                         // knownNames: neue Status werden ans Ende angehängt
+
+// Reihenfolge speichern + Event 'statusOrder' emittieren
+core.saveGlobalStatusOrder(order)        // → void
+// → Alle Visuals die 'statusOrder' abonniert haben rendern neu
+```
+
+**Wichtig:** Visuals dürfen `stateOrder` NICHT mehr in ihrem eigenen `cfg` persistieren.  
+Stattdessen: `cfg.stateOrder = core.loadGlobalStatusOrder(foundNames)` im `data`- und `statusOrder`-Handler.  
+localStorage-Key: `fhwa_status_order`.
+
 ### Grid (intern, kein direkter Aufruf nötig)
 
 Grid wird vollständig von `core.initLayout()` und `core.initDragResize()` verwaltet.  
@@ -930,12 +950,13 @@ export function init() {
 |---|---|---|
 | `fhwa_layout2` | core.js | `{ [visualId]: { col, row, w, h } }` für alle Cards |
 | `fhwa_activePage` | core.js | zuletzt aktive Page-ID |
-| `fhwa_tileHeight` | index.html | Kachelbreite in px (390–720, Default 550) · Höhe wird als 16:10 abgeleitet |
-| `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenStates[], stateOrder[] |
-| `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
-| `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected'`), stateOrder[] |
 | `fhwa_global` | core.js | squadFilter[], urlTemplate |
 | `fhwa_theme` | core.js | `'dark'` \| `'light'` |
+| `fhwa_status_order` | core.js | `string[]` — globale Status-Reihenfolge (Default: `DEFAULT_STATUS_ORDER`, 17 Einträge) |
+| `fhwa_tileHeight` | index.html | Kachelbreite in px (390–720, Default 550) · Höhe wird als 16:10 abgeleitet |
+| `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenGlobal[] (Default: `['Rejected','Resume']`) — **kein stateOrder mehr** |
+| `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
+| `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected, Resume'`) — **kein stateOrder mehr** |
 | `fhwa_boxchart` | boxchart.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_saydoratio` | saydoratio.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_wipkpi` | wipkpi.js | *(per SDD-Interview zu definieren)* |
@@ -1505,6 +1526,10 @@ Begründungen für Architektur-Entscheidungen die nicht offensichtlich sind. Wir
 | 2026-06-07 | `clientWidth`-Fallback auf `window.innerWidth` in `_getColW()` | Pages die `display:none` sind liefern `clientWidth = 0` → Cards bekämen negative Breite | Kein Fallback: Cards auf versteckten Pages werden unsichtbar initialisiert |
 | 2026-06-07 | Layout-Key `fhwa_layout2` (nicht `fhwa_layout`) | Verhindert dass altes gespeichertes Layout aus v1.x die neue Architektur bricht | Gleicher Key: alter State würde Grid-Positionen falsch setzen |
 | 2026-06-07 | `core.state.sheetsRaw` als separater State neben `core.state.sheets` | Sheets mit Custom-Header-Zeile (nicht Zeile 1) können nicht als Row-Array normalisiert werden | Alles in `sheets`: würde Custom-Header als Datenzeile interpretieren |
+| 2026-06-09 | Globale Status-Reihenfolge `fhwa_status_order` (nicht pro-Visual) | Beide Visuals (WIPAge + Heatmap) müssen identische Reihenfolge zeigen. Drag in einem soll sofort im anderen reflektiert werden. Pro-Visual `stateOrder` in cfg führte zu Divergenz | Pro-Visual: führt zu inkonsistenter Darstellung; Keine Persistenz: Verlust bei Reload |
+| 2026-06-09 | Settings-Panel als zentriertes Overlay (`position:fixed; transform:translate(-50%,-50%)`) statt sidebar-verankert | Größeres Panel (540px) für Status-Reihenfolge-Liste benötigt mehr Platz als die 300px-Sidebar-Version; Overlay-Pattern ist standard für Modal-ähnliche Einstellungen | Sidebar-verankert: zu schmal für 17+ Drag-Items; Separate Page: zu aufwändig |
+| 2026-06-09 | N=0-Hiding per Visual (nicht global) | WIPAge und Heatmap haben unterschiedliche N-Definitionen: WIPAge = aktive WIP-Items, Heatmap = berechnete Stats. Globales Ausblenden würde Kontext verlieren | Global: ein Status könnte in Heatmap n>0 haben, in WIPAge n=0 — beide würden ihn ausblenden |
+| 2026-06-09 | Case-insensitive Dedup in `loadGlobalStatusOrder` | Excel-Daten können `'In Test'` liefern während DEFAULT `'in Test'` definiert. Ohne Dedup würde `'In Test'` als Extra-Status angehängt | Exakter Match: Extra-Status-Duplikate (z.B. `'in Test'` + `'In Test'`); Normalisierung: verliert Original-Schreibweise |
 
 ---
 
@@ -1524,6 +1549,9 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 | **Glättung** | KDE-Bandwidth für Violin-Charts: steuert wie glatt die Kurve ist | „Bandwidth" (alter Begriff, nicht mehr verwenden) |
 | **Tile** | Kompakte KPI-Karte auf der Lieferfähigkeit-Page (`core.createTile()`) | Card (Deep-Dive-Pages, `core.createCard()`) |
 | **Card** | Visualisierungs-Container auf Deep-Dive-Pages mit Drag/Resize | Tile (Lieferfähigkeit-Page, kein Drag) |
+| **DEFAULT_STATUS_ORDER** | Die 17 Standard-Status in definierter Reihenfolge (Queue → WIP → Done + Rejected/Resume) — exportierte Konstante in `core.js` | `fhwa_status_order` (gespeicherte/benutzerdefinierte Reihenfolge in localStorage) |
+| **Extra-Status** | Workflow-Status der in den Excel-Daten vorkommt, aber NICHT in `DEFAULT_STATUS_ORDER` definiert ist — wird ans Ende angehängt + orange markiert | Standard-Status (in DEFAULT_STATUS_ORDER enthalten) |
+| **N=0-Hiding** | Automatisches Ausblenden einer Status-Spalte in einem Visual wenn dort keine darstellbaren Items vorhanden sind — individuell pro Visual | Global-Ausblenden (per Status-Panel in Heatmap oder excludeList in WIPAge) |
 
 ---
 
@@ -1589,6 +1617,9 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 - Aktiv/Erledigt-Logik: erledigt = `Resolved` XOR `Rejected` gefüllt
 - Extra-Sheet-Daten (Standard-Header in Zeile 1): `core.state.sheets['SheetName'] ?? []`
 - Extra-Sheet-Daten (Custom-Header, nicht Zeile 1): `(core.state.sheetsRaw || {})['SheetName'] ?? []` → 2D-Array; Header-Zeile per `row.some(c => c === 'Schlüsselwert')` finden
+- **Status-Reihenfolge NIEMALS in cfg persistieren** — immer `core.loadGlobalStatusOrder(knownNames)` lesen und `core.saveGlobalStatusOrder(order)` schreiben
+- **`statusOrder`-Event abonnieren** wenn das Visual eine Reihenfolge-Ansicht zeigt: `core.on('statusOrder', () => { cfg.stateOrder = core.loadGlobalStatusOrder(...); _updateOrderPanel(); render(); })`
+- **Extra-Status** (nicht in DEFAULT_STATUS_ORDER) immer mit CSS-Klasse `.o-extra` markieren (Order-Panel); SVG-Labels in `var(--orange)` färben
 
 ---
 
@@ -1600,3 +1631,4 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 *v4.3 (2026-06-07): Happiness Faktor Visual (`happiness.js`) implementiert. `core.state.sheetsRaw` ergänzt (2D-Array-Format für Custom-Header-Sheets). `build.py` um `wrap_iife()`-Pattern erweitert (verhindert `const`/`let`-Kollisionen im Bundle, jetzt 5 Stellen statt 4). Dokumentation entsprechend aktualisiert.*
 *v4.4 (2026-06-08): Layout-Bugfix: `core.js` öffnete `#app-screen` mit `display:flex` (→ `display:block`). `--tile-w` + `--tile-h` (16:10-Ratio) ersetzen altes `--tile-h`-only-System. Tile-Container auf Flexbox (`flex-wrap:wrap`, `justify-content:center`) umgestellt — volle Fensterbreite, automatisch 3→2→1 Spalten. Default 550 × 344 px, Slider-Range 390–720 px (±30 %).*
 *v4.5 (2026-06-09): Maßnahmen M9–M18 ergänzt (aus Zusammenarbeits-Analyse): M9 Smoke-Test, M10 Screenshot bei Design-Änderungen, M11 build.py Selbst-Check, M12 Architecture Decision Log, M13 Chat-Abschluss-Protokoll, M14 Chat-Scope begrenzen, M15 Glossar, M16 Scope-Check explorative Themen, M17 Standard-Testdatensatz, M18 Backlog-Priorisierung. Gate 1 um Layout-Freeze ergänzt. ADL mit 5 initialen Einträgen. Glossar mit 10 Begriffen. Pre-Delivery Review um Smoke-Test-Checkliste erweitert. M8 um Ausnahmen-Hinweis verschärft.*
+*v4.6 (2026-06-09): Unified Status Order implementiert. `DEFAULT_STATUS_ORDER` (17 Status: Queue→WIP→Done + Rejected/Resume) als Export in `core.js`. `loadGlobalStatusOrder()` + `saveGlobalStatusOrder()` + Event `statusOrder` in core.js API. `stateOrder` aus `fhwa_wipage` und `fhwa_heatmap` entfernt (→ `fhwa_status_order`). N=0-Hiding pro Visual: WIPAge blendet Spalten ohne aktive Items aus, Heatmap blendet Spalten ohne Stats aus. Extra-Status (nicht in DEFAULT) werden ans Ende angehängt + orange markiert (.o-extra, var(--orange)). Settings-Panel als zentriertes Overlay (540px, Backdrop). Status-Reihenfolge-Abschnitt im Settings-Panel mit Drag&Drop + ▲▼ + Reset. ADL um 4 Einträge ergänzt. Glossar um 3 Begriffe ergänzt. build.py Bootstrap aktualisiert.*

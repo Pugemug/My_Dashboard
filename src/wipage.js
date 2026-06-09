@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core } from './core.js';
+import { core, DEFAULT_STATUS_ORDER } from './core.js';
 
 export function init() {
 
@@ -15,9 +15,11 @@ export function init() {
     alertColor:    'var(--red)',
     dotSize:       4,
     showBands:     true,
-    excludeList:   'Rejected',
-    stateOrder:    [],
+    excludeList:   'Rejected, Resume',
   });
+
+  // stateOrder: Runtime-only, nicht persistiert – kommt von core.loadGlobalStatusOrder()
+  cfg.stateOrder = [];
 
   let panelDragSrc = null;
 
@@ -29,7 +31,7 @@ export function init() {
       dotSize:       cfg.dotSize,
       showBands:     cfg.showBands,
       excludeList:   cfg.excludeList,
-      stateOrder:    cfg.stateOrder,
+      // stateOrder wird NICHT persistiert – liegt in fhwa_status_order (global)
     });
   }
 
@@ -223,8 +225,9 @@ export function init() {
   function _updateOrderPanel() {
     orderList.innerHTML = '';
     cfg.stateOrder.forEach((name, idx) => {
+      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
       const item = document.createElement('div');
-      item.className = 'order-item';
+      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
       item.draggable = true;
       item.dataset.name = name;
 
@@ -249,7 +252,8 @@ export function init() {
         arr.splice(ti, 0, panelDragSrc);
         cfg.stateOrder = arr;
         panelDragSrc = null;
-        saveConfig(); _updateOrderPanel(); render();
+        core.saveGlobalStatusOrder(cfg.stateOrder);
+        _updateOrderPanel(); render();
       });
       item.addEventListener('dragend', () => {
         item.classList.remove('dragging');
@@ -281,7 +285,8 @@ export function init() {
     const a = [...cfg.stateOrder];
     const tmp = a[idx]; a[idx] = a[ni]; a[ni] = tmp;
     cfg.stateOrder = a;
-    saveConfig(); _updateOrderPanel(); render();
+    core.saveGlobalStatusOrder(cfg.stateOrder);
+    _updateOrderPanel(); render();
   }
 
   // ── 9. Render ─────────────────────────────────
@@ -321,20 +326,15 @@ export function init() {
       ? cfg.excludeList.split(/[,;]/).map(s => s.trim().toLowerCase()).filter(Boolean)
       : [];
 
-    // ── stateOrder mit gefundenen Status abgleichen ──
+    // ── stateOrder: Globale Reihenfolge laden + mit gefundenen Status abgleichen ──
     const foundStatuses = [];
     activeRows.forEach(r => {
       const s = String(r['Issue-Status'] || '').trim();
       if (s && foundStatuses.indexOf(s) < 0) foundStatuses.push(s);
     });
 
-    const savedOrd = (cfg.stateOrder || []).filter(n => foundStatuses.indexOf(n) >= 0);
-    const newNames = foundStatuses.filter(n => savedOrd.indexOf(n) < 0);
-    if (savedOrd.length !== cfg.stateOrder.length || newNames.length) {
-      cfg.stateOrder = [...savedOrd, ...newNames];
-      saveConfig();
-      _updateOrderPanel();
-    }
+    cfg.stateOrder = core.loadGlobalStatusOrder(foundStatuses);
+    _updateOrderPanel();
 
     const visibleStatuses = cfg.stateOrder.filter(n =>
       excluded.indexOf(n.toLowerCase()) < 0
@@ -350,7 +350,7 @@ export function init() {
     // Altersberechnung mit _first-Logik:
     //   X_first == X (gleicher Tag) → age = heute − X
     //   X_first != X               → age = (leaving_X_first − X_first) + (heute − X)
-    const statusGroups = visibleStatuses.map(statusName => {
+    const allStatusGroups = visibleStatuses.map(statusName => {
       const items = activeRows
         .filter(r => String(r['Issue-Status'] || '').trim() === statusName)
         .map(r => {
@@ -363,10 +363,9 @@ export function init() {
           if (entryReg != null) {
             const ageReg = Math.max(0, Math.round((today_ms - entryReg.getTime()) / 86400000));
 
-            // Prüfen ob _first einen anderen (früheren) Zeitraum darstellt
             const hasTwoPeriods = entryFirst != null
               && leavingFirst != null
-              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2; // > halber Tag Abstand
+              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2;
 
             if (hasTwoPeriods) {
               const firstPeriod = Math.max(0, Math.round(
@@ -377,7 +376,6 @@ export function init() {
               age = ageReg;
             }
           } else if (entryFirst != null) {
-            // Nur _first vorhanden
             age = Math.max(0, Math.round((today_ms - entryFirst.getTime()) / 86400000));
           }
 
@@ -391,7 +389,18 @@ export function init() {
       return { statusName, items };
     });
 
-    // ── Rolling Pace (nur Resolved-Items, kein Rejected) ──
+    // ── N=0 Hiding: Spalten ohne aktive Items ausblenden ──
+    const statusGroups = allStatusGroups.filter(g => g.items.length > 0);
+
+    // ── Effektiv sichtbare Status (nach N=0-Filter) ──
+    const renderedStatuses = statusGroups.map(g => g.statusName);
+
+    if (!renderedStatuses.length) {
+      diagEl.textContent = activeRows.length + ' aktive Items – alle Spalten haben n=0';
+      _renderMsg('Keine sichtbaren Spalten', 'Alle Status haben 0 aktive Items');
+      return;
+    }
+
     const cutoff_ms = today_ms - cfg.rollingDays * 86400000;
     const completedRows = allRows.filter(r => {
       const res = core.toDate(r['Resolved']);
@@ -399,7 +408,7 @@ export function init() {
     });
 
     const pace = {}; // statusName → { p25, p50, p85, p90, n } | null
-    visibleStatuses.forEach(sName => {
+    renderedStatuses.forEach(sName => {
       const durations = completedRows
         .map(r => {
           const entryFirst   = core.toDate(r[sName + '_first']);
@@ -454,7 +463,7 @@ export function init() {
     // ── Y-Skala ───────────────────────────────
     let maxAge = 1;
     statusGroups.forEach(g => g.items.forEach(d => { if (d.age > maxAge) maxAge = d.age; }));
-    visibleStatuses.forEach(s => {
+    renderedStatuses.forEach(s => {
       const p = pace[s];
       if (p && p.p90 != null && p.p90 > maxAge) maxAge = p.p90;
     });
@@ -463,7 +472,7 @@ export function init() {
     function yScale(v) { return MAR.top + pH - (v / maxAge) * pH; }
 
     // ── X-Skala (Band) ────────────────────────
-    const nCols = visibleStatuses.length;
+    const nCols = renderedStatuses.length;
     const colW  = pW / nCols;
     function xMid(i) { return MAR.left + colW * i + colW / 2; }
 
@@ -546,9 +555,15 @@ export function init() {
       }
 
       // X-Achse: Status-Label
+      const isExtra   = DEFAULT_STATUS_ORDER.indexOf(statusName) < 0;
+      const labelColor = isExtra ? 'var(--orange)' : C.axisLabel;
       const labelTxt = statusName.length > 14 ? statusName.slice(0, 13) + '…' : statusName;
       const labelY   = MAR.top + pH + 18;
-      parts.push(`<text x="${cx.toFixed(1)}" y="${labelY}" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="${C.axisLabel}">${_escAttr(labelTxt)}</text>`);
+      parts.push(`<text x="${cx.toFixed(1)}" y="${labelY}" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="${labelColor}">${_escAttr(labelTxt)}</text>`);
+      if (isExtra) {
+        // Kleines "★" über dem Label als visueller Hinweis
+        parts.push(`<text x="${cx.toFixed(1)}" y="${labelY - 1}" text-anchor="middle" font-size="7" font-family="var(--mono)" fill="var(--orange)" opacity="0.6">▲</text>`);
+      }
 
       // N-Anzeige
       parts.push(`<text x="${cx.toFixed(1)}" y="${labelY + 14}" text-anchor="middle" font-size="9" font-family="var(--mono)" fill="${C.axisLabel}" opacity="0.6">n=${items.length}</text>`);
@@ -620,10 +635,10 @@ export function init() {
 
     // ── Diag-Bar ──────────────────────────────
     const totalWip  = statusGroups.reduce((s, g) => s + g.items.length, 0);
-    const paceCount = visibleStatuses.filter(s => pace[s] != null).length;
+    const paceCount = renderedStatuses.filter(s => pace[s] != null).length;
     diagEl.textContent =
-      `${totalWip} WIP-Items · ${visibleStatuses.length} Status · ` +
-      `Rolling Pace: ${paceCount}/${visibleStatuses.length} mit Daten (${cfg.rollingDays}d) · ` +
+      `${totalWip} WIP-Items · ${renderedStatuses.length} Status (${allStatusGroups.length - renderedStatuses.length} leer ausgeblendet) · ` +
+      `Rolling Pace: ${paceCount}/${renderedStatuses.length} mit Daten (${cfg.rollingDays}d) · ` +
       `Alert ab ${cfg.statusAgeDays}d`;
   }
 
@@ -736,18 +751,23 @@ export function init() {
 
   // ── 10. Events abonnieren ─────────────────────
   core.on('data', () => {
-    // stateOrder mit neuen Daten abgleichen (analog heatmap.js)
-    const s = core.state;
-    // Alle Issue-Status-Werte aus aktiven Rows vorab ermitteln ist nicht möglich
-    // ohne filteredRows() – das übernimmt render() beim ersten Aufruf.
     _updateOrderPanel();
     render();
   });
 
-  core.on('theme',    () => render());
-  core.on('filter',   () => render());
-  core.on('resize',   () => render());
-  core.on('settings', () => render());
+  core.on('theme',       () => render());
+  core.on('filter',      () => render());
+  core.on('resize',      () => render());
+  core.on('settings',    () => render());
+  core.on('statusOrder', () => {
+    // Globale Reihenfolge sofort übernehmen, DANN Panel + Render
+    const allKnown = (core.state.rows || [])
+      .map(r => String(r['Issue-Status'] || '').trim())
+      .filter((v, i, a) => v && a.indexOf(v) === i);
+    cfg.stateOrder = core.loadGlobalStatusOrder(allKnown);
+    _updateOrderPanel();
+    render();
+  });
 }
 
 // ── Modul-private DOM-Helfer ────────────────────

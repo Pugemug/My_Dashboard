@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, LT_START_DEFAULT, LT_END_DEFAULT } from './core.js';
+import { core, LT_START_DEFAULT, LT_END_DEFAULT, DEFAULT_STATUS_ORDER } from './core.js';
 
 export function init() {
 
@@ -15,8 +15,8 @@ export function init() {
     filter:       'resolved',
     ltStart:      '',
     ltEnd:        '',
-    hiddenGlobal: [],
-    stateOrder:   [],
+    hiddenGlobal: ['Rejected', 'Resume'],
+    // stateOrder wird NICHT persistiert – liegt in fhwa_status_order (global)
   });
 
   // Runtime-only state (nicht persistiert)
@@ -36,7 +36,7 @@ export function init() {
       ltStart:      cfg.ltStart,
       ltEnd:        cfg.ltEnd,
       hiddenGlobal: [...hiddenGlobal],
-      stateOrder:   cfg.stateOrder,
+      // stateOrder wird NICHT persistiert – liegt in fhwa_status_order (global)
     });
   }
 
@@ -351,8 +351,10 @@ export function init() {
     orderList.innerHTML = '';
     const hidden = _getHiddenStates();
     cfg.stateOrder.forEach((name, idx) => {
+      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
       const item = document.createElement('div');
-      item.className = 'order-item'; item.draggable = true; item.dataset.name = name;
+      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
+      item.draggable = true; item.dataset.name = name;
       if (hidden.has(name)) item.style.opacity = '.4';
 
       item.addEventListener('dragstart', e => { panelDragSrc = name; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
@@ -366,7 +368,8 @@ export function init() {
         if (fi < 0 || ti < 0) return;
         arr.splice(fi, 1); arr.splice(ti, 0, panelDragSrc);
         cfg.stateOrder = arr; panelDragSrc = null;
-        saveConfig(); _updateOrderPanel(); _updateStatusPanel(); render();
+        core.saveGlobalStatusOrder(cfg.stateOrder);
+        _updateOrderPanel(); _updateStatusPanel(); render();
       });
       item.addEventListener('dragend', () => { item.classList.remove('dragging'); panelDragSrc = null; });
 
@@ -384,7 +387,9 @@ export function init() {
     const ni = idx + dir;
     if (ni < 0 || ni >= cfg.stateOrder.length) return;
     const a = [...cfg.stateOrder]; [a[idx], a[ni]] = [a[ni], a[idx]];
-    cfg.stateOrder = a; saveConfig(); _updateOrderPanel(); _updateStatusPanel(); render();
+    cfg.stateOrder = a;
+    core.saveGlobalStatusOrder(cfg.stateOrder);
+    _updateOrderPanel(); _updateStatusPanel(); render();
   }
 
   // ── Stats helpers ─────────────────────────────
@@ -413,7 +418,8 @@ export function init() {
     if (fi < 0 || ti < 0) return;
     arr.splice(fi, 1); arr.splice(ti, 0, colDrag.name);
     cfg.stateOrder = arr; colDrag.name = null;
-    saveConfig(); _updateOrderPanel(); _updateStatusPanel(); render();
+    core.saveGlobalStatusOrder(cfg.stateOrder);
+    _updateOrderPanel(); _updateStatusPanel(); render();
   }
 
   // ── Cell builder ──────────────────────────────
@@ -476,7 +482,7 @@ export function init() {
     const isDrill  = !!drillSquad;
     const canDrill = gcol === 'Squad' && core.state.hasSquad && !isDrill;
     const hidden   = _getHiddenStates();
-    const ordStates = cfg.stateOrder.map(n => core.state.states.find(s => s.name === n)).filter(s => s && !hidden.has(s.name));
+    const allOrdStates = cfg.stateOrder.map(n => core.state.states.find(s => s.name === n)).filter(s => s && !hidden.has(s.name));
 
     let groups;
     if (hasGrp) {
@@ -491,12 +497,30 @@ export function init() {
       groups = [['Alle Items', fRows]];
     }
 
-    if (!groups.length || !ordStates.length) { _showMsg('Keine Daten', 'Filter prüfen oder Spalten konfigurieren.'); return; }
+    if (!groups.length || !allOrdStates.length) { _showMsg('Keine Daten', 'Filter prüfen oder Spalten konfigurieren.'); return; }
 
-    const data = groups.map(([gName, gRows]) => ({
+    // Alle Stats vorberechnen (für N=0-Filter)
+    const dataAll = groups.map(([gName, gRows]) => ({
       gName, gRows,
-      stStats: ordStates.map(s => _stateStats(gRows, s)),
+      stStats: allOrdStates.map(s => _stateStats(gRows, s)),
       ltStat:  _hasLT() ? _ltStats(gRows) : null,
+    }));
+
+    // ── N=0 Hiding: Spalten ausblenden wo ALLE Gruppen null-Stats haben ──
+    const ordStates = allOrdStates.filter((s, i) =>
+      dataAll.some(d => d.stStats[i] !== null)
+    );
+    const hiddenN0Count = allOrdStates.length - ordStates.length;
+
+    // data mit gefilterten States neu aufbauen
+    const data = dataAll.map(d => ({
+      gName:   d.gName,
+      gRows:   d.gRows,
+      ltStat:  d.ltStat,
+      stStats: ordStates.map(s => {
+        const oi = allOrdStates.indexOf(s);
+        return d.stStats[oi];
+      }),
     }));
 
     let gMax = 0;
@@ -511,7 +535,10 @@ export function init() {
     if (_hasLT()) { const th = document.createElement('th'); th.textContent = 'Lead Time'; hr.appendChild(th); }
 
     ordStates.forEach(s => {
-      const th = document.createElement('th'); th.textContent = s.name; th.className = 'draggable-col';
+      const isExtra = DEFAULT_STATUS_ORDER.indexOf(s.name) < 0;
+      const th = document.createElement('th');
+      th.textContent = s.name;
+      th.className = 'draggable-col' + (isExtra ? ' th-extra' : '');
       th.draggable = true; th.dataset.stateName = s.name;
       th.addEventListener('dragstart', e => _onColDragStart(e, s.name));
       th.addEventListener('dragover',  e => _onColDragOver(e, th));
@@ -568,7 +595,9 @@ export function init() {
     const fStr     = (cfg.filter === 'resolved' && _hasLT()) ? `resolved (${resolved}/${total})` : `alle (${total})`;
     const sqCtx    = drillSquad ? ` · Drill: ${drillSquad}` : (core.state.squadFilter.length ? ` · Squads: ${core.state.squadFilter.length}` : '');
     diagEl.textContent =
-      `${core.state.rows.length} Items${sqCtx} · ${groups.length} Gruppen · ${ordStates.length}/${cfg.stateOrder.length} Status · ` +
+      `${core.state.rows.length} Items${sqCtx} · ${groups.length} Gruppen · ` +
+      `${ordStates.length}/${cfg.stateOrder.length} Status` +
+      (hiddenN0Count > 0 ? ` (${hiddenN0Count} leer ausgeblendet)` : '') + ` · ` +
       `Metrik: ${cfg.metric === 'med' ? 'Median' : cfg.metric.toUpperCase()} · Filter: ${fStr} · LT: ${_hasLT() ? cfg.ltStart + ' → ' + cfg.ltEnd : 'inaktiv'}`;
   }
 
@@ -578,10 +607,9 @@ export function init() {
   core.on('data', () => {
     const s = core.state;
 
-    // Validate/migrate saved state order against current states
-    const savedOrd  = (cfg.stateOrder || []).filter(n => s.states.find(st => st.name === n));
-    const newNames  = s.states.filter(st => savedOrd.indexOf(st.name) < 0).map(st => st.name);
-    cfg.stateOrder  = [...savedOrd, ...newNames];
+    // Globale Reihenfolge laden – neue Status aus Excel ans Ende anhängen
+    const detectedNames = s.states.map(st => st.name);
+    cfg.stateOrder = core.loadGlobalStatusOrder(detectedNames);
 
     // Validate saved LT columns
     if (!s.dateCols.includes(cfg.ltStart))
@@ -601,9 +629,14 @@ export function init() {
     render();
   });
 
-  core.on('theme',  () => render());
-  core.on('filter', () => render());
-  core.on('resize', () => {});   // Heatmap is DOM/table → no SVG re-render needed
+  core.on('theme',       () => render());
+  core.on('filter',      () => render());
+  core.on('resize',      () => {});   // Heatmap ist DOM/table → kein SVG-Rerender nötig
+  core.on('statusOrder', () => {
+    // Globale Reihenfolge neu laden (ohne knownNames – bestehende Reihenfolge übernehmen)
+    cfg.stateOrder = core.loadGlobalStatusOrder(core.state.states.map(st => st.name));
+    _updateOrderPanel(); _updateStatusPanel(); render();
+  });
 }
 
 // ════════════════════════════════════════════════

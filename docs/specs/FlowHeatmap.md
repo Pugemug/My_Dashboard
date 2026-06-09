@@ -1,7 +1,7 @@
 # FlowHeatmap – Spezifikation (SDD)
 
-**Version:** 1.0  
-**Datum:** 2026-06-03  
+**Version:** 1.1  
+**Datum:** 2026-06-09  
 **Status:** [x] Entwurf → [ ] Bestätigt (Gate 1) → [x] Implementiert (`heatmap.js` v2.0+)
 
 > Diese SDD wurde nachträglich aus dem implementierten Code (`heatmap.js`) und dem
@@ -179,8 +179,9 @@ Default-Grid-Position: `{ col: 0, row: 0, w: 8, h: 12 }`.
 | `filter` | string | `'resolved'` | `'all'` \| `'resolved'` | Item-Filterung | `'resolved'` nur wenn LT aktiv |
 | `ltStart` | string | `LT_START_DEFAULT` | Spaltenname | Lead-Time-Startdatum | Muss in `dateCols`; Fallback: erstes dateCols |
 | `ltEnd` | string | `LT_END_DEFAULT` | Spaltenname | Lead-Time-Enddatum + LT-Spalte | ≠ ltStart; Fallback: zweites dateCols |
-| `hiddenGlobal` | string[] | `[]` | Status-Namen | Global ausgeblendete Status | Persistiert als Array, geladen als `Set` |
-| `stateOrder` | string[] | `[]` | Status-Namen | Reihenfolge der Spalten | Migration: Unbekannte entfernt, Neue angehängt |
+| `hiddenGlobal` | string[] | `['Rejected', 'Resume']` | Status-Namen | Global ausgeblendete Status | Persistiert als Array, geladen als `Set` |
+
+> **`stateOrder` wird nicht mehr in `fhwa_heatmap` persistiert.** Die Status-Reihenfolge liegt global in `fhwa_status_order` und wird via `core.loadGlobalStatusOrder()` geladen. Drag in Order-Panel und Tabellen-Header schreiben via `core.saveGlobalStatusOrder()`.
 
 ### Runtime-only State (nicht persistiert)
 
@@ -202,7 +203,9 @@ Default-Grid-Position: `{ col: 0, row: 0, w: 8, h: 12 }`.
 | Tooltip mit Links | ❌ Nicht vorhanden | `pointerEvents: none` (fest); kein Jira-Link in Heatmap |
 | Tooltip-Aktivierung | Delegiert (kein Delay) | `document.mousemove` → `.closest('.has-hm-tt')`; sofort ein/aus |
 | N-Anzeige | ✅ Pflicht | `n=X` in jeder Zelle (`.c-n`) + Diag-Bar-Zähler |
-| Reihenfolge-Panel | ✅ vorhanden | ▲/▼ + Drag im Panel **und** Drag auf `<th>` der Tabelle; persistiert |
+| Reihenfolge-Panel | ✅ vorhanden | ▲/▼ + Drag im Panel **und** Drag auf `<th>` der Tabelle; **schreibt global** via `core.saveGlobalStatusOrder()`; abonniert `core.on('statusOrder')` |
+| N=0-Hiding | ✅ Implementiert | Spalten ausgeblendet wenn ALLE Gruppen `null`-Stats haben; Diag-Bar zeigt Anzahl ausgeblendeter Spalten |
+| Extra-Status-Markierung | ✅ Implementiert | Status nicht in `DEFAULT_STATUS_ORDER` → Tabellen-Header mit `.th-extra` (Farbe `var(--orange)`); Order-Panel-Item mit `.o-extra` |
 | Skalierung | DOM-nativ | Tabelle skaliert per CSS; `resize`-Event wird absichtlich ignoriert |
 | Diagnosemodus | ✅ Pflicht, immer an | Inhalt: Gesamt-n · Drill/Squads · Gruppen · Status · Metrik · Filter · LT |
 | Icon | – nicht anwendbar | Web-App |
@@ -248,6 +251,7 @@ Default-Grid-Position: `{ col: 0, row: 0, w: 8, h: 12 }`.
 | Datum | Version | Änderung | Bestätigt von |
 |---|---|---|---|
 | 2026-06-03 | 1.0 | Initiale Spec – retrograd aus `heatmap.js` v2.0 rekonstruiert | – |
+| 2026-06-09 | 1.1 | Unified Status Order: `stateOrder` aus `fhwa_heatmap` entfernt (→ `fhwa_status_order` global); `hiddenGlobal` Default auf `['Rejected','Resume']`; N=0-Hiding (Spalten ohne Stats in allen Gruppen); Extra-Status-Markierung (`.o-extra` + `.th-extra`); `statusOrder`-Event abonniert; `data`-Handler lädt globale Reihenfolge statt zu migrieren | Oliver |
 
 ---
 
