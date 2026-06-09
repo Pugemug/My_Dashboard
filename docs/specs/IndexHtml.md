@@ -400,14 +400,16 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 ```html
 <script type="module">
   import { core, DEFAULT_STATUS_ORDER }  from './core.js';
-  import { init as initHeatmap }   from './heatmap.js';
-  import { init as initScatter }   from './scatter.js';
-  import { init as initWipage }    from './wipage.js';
-  import { init as initBoxChart }  from './boxchart.js';
-  import { init as initHappiness } from './happiness.js';
-  import { init as initWip }       from './wip.js';
+  import { init as initHeatmap }         from './heatmap.js';
+  import { init as initScatter }         from './scatter.js';
+  import { init as initWipage }          from './wipage.js';
+  import { init as initBoxChart }        from './boxchart.js';
+  import { init as initHappiness }       from './happiness.js';
+  import { init as initWip }             from './wip.js';
+  import { init as initFlowEfficiency }  from './flowefficiency.js';
 
-  initHeatmap(); initScatter(); initWipage(); initBoxChart(); initHappiness(); initWip();
+  initHeatmap(); initScatter(); initWipage(); initBoxChart();
+  initHappiness(); initWip(); initFlowEfficiency();
   core.initApp();
 
   // Settings-Panel: Overlay-Logik (open/close, Backdrop, Status-Reihenfolge-Liste)
@@ -450,3 +452,4 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 | 2026-06-09 | 1.7 | `wip.js` (WIP pro Person) ergänzt: `import { init as initWip }` + `initWip()` im Bootstrap-Block. |
 | 2026-06-08 | 1.6 | Default-Kachelgröße auf 550 × 344 px angehoben. Slider-Range auf ±30 % (390–720 px, step 10). Alle veralteten CSS-Grid- und 220/400-px-Referenzen in der Spec bereinigt. |
 | 2026-06-09 | 1.8 | Settings-Panel zu zentriertem Overlay umgebaut (`position:fixed; transform:translate(-50%,-50%)`, Breite 540px, max-height 82vh). Neuer Abschnitt „Status-Reihenfolge" mit `#settings-order-list` (Drag&Drop + ▲▼), `#settings-order-reset` und `#settings-backdrop`. Open/Close-Logik aus core.js in Bootstrap-Block verschoben. `DEFAULT_STATUS_ORDER` im Import ergänzt. Neue CSS-Klassen: `.settings-backdrop`, `.settings-close-btn`, `.settings-panel-header`, `.settings-divider`, `.settings-section-label`, `.settings-order-list`, `.settings-order-reset`, `.o-extra`, `.th-extra`. |
+| 2026-06-09 | 1.9 | `flowefficiency.js` (Flow Efficiency) ergänzt: `import { init as initFlowEfficiency }` + `initFlowEfficiency()` im Bootstrap-Block. Tile auf Lieferfähigkeit-Page, Join JiraStories + JiraBlockermanagement. |

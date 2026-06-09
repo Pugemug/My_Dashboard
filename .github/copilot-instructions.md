@@ -15,6 +15,7 @@ project-root/
     specs/
       LeadTime_BoxChart.md     ← bestätigte Spec
       WIPAge.md
+      FlowEfficiency.md        ← bestätigte Spec v1.1
       [VisualName].md          ← künftige Specs
   src/
     index.html         ← Einstiegspunkt, Layout, CSS, Modul-Imports
@@ -25,7 +26,7 @@ project-root/
     boxchart.js        ← LeadTime BoxChart (Tile auf Lieferfähigkeit-Page, core.createTile())
     saydoratio.js      ← Say_Do_Ratio KPI (Epics-Sheet, Quartals-Verlauf)
     wipkpi.js          ← WIP KPI-Card (JiraStories)
-    flowefficiency.js  ← Flow Efficiency (JiraStories + BlockedReasons JOIN)
+    flowefficiency.js  ← Flow Efficiency (JiraStories + JiraBlockermanagement JOIN)
     happiness.js       ← Happiness Faktor Visual (Sheet: 'Happiness Faktor')
     wip.js             ← WIP pro Person Visual (Sheet: 'SquadDaten', JiraStories)
     akzeptanz.js       ← Akzeptanzkriterien KPI (dediziertes Sheet)
@@ -95,8 +96,8 @@ core.state.activePage               // → aktuell sichtbare Page-ID
 
 ```javascript
 // Zugriff in Visuals – immer mit ?? [] absichern
-const epics   = core.state.sheets['Epics']          ?? [];
-const blocked = core.state.sheets['BlockedReasons'] ?? [];
+const epics   = core.state.sheets['Epics']                  ?? [];
+const blocked = core.state.sheets['JiraBlockermanagement']  ?? [];
 
 // core.state.rows bleibt als Alias für JiraStories (Kompatibilität)
 core.state.rows === core.state.sheets['JiraStories']  // true

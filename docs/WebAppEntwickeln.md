@@ -325,7 +325,8 @@ Dauer: ca. 2 Minuten.
 ```python
 # Am Ende von build.py ergänzen:
 expected = ['init_heatmap', 'init_scatter', 'init_wipage',
-            'init_boxchart', 'init_happiness']  # ← Liste pflegen
+            'init_boxchart', 'init_happiness', 'init_wip',
+            'init_flowefficiency']  # ← Liste pflegen
 for fn in expected:
     if fn not in bundled_js:
         print(f"⚠️  WARNUNG: {fn}() fehlt im Bundle!")
@@ -613,7 +614,7 @@ Die Excel-Datei enthält **mehrere Worksheets**. `core.js` lädt alle Sheets bei
 |---|---|---|---|
 | `JiraStories` | ✅ Pflicht | alle bestehenden Visuals | Work-Item-Daten |
 | `Epics` | optional | Say_Do_Ratio | Epics mit Iterations-/Quartalszuordnung |
-| `BlockedReasons` | optional | Flow Efficiency | JiraId · Squad · Blocked-Grund |
+| `JiraBlockermanagement` | optional | Flow Efficiency | issues.key · Squad · Blocked/Warte-Episoden (BlockiertWartendSeit, Blockiert/Wartend_Zustand, Blockiert/Wartend_Grund, BlockedStart, BlockedEnd) |
 | `Happiness Faktor` | optional | Happiness Index | Monats-Happiness (1–5) pro Squad; Custom-Header in Zeile 3 → `sheetsRaw` verwenden |
 | *(Acceptance-Sheet)* | optional | Akzeptanzkriterien | Name per SDD-Interview klären |
 
@@ -1530,6 +1531,10 @@ Begründungen für Architektur-Entscheidungen die nicht offensichtlich sind. Wir
 | 2026-06-09 | Settings-Panel als zentriertes Overlay (`position:fixed; transform:translate(-50%,-50%)`) statt sidebar-verankert | Größeres Panel (540px) für Status-Reihenfolge-Liste benötigt mehr Platz als die 300px-Sidebar-Version; Overlay-Pattern ist standard für Modal-ähnliche Einstellungen | Sidebar-verankert: zu schmal für 17+ Drag-Items; Separate Page: zu aufwändig |
 | 2026-06-09 | N=0-Hiding per Visual (nicht global) | WIPAge und Heatmap haben unterschiedliche N-Definitionen: WIPAge = aktive WIP-Items, Heatmap = berechnete Stats. Globales Ausblenden würde Kontext verlieren | Global: ein Status könnte in Heatmap n>0 haben, in WIPAge n=0 — beide würden ihn ausblenden |
 | 2026-06-09 | Case-insensitive Dedup in `loadGlobalStatusOrder` | Excel-Daten können `'In Test'` liefern während DEFAULT `'in Test'` definiert. Ohne Dedup würde `'In Test'` als Extra-Status angehängt | Exakter Match: Extra-Status-Duplikate (z.B. `'in Test'` + `'In Test'`); Normalisierung: verliert Original-Schreibweise |
+| 2026-06-09 | FE-Wartezeit aus zwei Quellen: JiraStories-Statusspalten (Basis) + JiraBlockermanagement (Zusatz, statusunabhängige Episoden) | JiraStories erfasst Warte-Status-Zeiträume strukturiert; JiraBlockermanagement erfasst zusätzlich flag-basierte Blockierungen die innerhalb aktiver Status auftreten (z.B. „Blocked"-Flag während „In Progress") | Nur JiraStories: statusunabhängige Blockierungen gehen verloren; Nur JiraBlockermanagement: Warte-Status ohne Flagging würden nicht gezählt |
+| 2026-06-09 | Dedup-Strategie per Status-Typ (nicht per Datumsintervall) | `Blockiert/Wartend_Zustand` in JiraBlockermanagement ∈ WAIT_STATUS → Episode überspringen (bereits in JiraStories gezählt). Robuster als Intervall-Overlap weil BlockedStart/BlockedEnd oft leer sind | Datumsintervall-Overlap: fragil wenn BlockedStart/End fehlen; Keine Dedup: führt zu doppelter Zählung |
+| 2026-06-09 | Monatliche FE-Aggregation per Median (nicht Durchschnitt) | Robust gegen Ausreißer (einzelne Items mit sehr hoher/niedriger FE verzerren Mittelwert stark) — konsistent mit BoxChart-Logik | Arithmetisches Mittel: anfällig für Ausreißer; Flächen-Ratio: schwerer zu erklären |
+| 2026-06-09 | Sheet-Name `JiraBlockermanagement` statt `BlockedReasons` | Entspricht dem tatsächlichen Excel-Sheet-Namen im Produktivsystem | `BlockedReasons` war Platzhalter-Name in früherer Planung (WebAppEntwickeln.md v4.0) |
 
 ---
 
@@ -1552,6 +1557,9 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 | **DEFAULT_STATUS_ORDER** | Die 17 Standard-Status in definierter Reihenfolge (Queue → WIP → Done + Rejected/Resume) — exportierte Konstante in `core.js` | `fhwa_status_order` (gespeicherte/benutzerdefinierte Reihenfolge in localStorage) |
 | **Extra-Status** | Workflow-Status der in den Excel-Daten vorkommt, aber NICHT in `DEFAULT_STATUS_ORDER` definiert ist — wird ans Ende angehängt + orange markiert | Standard-Status (in DEFAULT_STATUS_ORDER enthalten) |
 | **N=0-Hiding** | Automatisches Ausblenden einer Status-Spalte in einem Visual wenn dort keine darstellbaren Items vorhanden sind — individuell pro Visual | Global-Ausblenden (per Status-Panel in Heatmap oder excludeList in WIPAge) |
+| **Flow Efficiency (FE%)** | Anteil der aktiven Arbeitszeit an der gesamten Lead Time: `(LT − Wartezeit) / LT × 100%`. Nur für Resolved Items berechnet, Median pro Monat. Wartezeit-Quellen: JiraStories-Warte-Status + JiraBlockermanagement-Zusatz-Episoden | Lead Time (misst Gesamtdauer, nicht Effizienz) |
+| **JiraBlockermanagement** | Excel-Sheet mit statusunabhängigen Blockier-/Warte-Episoden pro Issue. Join über `issues.key` + `Squad`. Schlüsselspalten: `BlockiertWartendSeit` (Tage), `Blockiert/Wartend_Zustand`, `Blockiert/Wartend_Grund` | JiraStories (Haupt-Datensatz mit Status-Zeitstempeln) |
+| **WAIT_STATUS** | Die 6 Warte-WIP-Status in `flowefficiency.js`: Blocked, Ready4Test, Ready4QS, Ready4Review, Ready4E2E-Test, Ready4Production — deren Zeitdauer von der Lead Time abgezogen wird | Aktive WIP-Status (In Progress, in Test, In QS) |
 
 ---
 
@@ -1561,6 +1569,7 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 |---|---|---|---|
 | ~~**LeadTime BoxChart**~~ | ~~`boxchart.js`~~ | ~~mittel~~ | ✅ Implementiert v2.5 |
 | ~~**Happiness Index**~~ | ~~`happiness.js`~~ | ~~mittel~~ | ✅ Implementiert v1.0 (Sheet: `Happiness Faktor`) |
+| ~~**Flow Efficiency**~~ | ~~`flowefficiency.js`~~ | ~~mittel~~ | ✅ Implementiert v1.0 (Sheets: `JiraStories` + `JiraBlockermanagement`) |
 | **CFD (Cumulative Flow)** | `cfd.js` | groß | Stapelflächen über Zeit |
 | **Card-Titel editierbar** | index.html | klein | `contenteditable` auf `.card-title` |
 | **Card minimieren** | core.js | klein | `.card-content` auf `height:0` klappen |
@@ -1579,6 +1588,7 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 | WIPAge ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/wipage.js` |
 | Happiness ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/happiness.js` |
 | BoxChart ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/boxchart.js` |
+| Flow Efficiency ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/flowefficiency.js` |
 | index.html anpassen | `docs/WebAppEntwickeln.md` + `src/index.html` |
 | Spec nachschlagen / ändern | `docs/WebAppEntwickeln.md` + `docs/specs/VisualName.md` |
 
@@ -1632,3 +1642,4 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 *v4.4 (2026-06-08): Layout-Bugfix: `core.js` öffnete `#app-screen` mit `display:flex` (→ `display:block`). `--tile-w` + `--tile-h` (16:10-Ratio) ersetzen altes `--tile-h`-only-System. Tile-Container auf Flexbox (`flex-wrap:wrap`, `justify-content:center`) umgestellt — volle Fensterbreite, automatisch 3→2→1 Spalten. Default 550 × 344 px, Slider-Range 390–720 px (±30 %).*
 *v4.5 (2026-06-09): Maßnahmen M9–M18 ergänzt (aus Zusammenarbeits-Analyse): M9 Smoke-Test, M10 Screenshot bei Design-Änderungen, M11 build.py Selbst-Check, M12 Architecture Decision Log, M13 Chat-Abschluss-Protokoll, M14 Chat-Scope begrenzen, M15 Glossar, M16 Scope-Check explorative Themen, M17 Standard-Testdatensatz, M18 Backlog-Priorisierung. Gate 1 um Layout-Freeze ergänzt. ADL mit 5 initialen Einträgen. Glossar mit 10 Begriffen. Pre-Delivery Review um Smoke-Test-Checkliste erweitert. M8 um Ausnahmen-Hinweis verschärft.*
 *v4.6 (2026-06-09): Unified Status Order implementiert. `DEFAULT_STATUS_ORDER` (17 Status: Queue→WIP→Done + Rejected/Resume) als Export in `core.js`. `loadGlobalStatusOrder()` + `saveGlobalStatusOrder()` + Event `statusOrder` in core.js API. `stateOrder` aus `fhwa_wipage` und `fhwa_heatmap` entfernt (→ `fhwa_status_order`). N=0-Hiding pro Visual: WIPAge blendet Spalten ohne aktive Items aus, Heatmap blendet Spalten ohne Stats aus. Extra-Status (nicht in DEFAULT) werden ans Ende angehängt + orange markiert (.o-extra, var(--orange)). Settings-Panel als zentriertes Overlay (540px, Backdrop). Status-Reihenfolge-Abschnitt im Settings-Panel mit Drag&Drop + ▲▼ + Reset. ADL um 4 Einträge ergänzt. Glossar um 3 Begriffe ergänzt. build.py Bootstrap aktualisiert.*
+*v4.7 (2026-06-09): Flow Efficiency Visual (`flowefficiency.js`) implementiert v1.0. Sheet-Name `BlockedReasons` → `JiraBlockermanagement` (Worksheets-Übersicht + ADL). FE-Berechnung: Dual-Period-Wartezeit aus JiraStories-Warte-Status + statusunabhängige Zusatz-Episoden aus JiraBlockermanagement (Dedup per Status-Typ). Monatliche Aggregation: Median. Line/Violin-Toggle im Tile-Header. Konfigurierbare Ziellinie (FE%, ein/ausblendbar). `index.html` + `build.py` aktualisiert (6. Stelle). M11-Expected-Liste um `init_wip` + `init_flowefficiency` ergänzt. Chat-Start-Tabelle um `flowefficiency.js`-Zeile ergänzt. ADL um 5 Einträge ergänzt. Glossar um 3 Begriffe ergänzt.*

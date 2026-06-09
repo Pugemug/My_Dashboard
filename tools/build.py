@@ -86,6 +86,7 @@ def build():
     boxchart_js  = read('boxchart.js')
     happiness_js = read('happiness.js')
     wip_js       = read('wip.js')
+    flowefficiency_js = read('flowefficiency.js')
 
     print("▶ Transformiere JS (entferne import/export) …")
     core_out      = strip_module_syntax(core_js)
@@ -95,6 +96,7 @@ def build():
     boxchart_out  = strip_module_syntax(boxchart_js)
     happiness_out = strip_module_syntax(happiness_js)
     wip_out       = strip_module_syntax(wip_js)
+    flowefficiency_out = strip_module_syntax(flowefficiency_js)
 
     # init()-Funktionen umbenennen um Kollisionen zu vermeiden
     heatmap_out   = heatmap_out.replace(  'function init()', 'function init_heatmap()',   1)
@@ -103,6 +105,7 @@ def build():
     boxchart_out  = boxchart_out.replace( 'function init()', 'function init_boxchart()',  1)
     happiness_out = happiness_out.replace('function init()', 'function init_happiness()', 1)
     wip_out       = wip_out.replace(      'function init()', 'function init_wip()',       1)
+    flowefficiency_out = flowefficiency_out.replace('function init()', 'function init_flowefficiency()', 1)
 
     # Jedes Visual in eine IIFE einwickeln:
     # Verhindert, dass gleichnamige top-level const/let zwischen Visuals kollidieren.
@@ -121,6 +124,7 @@ def build():
     boxchart_out  = wrap_iife(boxchart_out,  'init_boxchart')
     happiness_out = wrap_iife(happiness_out, 'init_happiness')
     wip_out       = wrap_iife(wip_out,       'init_wip')
+    flowefficiency_out = wrap_iife(flowefficiency_out, 'init_flowefficiency')
 
     # Inline-Bootstrap (ersetzt den <script type="module">-Block aus index.html)
     # WICHTIG: Alle Logik aus dem Modul-Script muss hier vollständig enthalten sein,
@@ -133,6 +137,7 @@ def build():
         "  init_boxchart();\n"
         "  init_happiness();\n"
         "  init_wip();\n"
+        "  init_flowefficiency();\n"
         "  core.initApp();\n"
         "\n"
         "  // ── Settings-Panel: Overlay-Logik ──────────────────\n"
@@ -280,6 +285,7 @@ def build():
         "// ── boxchart.js ──\n"   + boxchart_out  + "\n\n" +
         "// ── happiness.js ──\n"  + happiness_out + "\n\n" +
         "// ── wip.js ──\n"        + wip_out        + "\n\n" +
+        "// ── flowefficiency.js ──\n" + flowefficiency_out + "\n\n" +
         "// ── Bootstrap ──\n"     + bootstrap      + "\n"
     )
 
@@ -296,6 +302,19 @@ def build():
 
     size_kb = os.path.getsize(out_path) / 1024
     print(f"✅ Fertig: Web App/FlowAnalytics.html ({size_kb:.1f} KB)")
+
+    # ── M11 Selbst-Check: alle init_*-Funktionen im Bundle vorhanden? ──
+    expected = [
+        'init_heatmap', 'init_scatter', 'init_wipage',
+        'init_boxchart', 'init_happiness', 'init_wip',
+        'init_flowefficiency',
+    ]
+    print()
+    for fn in expected:
+        if fn not in bundled_js:
+            print(f"⚠️  WARNUNG: {fn}() fehlt im Bundle!")
+        else:
+            print(f"✓  {fn}() vorhanden")
 
 
 if __name__ == '__main__':
