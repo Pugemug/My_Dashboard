@@ -210,7 +210,7 @@ pf-spacer
 
 **Tile-Canvas** (Lieferfähigkeit-Page):
 ```css
-.tile-container { display:flex; flex-wrap:wrap; justify-content:center; align-content:start; gap:.75rem; padding:.75rem; }
+.tile-container { display:flex; flex-wrap:wrap; justify-content:center; align-content:start; gap:.75rem; padding:.75rem; max-width:calc(3 * var(--tile-w) + 3rem); margin:0 auto; }
 .tile { width:var(--tile-w,550px); height:var(--tile-h,344px); flex-shrink:0; }  /* 16:10 · 390–720 px via Slider */
 ```
 Tiles werden über `core.createTile()` erzeugt und hängen sich selbst ein. Kein Drag, kein Resize.
@@ -324,7 +324,7 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 
 | Klasse | Beschreibung |
 |---|---|
-| `.tile-container` | Flexbox (`flex-wrap:wrap; justify-content:center`) — volle Containerbreite, auto 3→2→1 Spalten |
+| `.tile-container` | Flexbox (`flex-wrap:wrap; justify-content:center`) — max. 3 Spalten (`max-width:calc(3 * var(--tile-w) + 3rem)`), `margin:0 auto` zentriert |
 | `.tile` | Kompakte Kachel; feste Breite `var(--tile-w, 550px)` und Höhe `var(--tile-h, 344px)` (16:10); `flex-shrink:0`; kein Drag/Resize |
 | `.tile-header` | Titel-Zeile (`min-height:32px`) |
 | `.tile-title` | Kachel-Titel, `.hl` für blaue Hervorhebung |
@@ -453,3 +453,4 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 | 2026-06-08 | 1.6 | Default-Kachelgröße auf 550 × 344 px angehoben. Slider-Range auf ±30 % (390–720 px, step 10). Alle veralteten CSS-Grid- und 220/400-px-Referenzen in der Spec bereinigt. |
 | 2026-06-09 | 1.8 | Settings-Panel zu zentriertem Overlay umgebaut (`position:fixed; transform:translate(-50%,-50%)`, Breite 540px, max-height 82vh). Neuer Abschnitt „Status-Reihenfolge" mit `#settings-order-list` (Drag&Drop + ▲▼), `#settings-order-reset` und `#settings-backdrop`. Open/Close-Logik aus core.js in Bootstrap-Block verschoben. `DEFAULT_STATUS_ORDER` im Import ergänzt. Neue CSS-Klassen: `.settings-backdrop`, `.settings-close-btn`, `.settings-panel-header`, `.settings-divider`, `.settings-section-label`, `.settings-order-list`, `.settings-order-reset`, `.o-extra`, `.th-extra`. |
 | 2026-06-09 | 1.9 | `flowefficiency.js` (Flow Efficiency) ergänzt: `import { init as initFlowEfficiency }` + `initFlowEfficiency()` im Bootstrap-Block. Tile auf Lieferfähigkeit-Page, Join JiraStories + JiraBlockermanagement. |
+| 2026-06-10 | 2.0 | `.tile-container` erhält `max-width:calc(3 * var(--tile-w) + 3rem)` + `margin:0 auto` — begrenzt Tile-Raster auf max. 3 Spalten und zentriert es horizontal. |
