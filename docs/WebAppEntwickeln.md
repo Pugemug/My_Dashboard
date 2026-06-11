@@ -450,8 +450,9 @@ Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke S
 | `wipage` | Was liegt gerade rum? | WIPAge Chart |
 | `scatter` | Wie lange dauert ein Ticket? | CycleTime Scatterplot |
 | `heatmap` | Wo verbringen Tickets ihre Zeit? | FlowHeatmap |
+| `monte` | Wann sind wir fertig? | MonteCarlo |
 
-**Sidebar-Struktur:** Jeder Link hat Glyph-Icon (`▤ ◔ ◑ ◕`), Hauptname und technischen Untertitel (z.B. „WIP-Alter"). Die Links sind in zwei Sections aufgeteilt: „Überblick" (Lieferfähigkeit) und „Detailanalysen" (die 3 Deep-Dive-Pages).
+**Sidebar-Struktur:** Jeder Link hat Glyph-Icon (`▤ ◔ ◑ ◕ 🎲🎲`), Hauptname und technischen Untertitel (z.B. „WIP-Alter"). Die Links sind in zwei Sections aufgeteilt: „Überblick" (Lieferfähigkeit) und „Detailanalysen" (die 4 Deep-Dive-Pages).
 
 **Einstieg:** Nach dem Datei-Upload zeigt der Upload-Screen eine Data-Preview („Das haben wir in deinem Export gefunden") und leitet per CTA-Button zur Lieferfähigkeit-Page weiter.
 
@@ -476,6 +477,10 @@ Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke S
 **Visual 8 – Happiness Index (`happinessindex.js`):** KPI-Card mit Verlauf. Datenquelle: dediziertes Worksheet (Name noch offen – per SDD-Interview klären).
 
 **Visual 9 – Akzeptanzkriterien (`akzeptanz.js`):** KPI-Card mit Verlauf. Datenquelle: dediziertes Worksheet (Name noch offen – per SDD-Interview klären).
+
+### Visuals — Deep-Dive-Pages
+
+**Visual 10 – MonteCarlo (`montecarlo.js`):** Vorhersage-Simulation auf Basis historischem Throughput. Zwei Modi: „Bis wann fertig?" (N Issues → Fertigstellungsdatum) und „Wie viele bis X?" (Zieldatum → Issue-Anzahl). Stabilitäts-Check via Variationskoeffizient (CV), Sparkline, konfigurierbares Rolling Window. Datenquelle: `JiraStories`-Sheet (`Resolved`-Spalte, konfigurierbar). Eigenständige Deep-Dive-Page `monte`.
 
 ---
 
@@ -507,6 +512,7 @@ project-root/
     scatter.js     ← CycleTime Scatterplot (vollständig eigenständig)
     wipage.js      ← WIPAge Chart (vollständig eigenständig)
     boxchart.js    ← LeadTime BoxChart (vollständig eigenständig)
+    montecarlo.js  ← MonteCarlo Simulation (vollständig eigenständig)
   tools/
     build.py       ← Bundle-Skript
   Web App/
@@ -739,6 +745,7 @@ Jedes Visual:
       #page-wipage            position:relative · WIPAge Card
       #page-scatter           position:relative · CycleTime Card
       #page-heatmap           position:relative · Heatmap Card
+      #page-monte             position:relative · MonteCarlo Card
   [Tooltips]          von jedem Visual eigenständig erzeugt und an body gehängt
 ```
 
@@ -964,6 +971,7 @@ export function init() {
 | `fhwa_flowefficiency` | flowefficiency.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_happinessindex` | happinessindex.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_akzeptanz` | akzeptanz.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_montecarlo` | montecarlo.js | mode, targetCount, targetDate, calcRollingDays, calcFromDate, calcToDate, stabilityRollingDays, stabilityFromDate, stabilityToDate, throughputUnit, completedCol, numRuns, cvThresholdGreen, cvThresholdRed, showP50/70/85/95, colorP50/70/85/95 |
 
 **Hinweis:** `fhwa_layout` (ohne `2`) war der Key der alten Single-File-Version (v1.x). Wird ignoriert.
 

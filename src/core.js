@@ -50,6 +50,7 @@ const CARD_PAGE_MAP = {
   'flowefficiency': 'lieferfahigkeit',
   'happinessindex': 'lieferfahigkeit',
   'akzeptanz':      'lieferfahigkeit',
+  'montecarlo':     'monte',
 };
 
 const COLOR_MIN_DARK  = [28,  42,  63 ];

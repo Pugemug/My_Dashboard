@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Monte Carlo – Prototyp</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1c30;--bg2:#162035;--bg3:#1e2e47;--bg4:#273552;
+  --border:#2a3d5c;--text:#e8f0fe;--dim:#8ba8c8;--dimmer:#4d6a88;
+  --blue:#38bdf8;--red:#f87171;--green:#4ade80;--yellow:#fbbf24;
+  --purple:#c084fc;--orange:#fb923c;
+  --sans:'DM Sans',system-ui,sans-serif;--mono:'DM Mono','Courier New',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
+
+/* ── CARD ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;width:min(900px,100%);overflow:hidden}
+.card-header{display:flex;align-items:center;gap:.5rem;padding:.45rem .75rem;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;min-height:38px;flex-wrap:wrap;gap:.35rem}
+.card-title{font-size:.75rem;font-weight:700;letter-spacing:-.01em;flex-shrink:0;white-space:nowrap}
+.card-title .hl{color:var(--blue)}
+.card-content{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:.6rem}
+.diag-bar{flex-shrink:0;padding:.22rem .75rem;background:var(--bg3);border-top:1px solid var(--border);font-size:.6rem;font-family:var(--mono);color:var(--dimmer)}
+
+/* ── BUTTONS / TOGGLES ── */
+.btn-icon{padding:.22rem .55rem;font-size:.67rem;font-weight:600;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--dimmer);cursor:pointer;white-space:nowrap;transition:color .12s,background .12s}
+.btn-icon:hover{color:var(--text);background:var(--bg4)}
+.btn-icon.p-blue{color:var(--blue);border-color:rgba(56,189,248,.4);background:rgba(56,189,248,.07)}
+.tgl-grp{display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:6px;overflow:hidden;flex-shrink:0}
+.tgl{padding:.22rem .55rem;background:transparent;border:none;border-right:1px solid var(--border);color:var(--dimmer);font-family:var(--sans);font-size:.67rem;font-weight:600;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
+.tgl:last-child{border-right:none}
+.tgl.active{background:rgba(56,189,248,.14);color:var(--blue)}
+.hdr-spacer{flex:1}
+
+/* ── STABILITY BAR ── */
+.stability-bar{display:flex;align-items:center;gap:.65rem;padding:.38rem .7rem;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;gap:.5rem}
+.stab-ampel{font-size:1rem;line-height:1;flex-shrink:0;cursor:help}
+.stab-cv{font-size:.68rem;font-family:var(--mono);color:var(--text);font-weight:600;flex-shrink:0}
+.stab-label{font-size:.65rem;color:var(--dim);flex-shrink:0}
+.stab-sep{width:1px;height:14px;background:var(--border);margin:0 .1rem;flex-shrink:0}
+.sparkline-wrap{flex:1;min-width:80px;max-width:220px;height:26px;position:relative}
+.stab-period{font-size:.6rem;font-family:var(--mono);color:var(--dimmer);margin-left:auto;flex-shrink:0}
+
+/* ── INPUT AREA ── */
+.input-area{display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.input-label{font-size:.7rem;color:var(--dim);flex-shrink:0}
+.input-field{padding:.28rem .55rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:.72rem;width:120px;outline:none}
+.input-field:focus{border-color:var(--blue)}
+.btn-run{padding:.28rem .9rem;background:var(--blue);border:none;border-radius:6px;color:#fff;font-family:var(--sans);font-size:.72rem;font-weight:600;cursor:pointer;transition:opacity .15s;flex-shrink:0}
+.btn-run:hover{opacity:.85}
+.input-hint{font-size:.6rem;color:var(--dimmer);font-family:var(--mono)}
+
+/* ── RESULT AREA ── */
+.result-area{flex:1;display:flex;gap:.6rem;min-height:300px;padding:.6rem 0 0;overflow:hidden}
+.histogram-wrap{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;gap:.25rem}
+.histogram-title{font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dimmer);padding:0 .2rem}
+.histogram-svg-wrap{flex:1;min-height:0;position:relative}
+svg.histogram{width:100%;height:100%;display:block}
+.pct-table-wrap{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:.25rem}
+.pct-table-title{font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dimmer)}
+table.pct-table{border-collapse:collapse;width:100%;font-size:.68rem}
+table.pct-table th{text-align:left;color:var(--dimmer);font-weight:600;font-size:.58rem;text-transform:uppercase;letter-spacing:.06em;padding:.18rem .3rem;border-bottom:1px solid var(--border)}
+table.pct-table td{padding:.22rem .3rem;border-bottom:1px solid rgba(42,61,92,.5);font-family:var(--mono);font-size:.65rem}
+table.pct-table tr:last-child td{border-bottom:none}
+.pct-badge{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.3rem;vertical-align:middle}
+
+/* ── TOOLTIP ── */
+.tooltip{position:absolute;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.45rem .6rem;font-size:.65rem;pointer-events:none;z-index:100;display:none;min-width:140px;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.tt-row{display:flex;justify-content:space-between;gap:.8rem;line-height:1.55}
+.tt-lbl{color:var(--dim)}
+.tt-val{font-family:var(--mono);font-weight:600;color:var(--text)}
+.tt-sep{border:none;border-top:1px solid var(--border);margin:.3rem 0}
+
+/* ── SETTINGS PANEL ── */
+.settings-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:490;display:none}
+.settings-backdrop.open{display:block}
+.settings-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(520px,92vw);max-height:82vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 56px rgba(0,0,0,.6);z-index:500;padding:.75rem .9rem;display:none}
+.settings-panel.open{display:block}
+.sp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+.sp-title{font-size:.65rem;font-family:var(--mono);color:var(--dimmer);text-transform:uppercase;letter-spacing:.05em}
+.sp-close{background:none;border:none;color:var(--dimmer);cursor:pointer;font-size:.9rem;padding:.1rem .3rem;border-radius:4px}
+.sp-close:hover{color:var(--text);background:var(--bg3)}
+.sp-divider{border:none;border-top:1px solid var(--border);margin:.45rem 0}
+.sp-section{font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--dimmer);margin-bottom:.3rem;margin-top:.1rem}
+.sp-row{display:flex;flex-direction:column;gap:.2rem;margin-bottom:.45rem}
+.sp-label{font-size:.68rem;color:var(--dim)}
+.sp-input{background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:.68rem;padding:.28rem .45rem;outline:none;width:100%}
+.sp-input:focus{border-color:var(--blue)}
+.sp-hint{font-size:.6rem;color:var(--dimmer)}
+.sp-range{width:100%;cursor:pointer;accent-color:var(--blue);margin:.1rem 0}
+.sp-color-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.sp-pline-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem}
+.sp-pline-row label{font-size:.68rem;color:var(--dim);flex:1}
+.sp-pline-row input[type=checkbox]{accent-color:var(--blue);width:14px;height:14px;flex-shrink:0;cursor:pointer}
+.sp-pline-row input[type=color]{width:28px;height:22px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;padding:0}
+.sp-tgl-grp{display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.sp-tgl{padding:.22rem .6rem;background:transparent;border:none;border-right:1px solid var(--border);color:var(--dimmer);font-size:.65rem;font-weight:600;cursor:pointer}
+.sp-tgl:last-child{border-right:none}
+.sp-tgl.active{background:rgba(56,189,248,.14);color:var(--blue)}
+
+/* ── EMPTY STATE ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:.6rem;color:var(--dimmer);font-size:.72rem}
+.empty-icon{font-size:2.2rem;opacity:.3}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="card">
+
+  <!-- ── CARD HEADER ── -->
+  <div class="card-header">
+    <span class="card-title">Monte<span class="hl">Carlo</span></span>
+    <!-- Mode-Toggle -->
+    <div class="tgl-grp" id="mode-toggle">
+      <button class="tgl active" data-mode="when">Bis wann fertig?</button>
+      <button class="tgl"        data-mode="howmany">Wie viele bis X?</button>
+    </div>
+    <div class="hdr-spacer"></div>
+    <button class="btn-icon" id="btn-settings">&#9881; Einstellungen</button>
+  </div>
+
+  <!-- ── STABILITY BAR ── -->
+  <div class="stability-bar">
+    <span class="stab-ampel" id="stab-ampel" title="Variationskoeffizient (CV): Maß für die Vorhersehbarkeit des Durchsatzes. CV ≤ 0,5 → stabil · CV ≤ 0,8 → volatil · CV > 0,8 → instabil">🟢</span>
+    <span class="stab-cv" id="stab-cv">CV: 0.38</span>
+    <span class="stab-label" id="stab-label">Stabil – Simulation verlässlich</span>
+    <div class="stab-sep"></div>
+    <!-- Sparkline: Throughput-Verlauf der letzten N Wochen -->
+    <div class="sparkline-wrap">
+      <svg id="sparkline" width="100%" height="26" viewBox="0 0 200 26" preserveAspectRatio="none">
+        <!-- Statische Beispiel-Sparkline: Balken für 12 Wochen -->
+        <rect x="0"   y="10" width="14" height="16" fill="var(--blue)" opacity=".5"/>
+        <rect x="16"  y="8"  width="14" height="18" fill="var(--blue)" opacity=".5"/>
+        <rect x="32"  y="14" width="14" height="12" fill="var(--blue)" opacity=".5"/>
+        <rect x="48"  y="6"  width="14" height="20" fill="var(--blue)" opacity=".5"/>
+        <rect x="64"  y="12" width="14" height="14" fill="var(--blue)" opacity=".5"/>
+        <rect x="80"  y="8"  width="14" height="18" fill="var(--blue)" opacity=".5"/>
+        <rect x="96"  y="16" width="14" height="10" fill="var(--blue)" opacity=".5"/>
+        <rect x="112" y="10" width="14" height="16" fill="var(--blue)" opacity=".5"/>
+        <rect x="128" y="4"  width="14" height="22" fill="var(--blue)" opacity=".6"/>
+        <rect x="144" y="10" width="14" height="16" fill="var(--blue)" opacity=".5"/>
+        <rect x="160" y="14" width="14" height="12" fill="var(--blue)" opacity=".5"/>
+        <rect x="176" y="8"  width="14" height="18" fill="var(--blue)" opacity=".7"/>
+      </svg>
+    </div>
+    <span class="stab-period" id="stab-period">Beurteilungszeitraum: letzte 60 Tage · n=8 Wochen</span>
+  </div>
+
+  <!-- ── INPUT AREA ── -->
+  <div class="input-area">
+    <!-- Modus "Bis wann fertig?" -->
+    <div id="input-when" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <span class="input-label">Wie viele Issues sollen fertig sein?</span>
+      <input class="input-field" type="number" id="input-count" value="25" min="1" max="10000" placeholder="z.B. 25">
+      <span class="input-hint">Issues</span>
+    </div>
+    <!-- Modus "Wie viele bis X?" (versteckt) -->
+    <div id="input-howmany" style="display:none;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <span class="input-label">Bis zu welchem Datum?</span>
+      <input class="input-field" type="date" id="input-date" value="2026-09-30">
+    </div>
+    <button class="btn-run" id="btn-run">&#9654; Simulation starten</button>
+  </div>
+
+  <!-- ── CARD CONTENT (Ergebnisse) ── -->
+  <div class="card-content">
+    <!-- Leer-Zustand (vor erster Simulation) -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🎲</div>
+      <div>Eingabe ausfüllen und Simulation starten</div>
+    </div>
+
+    <!-- Ergebnis-Bereich (nach Simulation) -->
+    <div id="result-area" class="result-area" style="display:none">
+      <div class="histogram-wrap">
+        <div class="histogram-title">Häufigkeitsverteilung (1 000 Läufe)</div>
+        <div class="histogram-svg-wrap" id="histogram-container" style="position:relative">
+          <svg class="histogram" id="histogram-svg" viewBox="0 0 600 280" preserveAspectRatio="none">
+            <!-- Hintergrund -->
+            <rect width="600" height="280" fill="var(--bg3)" rx="6"/>
+
+            <!-- Balken (Beispiel: normalverteilte Ergebnisse um KW 36) -->
+            <rect x="30"  y="250" width="18" height="4"   fill="var(--blue)" opacity=".7"/>
+            <rect x="55"  y="238" width="18" height="16"  fill="var(--blue)" opacity=".7"/>
+            <rect x="80"  y="218" width="18" height="36"  fill="var(--blue)" opacity=".7"/>
+            <rect x="105" y="195" width="18" height="59"  fill="var(--blue)" opacity=".8"/>
+            <rect x="130" y="170" width="18" height="84"  fill="var(--blue)" opacity=".8"/>
+            <rect x="155" y="145" width="18" height="109" fill="var(--blue)" opacity=".8"/>
+            <rect x="180" y="118" width="18" height="136" fill="var(--blue)" opacity=".85"/>
+            <rect x="205" y="95"  width="18" height="159" fill="var(--blue)" opacity=".9"/>
+            <rect x="230" y="75"  width="18" height="179" fill="var(--blue)" opacity=".9"/>
+            <rect x="255" y="52"  width="18" height="202" fill="var(--blue)"/>
+            <rect x="280" y="38"  width="18" height="216" fill="var(--blue)"/>
+            <rect x="305" y="30"  width="18" height="224" fill="var(--blue)"/>
+            <rect x="330" y="35"  width="18" height="219" fill="var(--blue)"/>
+            <rect x="355" y="52"  width="18" height="202" fill="var(--blue)" opacity=".9"/>
+            <rect x="380" y="78"  width="18" height="176" fill="var(--blue)" opacity=".85"/>
+            <rect x="405" y="108" width="18" height="146" fill="var(--blue)" opacity=".8"/>
+            <rect x="430" y="145" width="18" height="109" fill="var(--blue)" opacity=".75"/>
+            <rect x="455" y="178" width="18" height="76"  fill="var(--blue)" opacity=".7"/>
+            <rect x="480" y="208" width="18" height="46"  fill="var(--blue)" opacity=".65"/>
+            <rect x="505" y="230" width="18" height="24"  fill="var(--blue)" opacity=".6"/>
+            <rect x="530" y="246" width="18" height="8"   fill="var(--blue)" opacity=".5"/>
+            <rect x="555" y="252" width="18" height="2"   fill="var(--blue)" opacity=".4"/>
+
+            <!-- P50-Linie -->
+            <line x1="305" y1="15" x2="305" y2="258" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,3"/>
+            <text x="307" y="13" fill="#22d3ee" font-size="9" font-family="DM Mono, monospace">P50 · 11.09.</text>
+
+            <!-- P70-Linie -->
+            <line x1="355" y1="15" x2="355" y2="258" stroke="#86efac" stroke-width="1.5" stroke-dasharray="5,3"/>
+            <text x="357" y="22" fill="#86efac" font-size="9" font-family="DM Mono, monospace">P70 · 18.09.</text>
+
+            <!-- P85-Linie -->
+            <line x1="405" y1="15" x2="405" y2="258" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,3"/>
+            <text x="407" y="30" fill="#fbbf24" font-size="9" font-family="DM Mono, monospace">P85 · 25.09.</text>
+
+            <!-- P95-Linie -->
+            <line x1="455" y1="15" x2="455" y2="258" stroke="#f87171" stroke-width="1.5" stroke-dasharray="5,3"/>
+            <text x="457" y="38" fill="#f87171" font-size="9" font-family="DM Mono, monospace">P95 · 02.10.</text>
+
+            <!-- X-Achse Beschriftung -->
+            <line x1="25" y1="258" x2="580" y2="258" stroke="var(--border)" stroke-width="1"/>
+            <text x="30"  y="272" fill="var(--dimmer)" font-size="8" font-family="DM Mono">28.08.</text>
+            <text x="155" y="272" fill="var(--dimmer)" font-size="8" font-family="DM Mono">04.09.</text>
+            <text x="280" y="272" fill="var(--dimmer)" font-size="8" font-family="DM Mono">11.09.</text>
+            <text x="405" y="272" fill="var(--dimmer)" font-size="8" font-family="DM Mono">25.09.</text>
+            <text x="530" y="272" fill="var(--dimmer)" font-size="8" font-family="DM Mono">09.10.</text>
+
+            <!-- Y-Achse Beschriftung -->
+            <line x1="25" y1="30" x2="25" y2="258" stroke="var(--border)" stroke-width="1"/>
+            <text x="3" y="260" fill="var(--dimmer)" font-size="8" font-family="DM Mono">0</text>
+            <text x="3" y="190" fill="var(--dimmer)" font-size="8" font-family="DM Mono">50</text>
+            <text x="3" y="120" fill="var(--dimmer)" font-size="8" font-family="DM Mono">100</text>
+            <text x="3" y="50"  fill="var(--dimmer)" font-size="8" font-family="DM Mono">150</text>
+          </svg>
+          <!-- Tooltip -->
+          <div class="tooltip" id="histogram-tooltip">
+            <div class="tt-row"><span class="tt-lbl">Datum</span><span class="tt-val" id="tt-date">11.09.2026</span></div>
+            <div class="tt-row"><span class="tt-lbl">Häufigkeit</span><span class="tt-val" id="tt-freq">112</span></div>
+            <hr class="tt-sep">
+            <div class="tt-row"><span class="tt-lbl">Kum. Wahrsch.</span><span class="tt-val" id="tt-cum">52%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Perzentil-Tabelle -->
+      <div class="pct-table-wrap">
+        <div class="pct-table-title">Prognose</div>
+        <table class="pct-table">
+          <thead>
+            <tr>
+              <th>Perzentil</th>
+              <th>Fertig bis</th>
+              <th>Wahrsch.</th>
+            </tr>
+          </thead>
+          <tbody id="pct-table-body">
+            <tr>
+              <td><span class="pct-badge" style="background:#22d3ee"></span>P50</td>
+              <td>11.09.2026</td>
+              <td>50%</td>
+            </tr>
+            <tr>
+              <td><span class="pct-badge" style="background:#86efac"></span>P70</td>
+              <td>18.09.2026</td>
+              <td>70%</td>
+            </tr>
+            <tr>
+              <td><span class="pct-badge" style="background:#fbbf24"></span>P85</td>
+              <td>25.09.2026</td>
+              <td>85%</td>
+            </tr>
+            <tr>
+              <td><span class="pct-badge" style="background:#f87171"></span>P95</td>
+              <td>02.10.2026</td>
+              <td>95%</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:.8rem;font-size:.6rem;color:var(--dimmer);font-family:var(--mono);line-height:1.6">
+          Basis: 25 Issues<br>
+          Throughput: Ø 2.1 Issues/Woche<br>
+          Zeitraum: 01.03. – 11.06.2026<br>
+          Läufe: 1 000
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DIAG BAR ── -->
+  <div class="diag-bar" id="diag-bar">
+    n=142 Issues im Berechnungszeitraum (01.03. – 11.06.2026) · wöchentlich · CV=0.38 · 1 000 Läufe
+  </div>
+
+</div><!-- .card -->
+
+<!-- ── SETTINGS PANEL ── -->
+<div class="settings-backdrop" id="sp-backdrop"></div>
+<div class="settings-panel" id="sp-panel">
+  <div class="sp-header">
+    <span class="sp-title">Einstellungen – Monte Carlo</span>
+    <button class="sp-close" id="sp-close">&#x2715;</button>
+  </div>
+
+  <div class="sp-section">Berechnungszeitraum (MC-Basis)</div>
+  <div class="sp-row">
+    <label class="sp-label">Rolling Window (Tage)</label>
+    <input class="sp-input" type="number" value="90" min="7" max="730">
+    <span class="sp-hint">– oder –</span>
+  </div>
+  <div style="display:flex;gap:.5rem">
+    <div class="sp-row" style="flex:1"><label class="sp-label">Von</label><input class="sp-input" type="date"></div>
+    <div class="sp-row" style="flex:1"><label class="sp-label">Bis</label><input class="sp-input" type="date"></div>
+  </div>
+
+  <hr class="sp-divider">
+  <div class="sp-section">Beurteilungszeitraum (Stabilität)</div>
+  <div class="sp-row">
+    <label class="sp-label">Rolling Window (Tage)</label>
+    <input class="sp-input" type="number" value="60" min="7" max="730">
+  </div>
+  <div style="display:flex;gap:.5rem">
+    <div class="sp-row" style="flex:1"><label class="sp-label">Von</label><input class="sp-input" type="date"></div>
+    <div class="sp-row" style="flex:1"><label class="sp-label">Bis</label><input class="sp-input" type="date"></div>
+  </div>
+
+  <hr class="sp-divider">
+  <div class="sp-section">Throughput-Aggregation</div>
+  <div class="sp-tgl-grp" style="margin-bottom:.5rem">
+    <button class="sp-tgl">Täglich</button>
+    <button class="sp-tgl active">Wöchentlich</button>
+    <button class="sp-tgl">Monatlich</button>
+  </div>
+
+  <hr class="sp-divider">
+  <div class="sp-section">Fertig-Spalte</div>
+  <div class="sp-row">
+    <label class="sp-label">Datumsspalte für „fertig"</label>
+    <input class="sp-input" type="text" value="Resolved" placeholder="z.B. Resolved">
+    <span class="sp-hint">Muss in den Excel-Datumsspalten vorhanden sein</span>
+  </div>
+
+  <hr class="sp-divider">
+  <div class="sp-section">Simulationsläufe</div>
+  <div class="sp-row">
+    <label class="sp-label">Anzahl Läufe: <strong id="runs-display">1 000</strong></label>
+    <input class="sp-range" type="range" min="500" max="10000" step="500" value="1000" id="runs-slider">
+    <span class="sp-hint">Mehr Läufe = präziser, aber langsamer</span>
+  </div>
+
+  <hr class="sp-divider">
+  <div class="sp-section">Stabilitäts-Schwellen</div>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <div class="sp-row" style="flex:1">
+      <label class="sp-label">Grün bis CV ≤</label>
+      <input class="sp-input" type="number" value="0.5" step="0.05" min="0.1" max="2.0" style="width:80px">
+    </div>
+    <div class="sp-row" style="flex:1">
+      <label class="sp-label">Gelb bis CV ≤</label>
+      <input class="sp-input" type="number" value="0.8" step="0.05" min="0.2" max="3.0" style="width:80px">
+    </div>
+  </div>
+
+  <hr class="sp-divider">
+  <div class="sp-section">Perzentil-Linien</div>
+  <div class="sp-pline-row">
+    <input type="checkbox" checked id="show-p50"> <label for="show-p50">P50</label>
+    <input type="color" value="#22d3ee">
+  </div>
+  <div class="sp-pline-row">
+    <input type="checkbox" checked id="show-p70"> <label for="show-p70">P70</label>
+    <input type="color" value="#86efac">
+  </div>
+  <div class="sp-pline-row">
+    <input type="checkbox" checked id="show-p85"> <label for="show-p85">P85</label>
+    <input type="color" value="#fbbf24">
+  </div>
+  <div class="sp-pline-row">
+    <input type="checkbox" checked id="show-p95"> <label for="show-p95">P95</label>
+    <input type="color" value="#f87171">
+  </div>
+</div>
+
+<script>
+// ── Mode Toggle ──
+const modeBtns = document.querySelectorAll('.tgl[data-mode]');
+const inputWhen    = document.getElementById('input-when');
+const inputHowmany = document.getElementById('input-howmany');
+
+modeBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    modeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    inputWhen.style.display    = mode === 'when'    ? 'flex' : 'none';
+    inputHowmany.style.display = mode === 'howmany' ? 'flex' : 'none';
+    // Ergebnis leeren bei Mode-Wechsel
+    document.getElementById('result-area').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'flex';
+  });
+});
+
+// ── Simulation starten (zeigt statisches Beispielergebnis) ──
+document.getElementById('btn-run').addEventListener('click', () => {
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('result-area').style.display = 'flex';
+});
+
+// ── Settings Panel ──
+const spPanel    = document.getElementById('sp-panel');
+const spBackdrop = document.getElementById('sp-backdrop');
+const spClose    = document.getElementById('sp-close');
+const btnSettings = document.getElementById('btn-settings');
+
+function openSP()  { spPanel.classList.add('open'); spBackdrop.classList.add('open'); }
+function closeSP() { spPanel.classList.remove('open'); spBackdrop.classList.remove('open'); }
+
+btnSettings.addEventListener('click', openSP);
+spClose.addEventListener('click', closeSP);
+spBackdrop.addEventListener('click', closeSP);
+
+// Runs-Slider
+const runsSlider  = document.getElementById('runs-slider');
+const runsDisplay = document.getElementById('runs-display');
+runsSlider.addEventListener('input', () => {
+  runsDisplay.textContent = Number(runsSlider.value).toLocaleString('de-DE');
+});
+
+// SP-Toggles
+document.querySelectorAll('.sp-tgl').forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.closest('.sp-tgl-grp').querySelectorAll('.sp-tgl').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// ── Tooltip Demo (auf Balken im Histogramm) ──
+const histContainer = document.getElementById('histogram-container');
+const tooltip = document.getElementById('histogram-tooltip');
+
+histContainer.addEventListener('mousemove', e => {
+  const rect = histContainer.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  positionTooltip(tooltip, mx, my, histContainer);
+});
+histContainer.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+histContainer.addEventListener('mouseenter', () => { tooltip.style.display = 'block'; });
+
+function positionTooltip(tt, mx, my, container) {
+  const ttW = tt.offsetWidth || 160, ttH = tt.offsetHeight || 80;
+  let left = mx + 12; if (left + ttW > container.clientWidth)  left = mx - ttW - 12;
+  let top  = my + 12; if (top  + ttH > container.clientHeight) top  = my - ttH - 12;
+  tt.style.left = Math.max(0, left) + 'px';
+  tt.style.top  = Math.max(0, top)  + 'px';
+}
+</script>
+</body>
+</html>

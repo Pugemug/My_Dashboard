@@ -440,6 +440,13 @@ td.td-lt{background:rgba(192,132,252,.04)}
             <span class="sidebar-tech">Flow-Heatmap</span>
           </span>
         </div>
+        <div class="sidebar-link" data-page="monte">
+          <span class="sidebar-glyph">&#127922;&#127922;</span>
+          <span class="sidebar-txt">
+            <span class="sidebar-name">Wann sind wir fertig?</span>
+            <span class="sidebar-tech">Monte Carlo</span>
+          </span>
+        </div>
       </div>
 
       <!-- Sidebar-Bottom: Einstellungen · Theme · Datencheck · Neue Datei -->
@@ -562,6 +569,19 @@ td.td-lt{background:rgba(192,132,252,.04)}
         <div class="page-detail-canvas" id="page-canvas-heatmap"></div>
       </div>
 
+      <!-- Page: Monte Carlo Simulation -->
+      <div class="page page-flex" id="page-monte">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Wann sind wir fertig?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-monte">SQUADS Alle &#9661;</button>
+          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-detail-canvas" id="page-canvas-monte"></div>
+      </div>
+
     </div><!-- .main-content -->
   </div><!-- .app-body -->
 
@@ -577,6 +597,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   import { init as initHappiness } from './happiness.js';
   import { init as initWip }              from './wip.js';
   import { init as initFlowEfficiency }   from './flowefficiency.js';
+  import { init as initMonteCarlo }       from './montecarlo.js';
 
   // Visuals registrieren ihre Cards (werden an den richtigen Page-Canvas gehängt)
   initHeatmap();
@@ -586,6 +607,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   initHappiness();
   initWip();
   initFlowEfficiency();
+  initMonteCarlo();
 
   // Core-App initialisieren (Theme, globaler State, File-Upload-Listener, Sidebar)
   core.initApp();

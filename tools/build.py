@@ -87,6 +87,7 @@ def build():
     happiness_js = read('happiness.js')
     wip_js       = read('wip.js')
     flowefficiency_js = read('flowefficiency.js')
+    montecarlo_js     = read('montecarlo.js')
 
     print("▶ Transformiere JS (entferne import/export) …")
     core_out      = strip_module_syntax(core_js)
@@ -97,6 +98,7 @@ def build():
     happiness_out = strip_module_syntax(happiness_js)
     wip_out       = strip_module_syntax(wip_js)
     flowefficiency_out = strip_module_syntax(flowefficiency_js)
+    montecarlo_out     = strip_module_syntax(montecarlo_js)
 
     # init()-Funktionen umbenennen um Kollisionen zu vermeiden
     heatmap_out   = heatmap_out.replace(  'function init()', 'function init_heatmap()',   1)
@@ -106,6 +108,7 @@ def build():
     happiness_out = happiness_out.replace('function init()', 'function init_happiness()', 1)
     wip_out       = wip_out.replace(      'function init()', 'function init_wip()',       1)
     flowefficiency_out = flowefficiency_out.replace('function init()', 'function init_flowefficiency()', 1)
+    montecarlo_out     = montecarlo_out.replace(    'function init()', 'function init_montecarlo()',     1)
 
     # Jedes Visual in eine IIFE einwickeln:
     # Verhindert, dass gleichnamige top-level const/let zwischen Visuals kollidieren.
@@ -125,6 +128,7 @@ def build():
     happiness_out = wrap_iife(happiness_out, 'init_happiness')
     wip_out       = wrap_iife(wip_out,       'init_wip')
     flowefficiency_out = wrap_iife(flowefficiency_out, 'init_flowefficiency')
+    montecarlo_out     = wrap_iife(montecarlo_out,     'init_montecarlo')
 
     # Inline-Bootstrap (ersetzt den <script type="module">-Block aus index.html)
     # WICHTIG: Alle Logik aus dem Modul-Script muss hier vollständig enthalten sein,
@@ -138,6 +142,7 @@ def build():
         "  init_happiness();\n"
         "  init_wip();\n"
         "  init_flowefficiency();\n"
+        "  init_montecarlo();\n"
         "  core.initApp();\n"
         "\n"
         "  // ── Settings-Panel: Overlay-Logik ──────────────────\n"
@@ -286,6 +291,7 @@ def build():
         "// ── happiness.js ──\n"  + happiness_out + "\n\n" +
         "// ── wip.js ──\n"        + wip_out        + "\n\n" +
         "// ── flowefficiency.js ──\n" + flowefficiency_out + "\n\n" +
+        "// ── montecarlo.js ──\n"    + montecarlo_out     + "\n\n" +
         "// ── Bootstrap ──\n"     + bootstrap      + "\n"
     )
 
@@ -307,7 +313,7 @@ def build():
     expected = [
         'init_heatmap', 'init_scatter', 'init_wipage',
         'init_boxchart', 'init_happiness', 'init_wip',
-        'init_flowefficiency',
+        'init_flowefficiency', 'init_montecarlo',
     ]
     print()
     for fn in expected:

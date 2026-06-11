@@ -1,7 +1,7 @@
 # index.html – Spezifikation
 
-**Version:** 1.8  
-**Datum:** 2026-06-09  
+**Version:** 1.9  
+**Datum:** 2026-06-11  
 **Status:** Implementiert · wird bei Änderungen aktualisiert
 
 ---
@@ -36,6 +36,7 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
           .sidebar-link[data-page="wipage"]            Was liegt gerade rum? (◔)
           .sidebar-link[data-page="scatter"]           Wie lange dauert ein Ticket? (◑)
           .sidebar-link[data-page="heatmap"]           Wo verbringen Tickets ihre Zeit? (◕)
+          .sidebar-link[data-page="monte"]             Wann sind wir fertig? (🎲🎲)
         .sidebar-bottom     Utility-Buttons (Einstellungen · Theme · Datencheck · Neue Datei)
           #settings-wrap    Einstellungen-Button + settings-panel (position:fixed)
           #btn-theme        Theme-Toggle (☀ Light / 🌙 Dark)
@@ -58,6 +59,9 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
         #page-heatmap  (.page-flex)
           .page-filterbar   „Wo verbringen Tickets ihre Zeit?" · Squad · Issue-Typ · Zeitraum · Reset
           .page-detail-canvas  id="page-canvas-heatmap" — Card füllt inset:0
+        #page-monte  (.page-flex)
+          .page-filterbar   „Wann sind wir fertig?" · Squad · Reset
+          .page-detail-canvas  id="page-canvas-monte" — Card füllt inset:0
   <script type="module"> ES-Module-Bootstrap
 ```
 
@@ -407,9 +411,10 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
   import { init as initHappiness }       from './happiness.js';
   import { init as initWip }             from './wip.js';
   import { init as initFlowEfficiency }  from './flowefficiency.js';
+  import { init as initMonteCarlo }      from './montecarlo.js';
 
   initHeatmap(); initScatter(); initWipage(); initBoxChart();
-  initHappiness(); initWip(); initFlowEfficiency();
+  initHappiness(); initWip(); initFlowEfficiency(); initMonteCarlo();
   core.initApp();
 
   // Settings-Panel: Overlay-Logik (open/close, Backdrop, Status-Reihenfolge-Liste)
@@ -453,4 +458,4 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 | 2026-06-08 | 1.6 | Default-Kachelgröße auf 550 × 344 px angehoben. Slider-Range auf ±30 % (390–720 px, step 10). Alle veralteten CSS-Grid- und 220/400-px-Referenzen in der Spec bereinigt. |
 | 2026-06-09 | 1.8 | Settings-Panel zu zentriertem Overlay umgebaut (`position:fixed; transform:translate(-50%,-50%)`, Breite 540px, max-height 82vh). Neuer Abschnitt „Status-Reihenfolge" mit `#settings-order-list` (Drag&Drop + ▲▼), `#settings-order-reset` und `#settings-backdrop`. Open/Close-Logik aus core.js in Bootstrap-Block verschoben. `DEFAULT_STATUS_ORDER` im Import ergänzt. Neue CSS-Klassen: `.settings-backdrop`, `.settings-close-btn`, `.settings-panel-header`, `.settings-divider`, `.settings-section-label`, `.settings-order-list`, `.settings-order-reset`, `.o-extra`, `.th-extra`. |
 | 2026-06-09 | 1.9 | `flowefficiency.js` (Flow Efficiency) ergänzt: `import { init as initFlowEfficiency }` + `initFlowEfficiency()` im Bootstrap-Block. Tile auf Lieferfähigkeit-Page, Join JiraStories + JiraBlockermanagement. |
-| 2026-06-10 | 2.0 | `.tile-container` erhält `max-width:calc(3 * var(--tile-w) + 3rem)` + `margin:0 auto` — begrenzt Tile-Raster auf max. 3 Spalten und zentriert es horizontal. |
+| 2026-06-11 | 2.1 | `montecarlo.js` (MonteCarlo Simulation) ergänzt: `import { init as initMonteCarlo }` + `initMonteCarlo()` im Bootstrap-Block. Neue Deep-Dive-Page `monte` (`#page-monte`, `#page-canvas-monte`) mit Filterleiste (Squad + Reset). Sidebar-Link „Wann sind wir fertig?" (🎲🎲) ergänzt. `CARD_PAGE_MAP` in `core.js`: `'montecarlo': 'monte'`. |
