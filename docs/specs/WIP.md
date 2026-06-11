@@ -96,6 +96,9 @@ parseToYYYYMM(val):
 
 Visual ist ein Tile (`core.createTile()`), eingebettet im `tile-canvas-lieferfahigkeit`.
 
+### Zeitraum
+Es werden immer genau die **letzten 12 Monate** angezeigt, einschließlich des aktuellen Monats. Das Fenster wird dynamisch beim Rendern aus dem aktuellen Datum berechnet – keine manuelle Konfiguration. Beispiel (Stichtag 11.06.2026): Jun 2025 – Jun 2026 → 12 Datenpunkte.
+
 ### Single-Squad-Guard
 Identisch zur Happiness-Index-Logik: Das Visual rendert nur wenn exakt **ein** Squad
 im Filter ausgewählt ist. Bei 0 oder ≥ 2 Squads: Placeholder-Text
@@ -128,9 +131,9 @@ N = Anzahl einzigartiger Stories die in mind. einem dargestellten Monat als WIP 
 | Situation | Anzeige |
 |---|---|
 | ≠ 1 Squad gewählt | „Bitte genau einen Squad auswählen" |
-| Squad hat keine Stories | Diagramm mit WIP=0 für alle Monate |
-| SquadDaten-Sheet fehlt / Squad nicht drin | Teamgröße = 1 für alle Monate (Fallback) |
-| 0 Monate aus SquadDaten ermittelbar | „Keine Zeitraumdaten verfügbar" |
+| Squad hat keine Stories | Diagramm mit WIP=0 für alle 12 Monate |
+| SquadDaten-Sheet fehlt / Squad nicht drin | Teamgröße = 1 für alle 12 Monate (Fallback) |
+| Monat liegt nicht in SquadDaten | Teamgröße = 1 für diesen Monat (Fallback) |
 
 ### Responsive
 Das Visual füllt den Container via `width` auf der SVG (clientWidth/clientHeight beim render).
@@ -140,6 +143,15 @@ rendert neu. Keine eigene Größenlogik.
 ---
 
 ## D – Berechnungslogik
+
+### Zeitfenster
+Das Fenster wird dynamisch aus dem aktuellen Datum berechnet:
+```
+nowYYYYMM   = aktuelles Jahr * 100 + aktueller Monat
+startYYYYMM = nowYYYYMM − 11 Monate  (inklusiv, d.h. 12 Datenpunkte)
+```
+`allMonths` = die 12 YYYYMM-Werte von startYYYYMM bis nowYYYYMM (chronologisch).
+Für jeden Monat in `allMonths` gilt: `teamSize = teamSizeByMonth[month] || 1`.
 
 ### WIP-Formel pro Monat M (als YYYYMM-Integer)
 Ein Item zählt als WIP in Monat M wenn **alle** folgenden Bedingungen erfüllt sind:
@@ -234,6 +246,8 @@ localStorage-Key: `fhwa_wip`
 - [x] Liniensegment A→B hat Farbe von Punkt B (nicht A, nicht schlechteste)
 - [x] `threshGreen < threshYellow` wird beim Speichern validiert (auto-korrektur: +1)
 - [x] `Math.max()` auf leerem Array abgesichert
+- [x] Zeitfenster = exakt 12 Monate, immer inklusive aktuellem Monat
+- [x] Monate ohne SquadDaten-Eintrag erhalten Teamgröße = 1 (kein Abbruch)
 
 ### Manuell durch Oliver zu testen
 - [ ] Tooltip bleibt vollständig sichtbar an allen 4 Ecken der Card
@@ -252,3 +266,4 @@ localStorage-Key: `fhwa_wip`
 |---|---|---|---|
 | 2026-06-09 | 1.0 | Initiale Spec nach SDD-Interview + Implementierung | Oliver |
 | 2026-06-09 | 1.1 | Bugfix: Header-Suche auf `row.some()` umgestellt (war `row[1]`); Squad-Fallback liefert jetzt Monate aus Header-Zeile mit Teamgröße=1 | Oliver |
+| 2026-06-11 | 1.2 | Zeitraum fest auf letzte 12 Monate (inkl. aktueller Monat) begrenzt; SquadDaten-Sheet nicht mehr für Monatsgenerierung benötigt; Fallback Teamgröße=1 für nicht abgedeckte Monate | Oliver |

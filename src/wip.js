@@ -224,22 +224,19 @@ export function init() {
       }
     }
 
-    const allMonths = Object.keys(teamSizeByMonth).map(Number).sort((a, b) => a - b);
+    // ── Letzte 12 Monate als festes Fenster (inkl. aktuellem Monat) ─────────────
+    const now      = new Date();
+    const nowYM    = now.getFullYear() * 100 + (now.getMonth() + 1);
+    let winY = now.getFullYear(), winM = now.getMonth() + 1 - 11;
+    if (winM <= 0) { winY--; winM += 12; }
+    const windowStart = winY * 100 + winM;
 
-    if (!allMonths.length) {
-      // Nur noch erreichbar wenn SquadDaten fehlt oder Header-Zeile nicht gefunden
-      let diagMsg;
-      if (!sheetNames.includes('SquadDaten')) {
-        diagMsg = "Sheet 'SquadDaten' nicht gefunden (vorhanden: " + (sheetNames.join(', ') || '–') + ')';
-      } else if (!raw.length) {
-        diagMsg = "Sheet 'SquadDaten' ist leer";
-      } else {
-        diagMsg = "Header-Zeile ('Squad') nicht in SquadDaten gefunden";
-      }
-      showPlaceholder('Keine Zeitraumdaten verfügbar');
-      diagEl.textContent = diagMsg;
-      console.warn('[wip.js]', diagMsg);
-      return;
+    const allMonths = [];
+    for (let ym = windowStart; ; ) {
+      allMonths.push(ym);
+      if (ym === nowYM) break;
+      const y = Math.floor(ym / 100), m = ym % 100;
+      ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
     }
 
     // ── WIP pro Monat berechnen ─────────────────────────────────────────────────
@@ -291,7 +288,7 @@ export function init() {
 
     nBadge.textContent  = `n=${nStories} Stories`;
     const squadHint     = !squadFoundInSheet ? ` · Squad nicht in SquadDaten (Teamgr. = 1)` : '';
-    diagEl.textContent  = `n=${nStories} · ${allMonths.length} Monate · Squad: ${squadName}${squadHint}`;
+    diagEl.textContent  = `n=${nStories} · ${monthLabel(allMonths[0])}–${monthLabel(allMonths[allMonths.length - 1])} · Squad: ${squadName}${squadHint}`;
 
     // ── SVG aufbauen ────────────────────────────────────────────────────────────
     const pW = contentEl.clientWidth  || 500;

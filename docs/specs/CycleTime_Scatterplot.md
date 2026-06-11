@@ -1,8 +1,8 @@
 # CycleTime Scatterplot – Spezifikation (SDD)
 
-**Version:** 1.0  
-**Datum:** 2026-06-03  
-**Status:** [x] Entwurf → [ ] Bestätigt (Gate 1) → [x] Implementiert (`scatter.js` v2.0+)
+**Version:** 1.1  
+**Datum:** 2026-06-11  
+**Status:** [x] Entwurf → [ ] Bestätigt (Gate 1) → [x] Implementiert (`scatter.js` v2.1+)
 
 > Diese SDD wurde nachträglich aus dem implementierten Code (`scatter.js`) und dem
 > Übergabedokument (`FlowAnalytics_Dashboard_Uebergabe.md`) rekonstruiert.
@@ -40,7 +40,7 @@ Ein klickbarer Jira-Link im Tooltip führt direkt zum betroffenen Item.
 |---|---|---|---|---|
 | `Jira-ID` | Text | ✅ | Name exakt (`META_COLS`) | `key = ''`, kein Link |
 | `[ctEnd]` | Datum | ✅* | Konfigurierbar, Default: `Resolved` | Visual zeigt „Keine Daten" |
-| `[ctStart]` | Datum | optional | Konfigurierbar, Default: `Ready4Progress_first` | CT nicht berechenbar → Item übersprungen |
+| `[ctStart]` | Datum | optional | Konfigurierbar, Default: `In Progress_first` | CT nicht berechenbar → Item übersprungen |
 | `Issue-Type` | Text | optional | `core.state.hasIssueType` | Farb-Modus „Typ" deaktiviert |
 | `Squad` | Text | optional | `core.state.hasSquad` | Globaler Filter hat keinen Effekt |
 
@@ -60,11 +60,20 @@ Nutzer wählt `ctStart` und `ctEnd` aus allen erkannten Datumsspalten (`core.sta
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Card-Header: Titel · [Einfarbig|Typ|Heatmap] · [Wo|Mo|Q]   │
-│               [⚙ Spalten] [% Linien] [🎨 Farben]             │
+│               [⚙ Einstellungen]                              │
 ├──────────────────────────────────────────────────────────────┤
-│  [Sub-Panel: ⚙ Spalten – CT Start / CT Ende / Dot-Größe]    │  ← nur wenn offen
-│  [Sub-Panel: % Linien  – P50/P70/P85/P95 Toggle + Farbe]    │  ← nur wenn offen
-│  [Sub-Panel: 🎨 Farben – Einfarbig / Issue-Type-Farben]      │  ← nur wenn offen
+│  [⚙ Einstellungen-Panel – nur wenn offen]                    │
+│  ┌ ⚙ Berechnungslogik ──────────────────────────────────┐   │
+│  │  CT Start: [select]   CT Ende (X-Achse): [select]    │   │
+│  │  Dot-Größe: – 4 +                                    │   │
+│  └──────────────────────────────────────────────────────┘   │
+│  ┌ % Linien ────────────────────────────────────────────┐   │
+│  │  ☑ P50 [color]  ☑ P70 [color]                       │   │
+│  │  ☑ P85 [color]  ☑ P95 [color]                       │   │
+│  └──────────────────────────────────────────────────────┘   │
+│  ┌ 🎨 Farb-Konfiguration ───────────────────────────────┐   │
+│  │  Einfarbig: [color]  · Issue-Type-Farben             │   │
+│  └──────────────────────────────────────────────────────┘   │
 ├──────────────────────────────────────────────────────────────┤
 │  SVG-Plotbereich (100% × 100% des contentEl)                 │
 │   ┌─────────────────────────────────────────────────────┐    │
@@ -94,18 +103,18 @@ Default-Grid-Position: `{ col: 8, row: 0, w: 4, h: 12 }`.
 | Jira-Link öffnen | Click auf `↗ [Key] öffnen` im Tooltip | `window.open(url, '_blank')` |
 | Farb-Modus wechseln | Toggle-Gruppe im Header | Neurender, Farbzuordnung aktualisiert |
 | Intervall wechseln | Toggle-Gruppe im Header | X-Achsen-Ticks neu berechnet |
-| Panel öffnen/schließen | Button im Header | Panel `.open` toggled; immer max. 1 Panel offen; Neurender nach 20 ms |
-| Spalten-Auswahl | `<select>` im ⚙-Panel | `cfg.ctStart` / `cfg.ctEnd` gesetzt, gespeichert, Neurender |
-| Dot-Größe ändern | `–` / `+` im ⚙-Panel | `cfg.dotSize` ±1, Bereich 2–12, Neurender |
-| Perzentil-Toggle | Checkbox im %-Panel | Linie ein-/ausgeblendet, Neurender |
-| Perzentil-Farbe | Color-Input im %-Panel | Linienfarbe geändert, Neurender |
-| Typ-Farbe | Color-Input im 🎨-Panel | Dot-Farbe für diesen Issue-Type geändert, Neurender |
+| Panel öffnen/schließen | `⚙ Einstellungen`-Button im Header | Panel `.open` toggled; Neurender nach 20 ms |
+| Spalten-Auswahl | `<select>` im Abschnitt „⚙ Berechnungslogik" | `cfg.ctStart` / `cfg.ctEnd` gesetzt, gespeichert, Neurender |
+| Dot-Größe ändern | `–` / `+` im Abschnitt „⚙ Berechnungslogik" | `cfg.dotSize` ±1, Bereich 2–12, Neurender |
+| Perzentil-Toggle | Checkbox im Abschnitt „% Linien" | Linie ein-/ausgeblendet, Neurender |
+| Perzentil-Farbe | Color-Input im Abschnitt „% Linien" | Linienfarbe geändert, Neurender |
+| Typ-Farbe | Color-Input im Abschnitt „🎨 Farb-Konfiguration" | Dot-Farbe für diesen Issue-Type geändert, Neurender |
 
 ### Leerzustand
 
 | Situation | Anzeige |
 |---|---|
-| Keine Excel-Datei geladen | `.sc-nodata` mit „Keine Daten" + „Spalten unter ⚙ Spalten konfigurieren" |
+| Keine Excel-Datei geladen | `.sc-nodata` mit „Keine Daten" + „Berechnungslogik unter ⚙ Einstellungen konfigurieren" |
 | `ctEnd` nicht gesetzt | Wie oben |
 | `ctEnd` gesetzt, aber 0 gültige Items | „Keine Items mit [ctEnd]-Datum" |
 | Visual kleiner als 20×20 px | SVG geleert, kein Render |
@@ -164,7 +173,7 @@ Default-Grid-Position: `{ col: 8, row: 0, w: 4, h: 12 }`.
 |---|---|---|---|---|---|---|
 | `colorMode` | `'single' \| 'issueType' \| 'heatmap'` | `'single'` | – | – | Dot-Farb-Strategie | Toggle-Gruppe |
 | `interval` | `'week' \| 'month' \| 'quarter'` | `'month'` | – | – | X-Achsen-Tick-Intervall | Toggle-Gruppe |
-| `ctStart` | string (Spaltenname) | `LT_START_DEFAULT` | – | – | CT-Startdatum | Muss in `dateCols` enthalten sein; Fallback: erstes dateCols |
+| `ctStart` | string (Spaltenname) | `'In Progress_first'` | – | – | CT-Startdatum | Muss in `dateCols` enthalten sein; Fallback: erstes dateCols |
 | `ctEnd` | string (Spaltenname) | `LT_END_DEFAULT` | – | – | CT-Enddatum + X-Position | Pflicht; Fallback: zweites dateCols |
 | `dotSize` | number | `4` | `2` | `12` | Basis-Radius (skaliert mit pW) | Integer-Schritte via ±-Buttons |
 | `singleColor` | string (hex) | `'#38bdf8'` | – | – | Dot-Farbe im Modus „Einfarbig" | `<input type="color">` |
@@ -199,6 +208,7 @@ Geladen via `core.load('fhwa_scatter', defaults)`, gespeichert via `core.save('f
 | Link-Feature | ✅ Ja | `core.state.urlTemplate.replace('{issueKey}', key)` → `window.open(url, '_blank')` (kein `host.launchUrl`) |
 | innerHTML | ⚠ Erlaubt (Browser-Kontext) | `svgEl.innerHTML = parts.join('')` — kein ESLint/pbiviz-Verbot; Tooltip-DOM via `createElement/textContent` |
 | Dark/Light Theme | ✅ CSS-Variablen | Farben via `core.scatterColors()` (`C.plotBg`, `C.axisLine`, `C.gridLine`, etc.) und `core.lerp()` (Heatmap) |
+| Einstellungsmenü | ✅ Einheitlich | Einzelner `⚙ Einstellungen`-Button; Panel mit 3 Abschnitten: ⚙ Berechnungslogik · % Linien · 🎨 Farb-Konfiguration |
 
 ---
 
@@ -233,6 +243,7 @@ Geladen via `core.load('fhwa_scatter', defaults)`, gespeichert via `core.save('f
 | Datum | Version | Änderung | Bestätigt von |
 |---|---|---|---|
 | 2026-06-03 | 1.0 | Initiale Spec – retrograd aus `scatter.js` v2.0 rekonstruiert | – |
+| 2026-06-11 | 1.1 | CT Start Default: `Ready4Progress_first` → `In Progress_first`; ⚙ Spalten → ⚙ Berechnungslogik; drei Header-Buttons zu einheitlichem ⚙ Einstellungen-Panel zusammengefasst | Oliver |
 
 ---
 

@@ -4,7 +4,9 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, LT_START_DEFAULT, LT_END_DEFAULT } from './core.js';
+import { core, LT_END_DEFAULT } from './core.js';
+
+const CT_START_DEFAULT = 'In Progress_first';
 
 export function init() {
 
@@ -49,20 +51,18 @@ export function init() {
     { val: 'quarter', label: 'Q'  },
   ], val => { cfg.interval = val; saveConfig(); _updateIntervalToggle(); render(); });
 
-  const sep2     = document.createElement('div'); sep2.className = 'tb-sep';
-  const btnCols  = _mkBtn('⚙ Spalten', () => _togglePanel('sc-cols-panel'));
-  const btnPct   = _mkBtn('% Linien',  () => _togglePanel('sc-pct-panel'));
-  const btnClr   = _mkBtn('🎨 Farben', () => _togglePanel('sc-clr-panel'));
+  const sep2        = document.createElement('div'); sep2.className = 'tb-sep';
+  const btnSettings = _mkBtn('⚙ Einstellungen', () => _toggleSettings());
 
-  [colorToggle, intervalToggle, sep2, btnCols, btnPct, btnClr]
+  [colorToggle, intervalToggle, sep2, btnSettings]
     .forEach(el => headerExtraEl.appendChild(el));
 
-  // ── 4. Sub-Panels ────────────────────────────
+  // ── 4. Settings-Panel (einheitlich) ──────────
 
-  // Spalten panel (CT config + URL template)
-  const colsPanel = _mkPanel(); colsPanel.id = 'sc-cols-panel';
-  const colsTitle = document.createElement('div'); colsTitle.className = 'panel-title'; colsTitle.style.color = 'var(--purple)'; colsTitle.textContent = 'Cycle Time Konfiguration';
+  const settingsPanel = _mkPanel(); settingsPanel.id = 'sc-settings-panel';
 
+  // Section: ⚙ Berechnungslogik
+  const calcTitle = document.createElement('div'); calcTitle.className = 'panel-title'; calcTitle.style.color = 'var(--purple)'; calcTitle.textContent = '⚙ Berechnungslogik';
   const ctStartSel = _mkSelect(); const ctEndSel = _mkSelect();
   const colsRow = document.createElement('div'); colsRow.className = 'sc-row';
   colsRow.appendChild(_mkLtField('CT Start',           ctStartSel));
@@ -79,35 +79,34 @@ export function init() {
   dotPlus.addEventListener('click',  () => { cfg.dotSize = Math.min(12, (cfg.dotSize ?? 4) + 1); dotValEl.textContent = cfg.dotSize; saveConfig(); render(); });
   dotRow.appendChild(dotLabel); dotRow.appendChild(dotMinus); dotRow.appendChild(dotValEl); dotRow.appendChild(dotPlus);
 
-  colsPanel.appendChild(colsTitle); colsPanel.appendChild(colsRow); colsPanel.appendChild(dotRow);
+  settingsPanel.appendChild(calcTitle); settingsPanel.appendChild(colsRow); settingsPanel.appendChild(dotRow);
 
-  // Percentile panel
-  const pctPanel  = _mkPanel(); pctPanel.id = 'sc-pct-panel';
-  const pctTitle  = document.createElement('div'); pctTitle.className = 'panel-title'; pctTitle.style.color = 'var(--yellow)'; pctTitle.textContent = 'Perzentil-Linien';
-  const pctGrid   = document.createElement('div'); pctGrid.className = 'sc-pct-grid';
-  pctPanel.appendChild(pctTitle); pctPanel.appendChild(pctGrid);
+  // Section separator
+  const panelSep1 = document.createElement('div'); panelSep1.style.cssText = 'border-top:1px solid var(--border);margin:.6rem 0';
+  settingsPanel.appendChild(panelSep1);
 
-  // Color panel
-  const clrPanel  = _mkPanel(); clrPanel.id = 'sc-clr-panel';
-  const clrTitle  = document.createElement('div'); clrTitle.className = 'panel-title'; clrTitle.style.color = 'var(--blue)'; clrTitle.textContent = 'Farb-Konfiguration';
-  const clrBody   = document.createElement('div');
-  clrPanel.appendChild(clrTitle); clrPanel.appendChild(clrBody);
+  // Section: % Linien
+  const pctTitle = document.createElement('div'); pctTitle.className = 'panel-title'; pctTitle.style.color = 'var(--yellow)'; pctTitle.textContent = '% Linien';
+  const pctGrid  = document.createElement('div'); pctGrid.className = 'sc-pct-grid';
+  settingsPanel.appendChild(pctTitle); settingsPanel.appendChild(pctGrid);
 
-  [colsPanel, pctPanel, clrPanel].forEach(p => cardEl.insertBefore(p, contentEl));
+  // Section separator
+  const panelSep2 = document.createElement('div'); panelSep2.style.cssText = 'border-top:1px solid var(--border);margin:.6rem 0';
+  settingsPanel.appendChild(panelSep2);
 
-  // ── Panel toggle map ─────────────────────────
-  const PANELS   = ['sc-cols-panel', 'sc-pct-panel', 'sc-clr-panel'];
-  const panelEls = { 'sc-cols-panel': colsPanel, 'sc-pct-panel': pctPanel, 'sc-clr-panel': clrPanel };
-  const panelBtns = { 'sc-cols-panel': btnCols, 'sc-pct-panel': btnPct, 'sc-clr-panel': btnClr };
-  const panelClrs = { 'sc-cols-panel': 'p-purple', 'sc-pct-panel': 'p-yellow', 'sc-clr-panel': 'p-blue' };
+  // Section: 🎨 Farb-Konfiguration
+  const clrTitle = document.createElement('div'); clrTitle.className = 'panel-title'; clrTitle.style.color = 'var(--blue)'; clrTitle.textContent = '🎨 Farb-Konfiguration';
+  const clrBody  = document.createElement('div');
+  settingsPanel.appendChild(clrTitle); settingsPanel.appendChild(clrBody);
 
-  function _togglePanel(id) {
-    PANELS.forEach(pid => {
-      const open = pid === id ? !panelEls[pid].classList.contains('open') : false;
-      panelEls[pid].classList.toggle('open', open);
-      panelBtns[pid].className = 'btn-icon' + (open ? ' ' + panelClrs[pid] : '');
-    });
-    if (id === 'sc-clr-panel') _updateClrPanel();
+  cardEl.insertBefore(settingsPanel, contentEl);
+
+  // ── Panel toggle ─────────────────────────────
+  function _toggleSettings() {
+    const open = !settingsPanel.classList.contains('open');
+    settingsPanel.classList.toggle('open', open);
+    btnSettings.className = 'btn-icon' + (open ? ' p-purple' : '');
+    if (open) { _updatePctPanel(); _updateClrPanel(); }
     setTimeout(render, 20);
   }
 
@@ -119,7 +118,7 @@ export function init() {
 
   const noDataEl  = document.createElement('div'); noDataEl.className = 'sc-nodata';
   const noDataH   = document.createElement('h3'); noDataH.textContent = 'Keine Daten';
-  const noDataMsg = document.createElement('p');  noDataMsg.textContent = 'Spalten unter ⚙ Spalten konfigurieren';
+  const noDataMsg = document.createElement('p');  noDataMsg.textContent = 'Berechnungslogik unter ⚙ Einstellungen konfigurieren';
   noDataEl.appendChild(noDataH); noDataEl.appendChild(noDataMsg);
   noDataEl.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.4rem;pointer-events:none';
 
@@ -298,7 +297,7 @@ export function init() {
 
     if (!core.state.rows.length || !cfg.ctEnd) {
       svgEl.innerHTML = ''; noDataEl.style.display = 'flex';
-      noDataMsg.textContent = 'Spalten unter ⚙ Spalten konfigurieren';
+      noDataMsg.textContent = 'Berechnungslogik unter ⚙ Einstellungen konfigurieren';
       diagEl.textContent = '—'; return;
     }
 
@@ -445,7 +444,7 @@ export function init() {
 
     // Validate CT columns
     if (!s.dateCols.includes(cfg.ctStart))
-      cfg.ctStart = s.dateCols.includes(LT_START_DEFAULT) ? LT_START_DEFAULT : (s.dateCols[0] || '');
+      cfg.ctStart = s.dateCols.includes(CT_START_DEFAULT) ? CT_START_DEFAULT : (s.dateCols[0] || '');
     if (!s.dateCols.includes(cfg.ctEnd))
       cfg.ctEnd = s.dateCols.includes(LT_END_DEFAULT) ? LT_END_DEFAULT : (s.dateCols[1] || s.dateCols[0] || '');
 
