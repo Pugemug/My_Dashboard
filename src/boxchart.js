@@ -525,14 +525,14 @@ function _niceYTicks(lo, hi, n, customStep) {
     const mag = Math.pow(10, Math.floor(Math.log10(raw)));
     step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag;
   }
+  step = Math.max(1, Math.round(step));
   const ticks = [];
   let t = Math.ceil(lo / step) * step;
-  if (t > lo + step * 0.01) ticks.unshift(lo);   // 0 immer inkludieren
+  if (t > lo + step * 0.01) ticks.unshift(Math.round(lo));
   while (t <= hi + step * 0.01) {
-    ticks.push(Math.round(t * 100) / 100);
+    ticks.push(Math.round(t));
     t += step;
   }
-  // 0-Duplikat entfernen falls entstanden
   return [...new Set(ticks)].sort((a, b) => a - b);
 }
 
@@ -733,7 +733,7 @@ function _render() {
   // Y-Achse: Grid + Labels
   for (const y of yTicks) {
     const sy  = yS(y);
-    const lbl = Number.isInteger(y) ? String(y) : y.toFixed(1);
+    const lbl = String(Math.round(y));
     parts.push(`<line x1="${PAD_L}" y1="${sy.toFixed(1)}" x2="${(PAD_L+pW).toFixed(1)}" y2="${sy.toFixed(1)}" stroke="${C.gridLine}" stroke-width="1" stroke-dasharray="${cfg.yLog ? '2,3' : 'none'}"/>`);
     parts.push(`<text x="${(PAD_L-4).toFixed(1)}" y="${(sy+4).toFixed(1)}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="${C.axisLabel}">${lbl}</text>`);
   }

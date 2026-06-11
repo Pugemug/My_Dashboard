@@ -201,6 +201,18 @@ export const core = {
 
   fmt(v) { return v == null ? '–' : v.toFixed(1) + 'd'; },
 
+  intTicks(max, n) {
+    if (max <= 0) return [0];
+    n = n || 5;
+    const raw = max / n;
+    const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+    let step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag * 10;
+    step = Math.max(1, Math.round(step));
+    const ticks = [];
+    for (let v = 0; v <= max + step * 0.01; v += step) ticks.push(Math.round(v));
+    return [...new Set(ticks)];
+  },
+
   // ── Theme ──────────────────────────────────────
   isLight() {
     return document.documentElement.getAttribute('data-theme') === 'light';

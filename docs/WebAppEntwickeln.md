@@ -1,7 +1,7 @@
 # Flow Analytics – Web App Entwicklungs-Leitfaden
 
-**Version:** 4.6  
-**Datum:** 2026-06-09  
+**Version:** 4.8  
+**Datum:** 2026-06-11  
 **Basis:** WebAppEntwickeln.md v3.1 + Architektur-Erweiterung (Navigation, Multi-Sheet, 5 neue Visuals)  
 **Vorgänger-Dateien:** `FlowAnalytics_Dashboard_Uebergabe.md` + `pbiviz_entwickeln.md` → zusammengeführt, Power BI entfällt
 
@@ -856,6 +856,9 @@ core.toDate(v)               // Excel-Wert / String / Date → Date | null
 core.dur(entryVal, exitVal)  // → Tage (inklusiv) | null
 core.pct(sortedArr, p)       // → Perzentil p (0–100)
 core.fmt(v)                  // → "12.3d" | "–"
+core.intTicks(max, n)        // → number[] — ganzzahlige Y-Achsen-Ticks von 0 bis ≥ max
+                             //   n: gewünschte Tick-Anzahl (Default 5), Schritt immer ≥ 1
+                             //   Pflicht für alle Y-Achsen mit Zahlen (§9.7)
 ```
 
 ### Theme & Farben
@@ -1183,6 +1186,30 @@ function resolveUrl(key) {
 - Hover-Delay-Muster (§9.3)
 - `settings`-Event abonnieren: `core.on('settings', render)` wenn `urlTemplate` genutzt
 
+### §9.7 Y-Achsen: immer ganze Zahlen
+
+**Regel:** Alle numerischen Y-Achsen-Ticks zeigen **ausschließlich ganze Zahlen** — keine Dezimalstellen. Datumswerte auf Achsen sind von dieser Regel **nicht betroffen**.
+
+**Pflichtimplementierung** (gilt für alle Visuals — neu und bestehend):
+
+```javascript
+// FALSCH
+const ySteps = 5;
+for (let i = 0; i <= ySteps; i++) {
+  const v = (yMax / ySteps) * i;  // → kann 1.6, 2.4 usw. ergeben
+  parts.push(`<text ...>${v}</text>`);
+}
+
+// RICHTIG — core.intTicks() verwenden
+for (const v of core.intTicks(yMax, 5)) {
+  parts.push(`<text ...>${v}</text>`);
+}
+```
+
+`core.intTicks(max, n)` wählt automatisch einen ganzzahligen Tick-Schritt (≥ 1), sodass bei kleinen Wertebereichen weniger Ticks entstehen statt Dezimalwerte. Duplikate sind ausgeschlossen.
+
+**Warum:** Bei kleinen Wertebereichen (z.B. WIP 0–3) erzeugten gleichmäßig geteilte Ticks Dezimalwerte wie 0.6 oder 1.6, die für ganze Items (Tickets) irreführend sind.
+
 ---
 
 ## WIPAge Chart – Details
@@ -1349,6 +1376,7 @@ Symptome, die zum Neuschreiben zwingen:
 - [ ] Reihenfolge-Steuerung als ▲/▼-Panel? (falls benötigt, §9.1)
 - [ ] Alle Elemente skalieren mit Container-Größe? (§9.5)
 - [ ] Keine hardcodierten SVG-Farben? (§9 Farb-Regel)
+- [ ] Y-Achsen-Ticks: `core.intTicks()` verwendet → nur ganze Zahlen? (§9.7)
 - [ ] Dual-Period-Logik beachtet? (`_first`-Spalten)
 - [ ] Aktiv/Erledigt-Logik korrekt? (XOR: Resolved oder Rejected)
 - [ ] Neues Visual: `index.html` + `build.py` an allen Stellen aktualisiert?
@@ -1651,3 +1679,4 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 *v4.5 (2026-06-09): Maßnahmen M9–M18 ergänzt (aus Zusammenarbeits-Analyse): M9 Smoke-Test, M10 Screenshot bei Design-Änderungen, M11 build.py Selbst-Check, M12 Architecture Decision Log, M13 Chat-Abschluss-Protokoll, M14 Chat-Scope begrenzen, M15 Glossar, M16 Scope-Check explorative Themen, M17 Standard-Testdatensatz, M18 Backlog-Priorisierung. Gate 1 um Layout-Freeze ergänzt. ADL mit 5 initialen Einträgen. Glossar mit 10 Begriffen. Pre-Delivery Review um Smoke-Test-Checkliste erweitert. M8 um Ausnahmen-Hinweis verschärft.*
 *v4.6 (2026-06-09): Unified Status Order implementiert. `DEFAULT_STATUS_ORDER` (17 Status: Queue→WIP→Done + Rejected/Resume) als Export in `core.js`. `loadGlobalStatusOrder()` + `saveGlobalStatusOrder()` + Event `statusOrder` in core.js API. `stateOrder` aus `fhwa_wipage` und `fhwa_heatmap` entfernt (→ `fhwa_status_order`). N=0-Hiding pro Visual: WIPAge blendet Spalten ohne aktive Items aus, Heatmap blendet Spalten ohne Stats aus. Extra-Status (nicht in DEFAULT) werden ans Ende angehängt + orange markiert (.o-extra, var(--orange)). Settings-Panel als zentriertes Overlay (540px, Backdrop). Status-Reihenfolge-Abschnitt im Settings-Panel mit Drag&Drop + ▲▼ + Reset. ADL um 4 Einträge ergänzt. Glossar um 3 Begriffe ergänzt. build.py Bootstrap aktualisiert.*
 *v4.7 (2026-06-09): Flow Efficiency Visual (`flowefficiency.js`) implementiert v1.0. Sheet-Name `BlockedReasons` → `JiraBlockermanagement` (Worksheets-Übersicht + ADL). FE-Berechnung: Dual-Period-Wartezeit aus JiraStories-Warte-Status + statusunabhängige Zusatz-Episoden aus JiraBlockermanagement (Dedup per Status-Typ). Monatliche Aggregation: Median. Line/Violin-Toggle im Tile-Header. Konfigurierbare Ziellinie (FE%, ein/ausblendbar). `index.html` + `build.py` aktualisiert (6. Stelle). M11-Expected-Liste um `init_wip` + `init_flowefficiency` ergänzt. Chat-Start-Tabelle um `flowefficiency.js`-Zeile ergänzt. ADL um 5 Einträge ergänzt. Glossar um 3 Begriffe ergänzt.*
+*v4.8 (2026-06-11): Design-Standard §9.7 „Y-Achsen immer ganze Zahlen" eingeführt. `core.intTicks(max, n)` als neue Pflicht-Utility ergänzt (Schritt ≥ 1, dedupliciert). `wip.js`: Y-Tick-Loop auf `core.intTicks()` umgestellt (vorher gleichmäßige 5 Schritte → Dezimalwerte möglich). `boxchart.js`: `_niceYTicks()` erzwingt nun `step = Math.max(1, Math.round(step))`; Label-Format von `y.toFixed(1)` auf `Math.round(y)` geändert. Phase-2-Checkliste um §9.7-Check ergänzt.*

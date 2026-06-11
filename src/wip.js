@@ -310,13 +310,10 @@ export function init() {
     const parts = [`<svg width="${pW}" height="${pH}" style="display:block;overflow:visible;">`];
 
     // Y-Gitter + Labels
-    const ySteps = 5;
-    for (let i = 0; i <= ySteps; i++) {
-      const v = (yMax / ySteps) * i;
+    for (const v of core.intTicks(yMax, 5)) {
       const y = yS(v).toFixed(1);
       parts.push(`<line x1="${mL}" y1="${y}" x2="${pW - mR}" y2="${y}" stroke="${C.gridLine}" stroke-width="0.5"/>`);
-      const label = v % 1 === 0 ? v : v.toFixed(1);
-      parts.push(`<text x="${mL - 5}" y="${(parseFloat(y) + 4).toFixed(1)}" font-size="10" fill="${C.axisLabel}" text-anchor="end">${label}</text>`);
+      parts.push(`<text x="${mL - 5}" y="${(parseFloat(y) + 4).toFixed(1)}" font-size="10" fill="${C.axisLabel}" text-anchor="end">${v}</text>`);
     }
 
     // Achsen
