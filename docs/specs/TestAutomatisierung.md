@@ -1,8 +1,54 @@
 # Testautomatisierung – Flow Analytics Dashboard
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Datum:** 2026-06-12  
 **Status:** Bestätigt  
+
+---
+
+## Ersteinrichtung
+
+Einmalig ausführen wenn das Projekt frisch geklont wurde oder auf einem neuen Rechner eingerichtet wird:
+
+```bash
+# 1. Abhängigkeiten installieren (Vitest + Playwright)
+npm install
+
+# 2. Playwright-Browser herunterladen (einmalig, ~150 MB)
+npx playwright install chromium
+
+# 3. Prüfen ob alles funktioniert
+npm test
+```
+
+Erwartete Ausgabe von `npm test`:
+```
+✓ tests/unit/core.utils.test.js        (30 tests)
+✓ tests/unit/scatter.calc.test.js      (12 tests)
+✓ tests/unit/wipage.calc.test.js       (10 tests)
+✓ tests/unit/flowefficiency.calc.test.js (7 tests)
+✓ tests/unit/boxchart.calc.test.js     (10 tests)
+✓ tests/unit/heatmap.calc.test.js      (16 tests)
+✓ tests/unit/montecarlo.calc.test.js   (14 tests)
+
+Test Files  7 passed
+Tests       99 passed
+```
+
+**Voraussetzungen:**
+- Node.js installiert (Version 18 oder neuer) — prüfen mit `node --version`
+- Python + openpyxl für Testdatensatz-Erzeugung: `pip install openpyxl`
+
+**Testdatensatz neu erzeugen** (falls `tests/fixtures/testdata.xlsx` fehlt):
+```bash
+python tools/create_testdata.py
+```
+
+**E2E Tests ausführen** (brauchen ein aktuelles Bundle):
+```bash
+python build.py              # App bündeln
+npm run test:e2e             # Playwright starten
+```
 
 ---
 
@@ -233,4 +279,5 @@ M9 (manueller Smoke-Test) bleibt erhalten – E2E Tests ersetzen ihn nicht volls
 
 | Version | Datum | Änderung |
 |---|---|---|
+| 1.1 | 2026-06-12 | Ersteinrichtungs-Abschnitt ergänzt |
 | 1.0 | 2026-06-12 | Initiale Spec – Konzept bestätigt |
