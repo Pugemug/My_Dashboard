@@ -166,6 +166,10 @@ Oliver antwortet mit „Ja" oder korrigiert einzelne Punkte. Erst dann beginnt C
 - [x] docs/specs/VisualName.md aktualisiert und zusammen mit .js übergeben
 - [x] Alle Änderungen in Akzeptanzkriterien (Block G) und Änderungshistorie eingetragen
 
+### Testautomatisierung (§0.21 M19)
+- [x] Unit Tests für neue/geänderte Berechnungslogik: `npx vitest run` → alle grün
+- [x/-] Test-Skeleton für neues Visual angelegt: `tests/unit/[visualName].calc.test.js` + `tests/e2e/[visualName].spec.js`
+
 ### Manueller Test-Hinweis für Oliver (§0.11 M9 Smoke-Test)
 - [ ] Dateien ins Projektverzeichnis legen + `build.py` ausführen
 - [ ] Zur neuen/geänderten Seite navigieren → öffnet sie, oder ist sie leer?
@@ -420,8 +424,40 @@ Projektspezifische Begriffe die in Missverständnisse geführt haben, werden in 
 - Squad mit genau 1 Item, Squad mit 50 Items
 - Fehlende optionale Sheets (kein `Epics`-Sheet → Say_Do_Ratio Leerzustand)
 
-**Status:** Noch nicht erstellt — auf Oliver warten. Claude erinnert beim nächsten passenden Anlass:
-> „Das wäre ein guter Fall für unseren Standard-Testdatensatz (M17). Sollen wir den heute definieren?"
+**Status:** ✅ Erstellt (2026-06-12). Liegt unter `tests/fixtures/testdata.xlsx`.  
+Erzeugt via `python tools/create_testdata.py`. Enthält JiraStories, Epics und Happiness-Faktor-Sheet.  
+Ergänzung mit echten (anonymisierten) Jira-Daten empfohlen — siehe TestAutomatisierung.md Block B Punkt 3.
+
+---
+
+### 0.21 Maßnahme M19 – Testautomatisierung
+
+**Spec:** `docs/specs/TestAutomatisierung.md`
+
+#### Zwei Schichten
+
+| Schicht | Werkzeug | Befehl | Wann |
+|---|---|---|---|
+| Unit Tests | Vitest | `npm test` | Automatisch vor jedem Commit (pre-commit Hook) |
+| E2E Tests | Playwright | `npm run test:e2e` | Manuell nach `build.py` |
+
+#### Was Claude bei neuem Visual automatisch tut
+
+**Im SDD-Interview nach Block G:**
+```
+Ich lege jetzt den Test-Skeleton an:
+- tests/unit/[visualName].calc.test.js  ← leere it()-Blöcke für jeden AC
+- tests/e2e/[visualName].spec.js        ← Playwright-Skeleton
+```
+
+**Im Gate 2 (Pre-Delivery Review):** Zwei neue Pflichtpunkte — siehe §0.2.
+
+**Bei Bugfixes mit Berechnungslogik:** Erst failing Test schreiben, dann fixen, dann `npm test` grün.
+
+#### Testdatensatz M17
+
+Liegt unter `tests/fixtures/testdata.xlsx`. Wird von Unit Tests und Playwright verwendet.  
+Neu erzeugen: `python tools/create_testdata.py`
 
 ---
 
@@ -514,11 +550,21 @@ project-root/
     boxchart.js    ← LeadTime BoxChart (vollständig eigenständig)
     montecarlo.js  ← MonteCarlo Simulation (vollständig eigenständig)
   tools/
-    build.py       ← Bundle-Skript
+    build.py              ← Bundle-Skript
+    create_testdata.py    ← Erzeugt tests/fixtures/testdata.xlsx (M17)
+  tests/
+    unit/                 ← Vitest Unit Tests (Berechnungslogik)
+    e2e/                  ← Playwright E2E Tests (Browser)
+    fixtures/
+      testdata.xlsx       ← M17 Standard-Testdatensatz
+      testdata-empty.xlsx ← Leerdatei (nur Header)
   Web App/
     FlowAnalytics.html         ← Ausgabe von build.py
   .github/
     copilot-instructions.md    ← Copilot Hintergrundinstruktionen
+  package.json          ← Vitest + Playwright Abhängigkeiten
+  vitest.config.js      ← Unit Test Konfiguration
+  playwright.config.js  ← E2E Test Konfiguration
 ```
 
 **Abhängigkeiten (CDN, kein lokaler Install):**

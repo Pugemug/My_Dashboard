@@ -210,6 +210,8 @@ export const core = {
     step = Math.max(1, Math.round(step));
     const ticks = [];
     for (let v = 0; v <= max + step * 0.01; v += step) ticks.push(Math.round(v));
+    // Sicherstellen dass letzter Tick >= max (Grenzfall: max liegt knapp über einem Tick)
+    if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
     return [...new Set(ticks)];
   },
 
