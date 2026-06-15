@@ -1,89 +1,19 @@
 /**
  * Unit Tests für core.js Berechnungsfunktionen.
- * Die Logik wird hier direkt implementiert (1:1 aus core.js kopiert),
- * damit kein Browser-Kontext (localStorage, document) nötig ist.
+ * Importiert direkt aus src/calc/core.calc.js — kein Copy-Paste.
  */
 
-// ── Funktionen aus core.js (1:1, kein Browser-Import) ──────────────────────
-
-function toDate(v) {
-  if (!v) return null;
-  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-  if (typeof v === 'number') {
-    const d = new Date(Math.round((v - 25569) * 86400000));
-    return isNaN(d.getTime()) ? null : d;
-  }
-  if (typeof v === 'string') {
-    const d = new Date(v.trim());
-    return isNaN(d.getTime()) ? null : d;
-  }
-  return null;
-}
-
-function dur(a, b) {
-  const da = toDate(a), db = toDate(b);
-  if (!da || !db) return null;
-  const d = (db - da) / 86400000 + 1;
-  return d > 0 ? d : null;
-}
-
-function pct(arr, p) {
-  if (!arr.length) return null;
-  if (arr.length === 1) return arr[0];
-  const i = (p / 100) * (arr.length - 1);
-  const lo = Math.floor(i), hi = Math.ceil(i);
-  return lo === hi ? arr[lo] : arr[lo] + (arr[hi] - arr[lo]) * (i - lo);
-}
-
-function fmt(v) { return v == null ? '–' : v.toFixed(1) + 'd'; }
-
-function intTicks(max, n) {
-  if (max <= 0) return [0];
-  n = n || 5;
-  const raw = max / n;
-  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
-  let step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag * 10;
-  step = Math.max(1, Math.round(step));
-  const ticks = [];
-  for (let v = 0; v <= max + step * 0.01; v += step) ticks.push(Math.round(v));
-  if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
-  return [...new Set(ticks)];
-}
-
-// ── Dual-Period-Logik (aus allen Visuals) ───────────────────────────────────
-const DUAL_PERIOD_THRESHOLD_MS = 43_200_000; // 0,5 Tage
-
-function dualPeriodDuration(entryFirst, exitFirst, entry, exit) {
-  const ef = toDate(entryFirst), xf = toDate(exitFirst);
-  const e  = toDate(entry),      x  = toDate(exit);
-
-  // Beide Perioden müssen vollständig sein
-  if (!e || !x) return null;
-
-  const sameDay = ef && e && Math.abs(ef - e) < DUAL_PERIOD_THRESHOLD_MS;
-
-  if (sameDay || !ef || !xf) {
-    // Nur eine Periode
-    return dur(e, x);
-  } else {
-    // Beide Perioden addieren
-    const d1 = dur(ef, xf);
-    const d2 = dur(e,  x);
-    if (d1 == null || d2 == null) return null;
-    return d1 + d2;
-  }
-}
-
-// ── Aktiv/Erledigt-Logik ────────────────────────────────────────────────────
-function isErledigt(row) {
-  return !!(row['Resolved'] || row['Rejected']);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TESTS
-// ═══════════════════════════════════════════════════════════════════════════
-
 import { describe, it, expect } from 'vitest';
+import {
+  toDate,
+  dur,
+  pct,
+  fmt,
+  intTicks,
+  DUAL_PERIOD_THRESHOLD_MS,
+  dualPeriodDuration,
+  isErledigt,
+} from '../../src/calc/core.calc.js';
 
 // ── toDate ──────────────────────────────────────────────────────────────────
 describe('toDate', () => {
@@ -223,21 +153,19 @@ describe('intTicks', () => {
 // ── Dual-Period-Logik ────────────────────────────────────────────────────────
 describe('Dual-Period-Logik', () => {
   it('einfacher Fall: Item nur einmal in Status (X_first == X)', () => {
-    // Start und Start_first am gleichen Tag → nur eine Periode
     const d = dualPeriodDuration(
-      '2024-01-05', '2024-01-08',  // _first (gleich wie Basis)
-      '2024-01-05', '2024-01-08'   // Basis
+      '2024-01-05', '2024-01-08',
+      '2024-01-05', '2024-01-08'
     );
     expect(d).toBe(4); // 5,6,7,8 = 4 Tage
   });
 
   it('Dual-Period: Item zweimal in Status (X_first != X)', () => {
-    // Erster Durchlauf: 3 Tage, zweiter Durchlauf: 2 Tage → 5 Tage gesamt
     const d = dualPeriodDuration(
-      '2024-01-01', '2024-01-03',  // _first: 3 Tage (1,2,3)
-      '2024-01-10', '2024-01-11'   // Basis: 2 Tage (10,11)
+      '2024-01-01', '2024-01-03',
+      '2024-01-10', '2024-01-11'
     );
-    expect(d).toBe(5);
+    expect(d).toBe(5); // 3 + 2 Tage
   });
 
   it('gibt null zurück wenn Basis-Daten fehlen', () => {

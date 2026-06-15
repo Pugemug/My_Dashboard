@@ -77,9 +77,9 @@ export function init() {
         ' style="width:60px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;">',
       '</label>',
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">',
-        `<input type="color" id="wip-cg" value="${cfg.colorGreen}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
-        `<input type="color" id="wip-cy" value="${cfg.colorYellow}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
-        `<input type="color" id="wip-cr" value="${cfg.colorRed}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
+        `<input type="color" id="wip-cg" value="${_safeColor(cfg.colorGreen)}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
+        `<input type="color" id="wip-cy" value="${_safeColor(cfg.colorYellow)}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
+        `<input type="color" id="wip-cr" value="${_safeColor(cfg.colorRed)}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
         '<span style="font-size:11px;color:var(--dim);">Grün · Gelb · Rot</span>',
       '</div>',
       '<button id="wip-close" style="width:100%;padding:5px 0;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;">Schließen</button>',
@@ -106,6 +106,10 @@ export function init() {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
+  function _safeColor(v) {
+    return /^#[0-9a-fA-F]{6}$/.test(String(v)) ? String(v) : '#888888';
+  }
+
   const MONTH_NAMES = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
 
   function monthLabel(yyyymm) {
@@ -252,7 +256,7 @@ export function init() {
         if (
           ip > 0 && ip <= M &&
           (res === 0 || res >= M) &&
-          (rej === 0 || rej >= M) &&
+          rej === 0 &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)
@@ -277,7 +281,7 @@ export function init() {
         if (
           ip <= M &&
           (res === 0 || res >= M) &&
-          (rej === 0 || rej >= M) &&
+          rej === 0 &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)

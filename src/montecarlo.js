@@ -5,6 +5,7 @@
 // ════════════════════════════════════════════════
 
 import { core } from './core.js';
+import { calcCV } from './calc/montecarlo.calc.js';
 
 export function init() {
 
@@ -334,10 +335,7 @@ export function init() {
       return;
     }
 
-    const mean   = samples.reduce((a, b) => a + b, 0) / samples.length;
-    const cv     = mean === 0
-      ? Infinity
-      : Math.sqrt(samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length) / mean;
+    const cv = calcCV(samples);
 
     let ampel, stabText;
     if (cv <= cfg.cvThresholdGreen) {

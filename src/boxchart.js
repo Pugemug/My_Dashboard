@@ -7,6 +7,7 @@
 //   - Panel: × Schließen-Button + Klick-außen schließt Panel
 //   - Y-Achse: Schrittweite konfigurierbar + Log-Skala wählbar (im ⚙-Panel)
 // ════════════════════════════════════════════════
+import { calcBoxStats, isOutlier } from './calc/boxchart.calc.js';
 
 import { core } from './core.js';
 
@@ -481,20 +482,7 @@ function _posTt(cx, cy) {
 // ════════════════════════════════════════════════
 // Statistik-Helpers
 // ════════════════════════════════════════════════
-function _calcStats(values) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const p25    = core.pct(sorted, 25);
-  const med    = core.pct(sorted, 50);
-  const p85    = core.pct(sorted, 85);
-  const iqr    = p85 - p25;
-  const fence  = 1.5 * iqr;
-  const allMax = sorted[sorted.length - 1];
-  const allMin = sorted[0];
-  const wUp    = Math.min(allMax, p85 + fence);
-  const wDn    = Math.max(allMin, p25 - fence);
-  return { sorted, p25, med, p85, wUp, wDn, n: values.length };
-}
+function _calcStats(values) { return calcBoxStats(values); }
 
 function _kde(sorted, bw, nPts) {
   if (sorted.length < 2) return [];
@@ -765,7 +753,7 @@ function _render() {
     if (cfg.chartMode === 'violin' || cfg.chartMode === 'combo') {
       const kde = _kde(st.sorted, bw, KDE_POINTS);
       if (kde.length >= 2) {
-        const maxD = Math.max(...kde.map(p => p.y));
+        const maxD = kde.reduce((m, p) => Math.max(m, p.y), 0);
         if (maxD > 0) {
           const pts = kde.map(p => ({
             xR: cx + (p.y / maxD) * vHW,

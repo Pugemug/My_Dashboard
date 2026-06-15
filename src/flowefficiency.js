@@ -3,13 +3,11 @@
 // Spec: docs/specs/FlowEfficiency.md v1.2
 // ════════════════════════════════════════════════
 
+import { core } from './core.js';
+import { WAIT_STATUS } from './calc/flowefficiency.calc.js';
+
 export function init() {
 
-  // ── Constants ─────────────────────────────────
-  const WAIT_STATUS = [
-    'Blocked', 'Ready4Test', 'Ready4QS',
-    'Ready4Review', 'Ready4E2E-Test', 'Ready4Production',
-  ];
   const WAIT_STATUS_LOWER = WAIT_STATUS.map(s => s.toLowerCase());
 
   const BREAKDOWN_COLORS = {

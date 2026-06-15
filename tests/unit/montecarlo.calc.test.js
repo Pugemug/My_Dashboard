@@ -1,43 +1,10 @@
 /**
  * Unit Tests für MonteCarlo Simulation (montecarlo.js).
- * Fokus: Throughput-Berechnung, Variationskoeffizient (CV), Simulation.
+ * Importiert direkt aus src/calc/montecarlo.calc.js — kein Copy-Paste.
  */
 
 import { describe, it, expect } from 'vitest';
-
-// ── Variationskoeffizient (CV) ──────────────────────────────────────────────
-function calcCV(samples) {
-  if (!samples.length) return null;
-  const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
-  if (mean === 0) return null;
-  const variance = samples.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / samples.length;
-  return Math.sqrt(variance) / mean;
-}
-
-// ── Simulations-Kern (vereinfacht aus montecarlo.js Zeile 386–416) ──────────
-function runSimulation(samples, targetCount, numRuns) {
-  if (!samples.length || samples.every(v => v === 0)) return null;
-  const results = [];
-  for (let i = 0; i < numRuns; i++) {
-    let total = 0, slices = 0;
-    while (total < targetCount) {
-      total += samples[Math.floor(Math.random() * samples.length)];
-      slices++;
-      if (slices > 10000) break; // Schutz vor Endlosschleife bei samples=[0]
-    }
-    results.push(slices);
-  }
-  results.sort((a, b) => a - b);
-  return {
-    results,
-    p50: results[Math.floor(numRuns * 0.50)],
-    p70: results[Math.floor(numRuns * 0.70)],
-    p85: results[Math.floor(numRuns * 0.85)],
-    p95: results[Math.floor(numRuns * 0.95)],
-  };
-}
-
-// ── Tests ──────────────────────────────────────────────────────────────────
+import { calcCV, runSimulation } from '../../src/calc/montecarlo.calc.js';
 
 describe('Variationskoeffizient (CV)', () => {
   it('CV = 0 bei konstantem Throughput', () => {
@@ -97,14 +64,12 @@ describe('Monte Carlo Simulation', () => {
   });
 
   it('P85 bei konstantem Throughput 10: ~Ziel/Throughput Wochen', () => {
-    // Bei Target=100, Throughput immer 10 → brauche immer 10 Wochen
     const sim = runSimulation([10, 10, 10, 10], 100, 500);
     expect(sim.p85).toBe(10);
   });
 });
 
 describe('Throughput Perioden-Aggregation', () => {
-  // Aus montecarlo.js: daysPerSlice = 1|7|30 je nach throughputUnit
   it('wöchentliche Periode = 7 Tage', () => {
     const daysPerSlice = { day: 1, week: 7, month: 30 };
     expect(daysPerSlice['week']).toBe(7);

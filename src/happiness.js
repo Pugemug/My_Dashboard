@@ -12,6 +12,15 @@ const LS_KEY = 'fhwa_happinessfaktor';
 const SHEET  = 'Happiness Faktor';
 const NV_COL = '#9e9e9e';
 
+function _esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const CFG_DEF = { title: 'Happiness Faktor', dotRadius: 6 };
 
 // ── Happiness colour: 1=rot · 3=gelb · 5=grün (semantisch, theme-unabhängig) ──
@@ -150,7 +159,7 @@ function _buildHeaderControls() {
 }
 
 function _rebuildFmtPanel() {
-  const title = (_cfg.title || CFG_DEF.title).replace(/"/g, '&quot;');
+  const title = _esc(_cfg.title || CFG_DEF.title);
   _fmtPanelEl.innerHTML = `
     <div style="font-weight:600;font-size:.62rem;color:var(--blue);
                 text-transform:uppercase;letter-spacing:.08em;margin-bottom:.55rem">Format</div>

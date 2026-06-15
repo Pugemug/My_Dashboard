@@ -49,7 +49,6 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
             #squad-dd-wrap  Nur noch der Trigger-Button (#btn-squad .btn-squad-trigger)
           .page-scroll
             #tile-canvas-lieferfahigkeit  CSS-Grid (auto-fill var(--tile-w), zentriert, max. 3 Spalten) — Tiles via core.createTile()
-            #page-canvas-lieferfahigkeit  display:none — Fallback
         #page-wipage  (.page-flex)
           .page-filterbar   „Was liegt gerade rum?" · Squad · Issue-Typ · Zeitraum · Reset
           .page-detail-canvas  id="page-canvas-wipage" — Card füllt inset:0
@@ -205,7 +204,6 @@ pf-spacer
 
 ```
 #tile-canvas-lieferfahigkeit   Flexbox (flex-wrap:wrap, justify-content:center) — auto 3→2→1 Spalten
-#page-canvas-lieferfahigkeit   display:none (Fallback bis boxchart.js migriert)
 ```
 
 ---
@@ -459,3 +457,4 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 | 2026-06-09 | 1.8 | Settings-Panel zu zentriertem Overlay umgebaut (`position:fixed; transform:translate(-50%,-50%)`, Breite 540px, max-height 82vh). Neuer Abschnitt „Status-Reihenfolge" mit `#settings-order-list` (Drag&Drop + ▲▼), `#settings-order-reset` und `#settings-backdrop`. Open/Close-Logik aus core.js in Bootstrap-Block verschoben. `DEFAULT_STATUS_ORDER` im Import ergänzt. Neue CSS-Klassen: `.settings-backdrop`, `.settings-close-btn`, `.settings-panel-header`, `.settings-divider`, `.settings-section-label`, `.settings-order-list`, `.settings-order-reset`, `.o-extra`, `.th-extra`. |
 | 2026-06-09 | 1.9 | `flowefficiency.js` (Flow Efficiency) ergänzt: `import { init as initFlowEfficiency }` + `initFlowEfficiency()` im Bootstrap-Block. Tile auf Lieferfähigkeit-Page, Join JiraStories + JiraBlockermanagement. |
 | 2026-06-11 | 2.1 | `montecarlo.js` (MonteCarlo Simulation) ergänzt: `import { init as initMonteCarlo }` + `initMonteCarlo()` im Bootstrap-Block. Neue Deep-Dive-Page `monte` (`#page-monte`, `#page-canvas-monte`) mit Filterleiste (Squad + Reset). Sidebar-Link „Wann sind wir fertig?" (🎲🎲) ergänzt. `CARD_PAGE_MAP` in `core.js`: `'montecarlo': 'monte'`. |
+| 2026-06-15 | 2.2 | Bugfix: `#page-canvas-lieferfahigkeit` (Fallback-Div) aus HTML-Struktur und Spec entfernt — Migration zu `core.createTile()` war bereits vollständig. |

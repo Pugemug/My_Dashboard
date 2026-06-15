@@ -454,6 +454,20 @@ Ich lege jetzt den Test-Skeleton an:
 
 **Bei Bugfixes mit Berechnungslogik:** Erst failing Test schreiben, dann fixen, dann `npm test` grün.
 
+#### Wichtiger Hinweis: Copy-Paste-Anti-Pattern vermeiden
+
+Unit-Tests dürfen Berechnungslogik **nicht** kopieren. Stattdessen muss die Funktion aus der Quelldatei importiert werden:
+
+```js
+// ❌ FALSCH – kopiert aus scatter.js, unsichtbar für Modul-Fehler
+function calcCT(startVal, endVal) { ... }
+
+// ✅ RICHTIG – importiert aus Quelldatei
+import { calcCT } from '../../src/calc/scatter.calc.js';
+```
+
+Alle Unit-Tests importieren seit Phase 2 (2026-06-15) aus echten `src/calc/`-Dateien. Reine Berechnungsfunktionen leben in `src/calc/[name].calc.js` — Browser-API-frei, daher mit `environment: 'node'` testbar. Visual-Quelldateien delegieren an `src/calc/`, Unit-Tests importieren ebenfalls von dort. Neu hinzukommende Visuals sollen diesem Muster folgen (Berechnungslogik → `src/calc/`, Visual-Datei importiert von dort).
+
 #### Testdatensatz M17
 
 Liegt unter `tests/fixtures/testdata.xlsx`. Wird von Unit Tests und Playwright verwendet.  
@@ -510,7 +524,7 @@ Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke S
 
 **Visual 7 – Flow Efficiency (`flowefficiency.js`):** Anteil aktiver Bearbeitungszeit an der Gesamtdurchlaufzeit. Berechnung aus Warte-Zuständen (`JiraStories`) und `BlockedReasons`-Sheet. Verknüpfung über JiraId + Squad.
 
-**Visual 8 – Happiness Index (`happinessindex.js`):** KPI-Card mit Verlauf. Datenquelle: dediziertes Worksheet (Name noch offen – per SDD-Interview klären).
+**Visual 8 – Happiness Faktor (`happiness.js`):** Liniendiagramm der Team-Happiness (1–5) über Monate pro Squad. Datenquelle: `Happiness Faktor`-Sheet (Custom-Header-Zeile). Implementiert v1.0. localStorage-Key: `fhwa_happinessfaktor`.
 
 **Visual 9 – Akzeptanzkriterien (`akzeptanz.js`):** KPI-Card mit Verlauf. Datenquelle: dediziertes Worksheet (Name noch offen – per SDD-Interview klären).
 
@@ -787,7 +801,6 @@ Jedes Visual:
     .main-content     Rechter Bereich, zeigt aktive Page
       #page-lieferfahigkeit
         #tile-canvas-lieferfahigkeit   Flexbox (flex-wrap, justify-content:center) für kompakte KPI-Kacheln
-        #page-canvas-lieferfahigkeit   display:none · Fallback bis boxchart.js migriert
       #page-wipage            position:relative · WIPAge Card
       #page-scatter           position:relative · CycleTime Card
       #page-heatmap           position:relative · Heatmap Card
@@ -860,8 +873,8 @@ core.emit(event)              // intern; Visuals rufen das nicht auf
 ### Navigation
 
 ```javascript
-core.showPage(pageId)    // Page wechseln: blendet alle Pages aus, zeigt pageId, speichert in localStorage
-core.activePage()        // → string — aktuell sichtbare Page-ID
+core.showPage(pageId)        // Page wechseln: blendet alle Pages aus, zeigt pageId, speichert in localStorage
+// core.state.activePage     // → string — aktuell sichtbare Page-ID (State, keine Methode)
 ```
 
 ### Card Factory
@@ -1018,7 +1031,7 @@ export function init() {
 | `fhwa_saydoratio` | saydoratio.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_wipkpi` | wipkpi.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_flowefficiency` | flowefficiency.js | *(per SDD-Interview zu definieren)* |
-| `fhwa_happinessindex` | happinessindex.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_happinessfaktor` | happiness.js | title, dotRadius — Spec: HappinessFaktor.md |
 | `fhwa_akzeptanz` | akzeptanz.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_montecarlo` | montecarlo.js | mode, targetCount, targetDate, calcRollingDays, calcFromDate, calcToDate, stabilityRollingDays, stabilityFromDate, stabilityToDate, throughputUnit, completedCol, numRuns, cvThresholdGreen, cvThresholdRed, showP50/70/85/95, colorP50/70/85/95 |
 
@@ -1400,6 +1413,36 @@ Symptome, die zum Neuschreiben zwingen:
 - Ursache: Monate wurden nur aus der gefundenen Squad-Zeile befüllt; fehlende Zeile = leere Monatsliste = Abbruch
 - Fix: Monate immer aus Header-Spalten ableiten; Squad nicht gefunden → teamsize=1 für alle Header-Monate (Diag-Hinweis in Diag-Bar)
 
+**Bug 10: Fehlender `import { core }` in `flowefficiency.js`**
+- Symptom: App stürzt beim Laden mit `ReferenceError: core is not defined`
+- Ursache: Copy-Paste aus Prototyp-Phase ohne ES-Module-Import — einzige Visual-Datei ohne `import { core }`
+- Fix: `import { core } from './core.js';` als erste Zeile ergänzt
+
+**Bug 11: `Math.max(...[])` → `-Infinity` in `boxchart.js` und `scatter.js`**
+- Symptom: KDE-Kurve unsichtbar oder `NaN` in Achsenwerten bei leerem Datensatz
+- Ursache: `Math.max(...kde.map(...))` mit leerem Array gibt `-Infinity` zurück — keine Guard-Bedingung
+- Fix: `reduce()`-Pattern statt Spread: `kde.reduce((m, p) => Math.max(m, p.y), 0)` und Loop-Pattern für min/max
+
+**Bug 12: XSS via innerHTML in `wip.js` und `happiness.js`**
+- Symptom: Manipulierter localStorage-Wert (z.B. `<img src=x onerror=...>`) wird als HTML interpretiert
+- Ursache: Konfigurationswerte direkt in Template-Strings für `innerHTML` eingebaut; nur `"` escaped (happiness), keine Validierung (wip)
+- Fix: `_safeColor()` in `wip.js` (Regex `#[0-9a-fA-F]{6}$` oder Fallback), `_esc()` in `happiness.js` (vollständige HTML-Escaping-Funktion)
+
+**Bug 13: Rejected-Items in WIP-Berechnung von `wip.js` gezählt**
+- Symptom: Abgelehnte Items erscheinen in der WIP-Zählung und beeinflussen den WIP-Grenzwert
+- Ursache: Filterlogik prüfte `(rej === 0 || rej >= M)` statt nur `rej === 0` — Items mit Rejected-Datum wurden eingeschlossen
+- Fix: Bedingung auf `rej === 0` geändert (an beiden Stellen im WIP-Block)
+
+**Bug 14: Tote Einträge in `CARD_PAGE_MAP` und falscher `happinessindex`-Schlüssel**
+- Symptom: `wip`, `flowefficiency`, `happinessfaktor`-Tiles wurden keiner Page zugewiesen → unsichtbar
+- Ursache: Map enthielt veraltete Namen aus Planungsphase (`saydoratio`, `wipkpi`, `akzeptanz`) und die Datei `happiness.js` wurde mit `happinessindex` statt `happinessfaktor` referenziert
+- Fix: Map auf tatsächlich existierende Visuals bereinigt; `happinessfaktor` als korrekter Key eingetragen
+
+**Bug 15: Hardcodierte Standardfarbe `#38bdf8` in `scatter.js`**
+- Symptom: Im Light-Mode ist die Default-Dotfarbe eine dunkle Blautönung, die auf hellem Hintergrund kaum sichtbar ist
+- Ursache: Nur im Dark-Mode entwickelt; Default-Farbe aus Dark-Palette hardcodiert statt aus `core.palette()`
+- Fix: Default-Wert auf `''` geändert; Fallback `cfg.singleColor || core.palette()[0]` in `_dotColor()` und Color-Picker-Init
+
 ---
 
 ## Workflow-Checklisten
@@ -1726,3 +1769,4 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 *v4.6 (2026-06-09): Unified Status Order implementiert. `DEFAULT_STATUS_ORDER` (17 Status: Queue→WIP→Done + Rejected/Resume) als Export in `core.js`. `loadGlobalStatusOrder()` + `saveGlobalStatusOrder()` + Event `statusOrder` in core.js API. `stateOrder` aus `fhwa_wipage` und `fhwa_heatmap` entfernt (→ `fhwa_status_order`). N=0-Hiding pro Visual: WIPAge blendet Spalten ohne aktive Items aus, Heatmap blendet Spalten ohne Stats aus. Extra-Status (nicht in DEFAULT) werden ans Ende angehängt + orange markiert (.o-extra, var(--orange)). Settings-Panel als zentriertes Overlay (540px, Backdrop). Status-Reihenfolge-Abschnitt im Settings-Panel mit Drag&Drop + ▲▼ + Reset. ADL um 4 Einträge ergänzt. Glossar um 3 Begriffe ergänzt. build.py Bootstrap aktualisiert.*
 *v4.7 (2026-06-09): Flow Efficiency Visual (`flowefficiency.js`) implementiert v1.0. Sheet-Name `BlockedReasons` → `JiraBlockermanagement` (Worksheets-Übersicht + ADL). FE-Berechnung: Dual-Period-Wartezeit aus JiraStories-Warte-Status + statusunabhängige Zusatz-Episoden aus JiraBlockermanagement (Dedup per Status-Typ). Monatliche Aggregation: Median. Line/Violin-Toggle im Tile-Header. Konfigurierbare Ziellinie (FE%, ein/ausblendbar). `index.html` + `build.py` aktualisiert (6. Stelle). M11-Expected-Liste um `init_wip` + `init_flowefficiency` ergänzt. Chat-Start-Tabelle um `flowefficiency.js`-Zeile ergänzt. ADL um 5 Einträge ergänzt. Glossar um 3 Begriffe ergänzt.*
 *v4.8 (2026-06-11): Design-Standard §9.7 „Y-Achsen immer ganze Zahlen" eingeführt. `core.intTicks(max, n)` als neue Pflicht-Utility ergänzt (Schritt ≥ 1, dedupliciert). `wip.js`: Y-Tick-Loop auf `core.intTicks()` umgestellt (vorher gleichmäßige 5 Schritte → Dezimalwerte möglich). `boxchart.js`: `_niceYTicks()` erzwingt nun `step = Math.max(1, Math.round(step))`; Label-Format von `y.toFixed(1)` auf `Math.round(y)` geändert. Phase-2-Checkliste um §9.7-Check ergänzt.*
+*v4.9 (2026-06-15): 6 Bugfixes (Bug 10–15): fehlender core-Import flowefficiency.js, Math.max-Spread-Pattern (boxchart/scatter), XSS-Escaping (wip/happiness), Rejected-Ausschluss in WIP, CARD_PAGE_MAP bereinigt (happinessindex→happinessfaktor), hardcodierte Farbe scatter.js. Redundante `core.activePage()`-Methode entfernt (→ `core.state.activePage`). Toter Fallback-Div `#page-canvas-lieferfahigkeit` aus index.html entfernt. DOM-Struktur, API-Dok und localStorage-Keys entsprechend aktualisiert. M19 um Copy-Paste-Anti-Pattern-Warnung ergänzt. Visual 8 von `happinessindex.js` auf `happiness.js` korrigiert.*

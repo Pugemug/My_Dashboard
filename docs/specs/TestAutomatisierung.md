@@ -1,8 +1,90 @@
 # Testautomatisierung – Flow Analytics Dashboard
 
-**Version:** 1.1  
-**Datum:** 2026-06-12  
-**Status:** Bestätigt  
+**Version:** 1.3  
+**Datum:** 2026-06-15  
+**Status:** Bestätigt – Phase 1 ✅ und Phase 2 (Option A) ✅ abgeschlossen  
+
+---
+
+## Aktueller Implementierungsstand (2026-06-15)
+
+### Was heute existiert
+
+| Datei | Status | Prüft was? |
+|---|---|---|
+| `tests/unit/core.utils.test.js` | ✅ echte Imports | Importiert aus `src/calc/core.calc.js` (30 Tests) |
+| `tests/unit/scatter.calc.test.js` | ✅ echte Imports | Importiert aus `src/calc/scatter.calc.js` (12 Tests) |
+| `tests/unit/wipage.calc.test.js` | ✅ echte Imports | Importiert aus `src/calc/wipage.calc.js` (10 Tests) |
+| `tests/unit/flowefficiency.calc.test.js` | ✅ echte Imports | Importiert aus `src/calc/flowefficiency.calc.js` (8 Tests) |
+| `tests/unit/boxchart.calc.test.js` | ✅ echte Imports | Importiert aus `src/calc/boxchart.calc.js` (10 Tests) |
+| `tests/unit/heatmap.calc.test.js` | ✅ echte Imports | Importiert aus `src/calc/heatmap.calc.js` (16 Tests) |
+| `tests/unit/montecarlo.calc.test.js` | ✅ echte Imports | Importiert aus `src/calc/montecarlo.calc.js` (14 Tests) |
+| `tests/e2e/app.load.spec.js` | ✅ existiert | Upload-Screen sichtbar, keine JS-Fehler beim Start |
+| `tests/e2e/data.upload.spec.js` | ✅ implementiert | Datei-Upload + alle Tiles rendern, Leerdatei-Test |
+| `tests/e2e/scatter.spec.js` | 📋 geplant | CycleTime Scatterplot E2E |
+| `tests/e2e/wipage.spec.js` | 📋 geplant | WIPAge E2E |
+| `tests/e2e/heatmap.spec.js` | 📋 geplant | FlowHeatmap E2E |
+| `tests/e2e/montecarlo.spec.js` | 📋 geplant | MonteCarlo E2E |
+
+### Bekannte strukturelle Schwäche – Copy-Paste-Anti-Pattern
+
+**Problem:** Alle Unit-Tests kopieren die zu testende Logik direkt in die Test-Datei, anstatt sie aus den echten Quelldateien zu importieren. Beispiel:
+
+```js
+// tests/unit/flowefficiency.calc.test.js
+// ↓ kopiert aus flowefficiency.js – NOT: import { calcItemFE } from '../../src/flowefficiency.js'
+function calcItemFE(row, ltStartCol, ltEndCol) { ... }
+```
+
+**Konsequenzen:**
+- Fehler in der Quelldatei (fehlende Imports, falsche Variablen) sind für Unit-Tests unsichtbar
+- Der fehlende `import { core }` in `flowefficiency.js` wurde so nicht entdeckt
+- Tests können grün sein, während die echte App abstürzt
+- Copy und Original können divergieren ohne dass jemand es merkt
+
+**Ursache:** `vitest.config.js` nutzt `environment: 'node'`. Browser-APIs (`document`, `localStorage`, `window`) stehen nicht zur Verfügung. Da die Visual-Module `core.js` importieren (das Browser-APIs nutzt), können sie nicht direkt in Tests importiert werden.
+
+**Konsequenz für bisher nicht erkannte Bugs (2026-06-15):**
+
+| Bug | Hätte gebraucht |
+|---|---|
+| Fehlender `import { core }` in `flowefficiency.js` | E2E-Test mit Datei-Upload |
+| `Math.max(...[])` → `-Infinity` | Unit-Test der echten `_kde`-Funktion mit leerem Input |
+| XSS in innerHTML | Security-Test: manipulierter localStorage + DOM-Prüfung |
+| Rejected in WIP gezählt | Unit-Test für `wip.js` mit Rejected-Datum gesetzt |
+| Tote CARD_PAGE_MAP Einträge | Integrationstest: alle Visual-IDs gegen Map prüfen |
+| Hardcodierte Farbe | Theme-Toggle + Farbprüfung im DOM |
+| Toter page-canvas | DOM-Strukturtest |
+| Redundante Methode | API-Surface-Test (geringer Wert) |
+
+### Phase 1 – E2E-Upload-Test ✅ abgeschlossen
+
+`tests/e2e/data.upload.spec.js` implementiert. Prüft:
+- `testdata.xlsx` hochladen → Datencheck-Page erscheint
+- CTA-Klick → `#tile-canvas-lieferfahigkeit` sichtbar
+- Alle 4 Tiles (`#tile-boxchart`, `#tile-flowefficiency`, `#tile-happinessfaktor`, `#tile-wip`) erscheinen ohne JS-Fehler
+- Kein `undefined`/`NaN` im Tile-Canvas-Inhalt
+- Alle Diag-Bars rendern ohne `undefined`
+- `testdata-empty.xlsx` → Leerzustand, kein JS-Fehler
+
+Dieser Test hätte den Crash in `flowefficiency.js` gefunden.
+
+### Phase 2 – Echte Imports via `src/calc/` ✅ abgeschlossen (Option A)
+
+Alle Unit-Tests importieren jetzt aus echten `src/calc/`-Dateien statt Logik zu kopieren.
+
+**Neue Dateien in `src/calc/`:**
+- `core.calc.js` – `toDate`, `dur`, `pct`, `fmt`, `intTicks`, `dualPeriodDuration`, `isErledigt`, `DUAL_PERIOD_THRESHOLD_MS`
+- `scatter.calc.js` – `calcCT`, `calcCTFromRow`
+- `flowefficiency.calc.js` – `WAIT_STATUS`, `calcItemFE`
+- `wipage.calc.js` – `calcAge`, `isActive`, `parseExcludeList`
+- `heatmap.calc.js` – `stateStats`, `calcHeatmapT`
+- `boxchart.calc.js` – `calcBoxStats`, `isOutlier`
+- `montecarlo.calc.js` – `calcCV`, `runSimulation`
+
+**Visual-Quelldateien delegieren an `src/calc/`:** `core.js`, `scatter.js`, `flowefficiency.js`, `wipage.js`, `heatmap.js`, `boxchart.js`, `montecarlo.js`
+
+Ergebnis: 100 Unit-Tests + 10 E2E-Tests, alle grün.
 
 ---
 
@@ -26,13 +108,13 @@ Erwartete Ausgabe von `npm test`:
 ✓ tests/unit/core.utils.test.js        (30 tests)
 ✓ tests/unit/scatter.calc.test.js      (12 tests)
 ✓ tests/unit/wipage.calc.test.js       (10 tests)
-✓ tests/unit/flowefficiency.calc.test.js (7 tests)
+✓ tests/unit/flowefficiency.calc.test.js (8 tests)
 ✓ tests/unit/boxchart.calc.test.js     (10 tests)
 ✓ tests/unit/heatmap.calc.test.js      (16 tests)
 ✓ tests/unit/montecarlo.calc.test.js   (14 tests)
 
 Test Files  7 passed
-Tests       99 passed
+Tests       100 passed
 ```
 
 **Voraussetzungen:**
@@ -105,33 +187,86 @@ Der Standard-Testdatensatz wird unter `tests/fixtures/testdata.xlsx` gespeichert
 
 ## Block C – Ordnerstruktur
 
+**Legende:** ✅ existiert · 📋 geplant · ⚠️ strukturelle Schwäche
+
 ```
 My_Dashboard/
   tests/
-    unit/                    ← Vitest Unit Tests
-      core.utils.test.js     ← toDate, dur, pct, fmt, intTicks
-      core.filter.test.js    ← filteredRows, loadGlobalStatusOrder
-      scatter.calc.test.js   ← CycleTime Berechnungen
-      wipage.calc.test.js    ← WIPAge, Dual-Period-Logik, Aktiv-Logik
-      heatmap.calc.test.js   ← Verweildauer, Dual-Period
-      boxchart.calc.test.js  ← LeadTime Berechnungen
-      flowefficiency.test.js ← Flow Efficiency Berechnung
-      montecarlo.test.js     ← Simulation, CV, Throughput
-    e2e/                     ← Playwright E2E Tests
-      app.load.spec.js       ← App öffnen, Upload-Screen sichtbar
-      data.upload.spec.js    ← Testdatensatz hochladen, Preview erscheint
-      scatter.spec.js        ← CycleTime Scatterplot E2E
-      wipage.spec.js         ← WIPAge E2E
-      heatmap.spec.js        ← FlowHeatmap E2E
-      montecarlo.spec.js     ← MonteCarlo E2E
+    unit/                         ← Vitest Unit Tests (environment: node)
+      core.utils.test.js   ✅     ← toDate, dur, pct, fmt, intTicks (aus src/calc/core.calc.js)
+      scatter.calc.test.js ✅     ← CycleTime Berechnungen (aus src/calc/scatter.calc.js)
+      wipage.calc.test.js  ✅     ← WIPAge, Dual-Period, Aktiv-Logik (aus src/calc/wipage.calc.js)
+      heatmap.calc.test.js ✅     ← Verweildauer, Dual-Period (aus src/calc/heatmap.calc.js)
+      boxchart.calc.test.js ✅    ← LeadTime Berechnungen (aus src/calc/boxchart.calc.js)
+      flowefficiency.calc.test.js ✅ ← Flow Efficiency (aus src/calc/flowefficiency.calc.js)
+      montecarlo.calc.test.js ✅  ← Simulation, CV, Throughput (aus src/calc/montecarlo.calc.js)
+      core.filter.test.js  📋    ← filteredRows, loadGlobalStatusOrder
+      wip.calc.test.js     📋    ← WIP-Berechnung, Rejected-Ausschluss
+    e2e/                          ← Playwright E2E Tests
+      app.load.spec.js     ✅     ← App öffnet, Upload-Screen sichtbar, keine JS-Fehler
+      data.upload.spec.js  ✅     ← Testdatensatz hochladen, alle Tiles rendern (6 Tests)
+      scatter.spec.js      📋    ← CycleTime Scatterplot E2E
+      wipage.spec.js       📋    ← WIPAge E2E
+      heatmap.spec.js      📋    ← FlowHeatmap E2E
+      montecarlo.spec.js   📋    ← MonteCarlo E2E
     fixtures/
-      testdata.xlsx          ← M17 Testdatensatz (noch zu erstellen)
-      testdata-empty.xlsx    ← Nur Header, keine Datenzeilen
-  package.json               ← Vitest + Playwright Abhängigkeiten
-  vitest.config.js           ← Vitest Konfiguration
-  playwright.config.js       ← Playwright Konfiguration
+      testdata.xlsx        ✅     ← M17 Testdatensatz (erzeugt via create_testdata.py)
+      testdata-empty.xlsx  ✅     ← Nur Header, keine Datenzeilen
+  package.json                    ← Vitest + Playwright Abhängigkeiten
+  vitest.config.js                ← Vitest Konfiguration (environment: node)
+  playwright.config.js            ← Playwright Konfiguration
   .husky/
-    pre-commit               ← npx vitest run (Unit Tests vor Commit)
+    pre-commit                    ← npx vitest run (Unit Tests vor Commit)
+```
+
+### Geplant: data.upload.spec.js (Phase 1 – Priorität hoch)
+
+```js
+// tests/e2e/data.upload.spec.js
+import { test, expect } from '@playwright/test';
+import path from 'path';
+
+test.describe('Datei-Upload und Visual-Rendering', () => {
+  test('Testdatei hochladen → alle Tiles ohne JS-Fehler', async ({ page }) => {
+    const jsErrors = [];
+    page.on('pageerror', err => jsErrors.push(err.message));
+
+    await page.goto(APP_PATH);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Datei hochladen
+    const fixturePath = path.resolve('tests/fixtures/testdata.xlsx');
+    await page.locator('#file-input').setInputFiles(fixturePath);
+
+    // Datencheck-Page erscheint
+    await expect(page.locator('#page-datencheck')).toBeVisible({ timeout: 5000 });
+
+    // CTA klicken → Lieferfähigkeit-Page
+    await page.locator('.btn-cta').click();
+    await expect(page.locator('#tile-canvas-lieferfahigkeit')).toBeVisible();
+
+    // Tiles erscheinen – keine JS-Fehler
+    expect(jsErrors).toHaveLength(0);
+    await expect(page.locator('#tile-boxchart')).toBeVisible();
+
+    // Keine undefined/NaN im gerendertem Inhalt
+    const bodyText = await page.locator('#tile-canvas-lieferfahigkeit').textContent();
+    expect(bodyText).not.toContain('undefined');
+    expect(bodyText).not.toContain('NaN');
+  });
+
+  test('Leerdatei hochladen → Leerzustand, kein JS-Fehler', async ({ page }) => {
+    const jsErrors = [];
+    page.on('pageerror', err => jsErrors.push(err.message));
+
+    await page.goto(APP_PATH);
+    const emptyPath = path.resolve('tests/fixtures/testdata-empty.xlsx');
+    await page.locator('#file-input').setInputFiles(emptyPath);
+    await page.locator('.btn-cta').click();
+
+    expect(jsErrors).toHaveLength(0);
+  });
+});
 ```
 
 ---
@@ -267,11 +402,19 @@ M9 (manueller Smoke-Test) bleibt erhalten – E2E Tests ersetzen ihn nicht volls
 - [ ] Beide leer → aktiv
 - [ ] `Resolved` gefüllt, `Rejected` gefüllt → erledigt (beide gesetzt = Datenqualitätsproblem, kein Absturz)
 
-### E2E Tests
+### E2E Tests – Smoke (app.load.spec.js, ✅ implementiert)
 - [ ] App öffnet ohne JS-Fehler in der Console
-- [ ] Nach Upload: mindestens ein Visual zeigt `n=X` in der Diag-Bar
-- [ ] Kein `undefined` oder `NaN` sichtbar im UI
-- [ ] `testdata-empty.xlsx` hochladen → Leerzustand sichtbar, kein JS-Fehler
+- [ ] Upload-Screen sichtbar beim Start
+- [ ] Kein `undefined` oder `NaN` im Upload-Screen-Text
+
+### E2E Tests – Datei-Upload (data.upload.spec.js, ✅ implementiert – Phase 1)
+- [x] `testdata.xlsx` hochladen → Datencheck-Page erscheint
+- [x] CTA-Button klicken → `#tile-canvas-lieferfahigkeit` sichtbar
+- [x] `#tile-boxchart` erscheint (kein JS-Fehler, kein leerer Container)
+- [x] Kein `undefined` oder `NaN` im tile-canvas-Inhalt
+- [x] Alle Diag-Bars rendern ohne `undefined`
+- [x] `testdata-empty.xlsx` hochladen → Leerzustand sichtbar, kein JS-Fehler
+- [x] `page.on('pageerror')` liefert leeres Array (keine unbehandelten JS-Fehler)
 
 ---
 
@@ -279,5 +422,7 @@ M9 (manueller Smoke-Test) bleibt erhalten – E2E Tests ersetzen ihn nicht volls
 
 | Version | Datum | Änderung |
 |---|---|---|
+| 1.3 | 2026-06-15 | Phase 1 ✅: data.upload.spec.js implementiert (6 Tests). Phase 2 ✅: Option A umgesetzt — 7 `src/calc/`-Dateien extrahiert, alle Visual-Quelldateien delegieren dorthin, alle Unit-Tests importieren aus echten Quellen (100 Tests). Gesamt: 10 E2E-Tests + 100 Unit-Tests, alle grün. |
+| 1.2 | 2026-06-15 | Strukturelle Schwäche Copy-Paste-Anti-Pattern dokumentiert (Ursache: 8 unentdeckte Bugs). Aktueller Implementierungsstand + Statusmarkierungen in Block C ergänzt. data.upload.spec.js als Phase-1-Priorität und Beispiel-Implementierung ergänzt. Dreiphasen-Migrationsplan (Option A/B/C) dokumentiert. Block G um Upload-E2E-Kriterien erweitert. |
 | 1.1 | 2026-06-12 | Ersteinrichtungs-Abschnitt ergänzt |
 | 1.0 | 2026-06-12 | Initiale Spec – Konzept bestätigt |

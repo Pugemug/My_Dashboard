@@ -1,52 +1,10 @@
 /**
  * Unit Tests für WIPAge Chart Berechnungslogik (wipage.js).
- * Fokus: Altersberechnung, Aktiv-Logik, Dual-Period.
+ * Importiert direkt aus src/calc/wipage.calc.js — kein Copy-Paste.
  */
 
 import { describe, it, expect } from 'vitest';
-
-const THRESHOLD_MS = 43_200_000; // 0,5 Tage
-
-function toDate(v) {
-  if (!v) return null;
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-/**
- * WIPAge Altersberechnung (aus wipage.js Zeilen 351–380).
- * Wie lange ist ein Item schon im aktuellen Status?
- */
-function calcAge(row, statusName, todayMs) {
-  const entryFirst  = toDate(row[statusName + '_first']);
-  const entryReg    = toDate(row[statusName]);
-  const leavingFirst = toDate(row['leaving_' + statusName + '_first']);
-
-  if (entryReg != null) {
-    const ageReg = Math.max(0, Math.round((todayMs - entryReg.getTime()) / 86400000));
-    if (entryFirst != null && leavingFirst != null &&
-        Math.abs(entryFirst.getTime() - entryReg.getTime()) >= THRESHOLD_MS) {
-      // Dual-Period: erste Periode bereits abgeschlossen, zweite läuft noch
-      const firstPeriod = Math.max(0, Math.round(
-        (leavingFirst.getTime() - entryFirst.getTime()) / 86400000
-      ) + 1);
-      return firstPeriod + ageReg;
-    }
-    return ageReg;
-  } else if (entryFirst != null) {
-    return Math.max(0, Math.round((todayMs - entryFirst.getTime()) / 86400000));
-  }
-  return null;
-}
-
-/**
- * Aktiv-Logik (XOR): Item ist aktiv wenn weder Resolved noch Rejected.
- */
-function isActive(row) {
-  return !row['Resolved'] && !row['Rejected'];
-}
-
-// ── Tests ──────────────────────────────────────────────────────────────────
+import { calcAge, isActive, parseExcludeList } from '../../src/calc/wipage.calc.js';
 
 describe('WIPAge Aktiv-Logik', () => {
   it('aktiv wenn beide leer', () => {
@@ -83,9 +41,6 @@ describe('WIPAge Altersberechnung', () => {
   });
 
   it('Dual-Period: addiert erste abgeschlossene Periode zur laufenden', () => {
-    // Erste Periode: 1.–3. Jan (3 Tage inkl. leaving)
-    // Zweite Periode: 10.–heute (5 Tage bis 15. Jan)
-    // Gesamt: 3 + 1 + 5 = 9 Tage... aber leaving_first ist 3.1 → firstPeriod = (3-1)/86400000+1 = 3
     const row = {
       'In Progress_first':         '2024-01-01',
       'leaving_In Progress_first': '2024-01-03',
@@ -99,10 +54,6 @@ describe('WIPAge Altersberechnung', () => {
 });
 
 describe('WIPAge ExcludeList Parsing', () => {
-  function parseExcludeList(str) {
-    return str.split(',').map(s => s.trim()).filter(Boolean);
-  }
-
   it('parst Standard-ExcludeList korrekt', () => {
     const result = parseExcludeList('Rejected, Resume');
     expect(result).toEqual(['Rejected', 'Resume']);

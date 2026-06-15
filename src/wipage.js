@@ -5,6 +5,7 @@
 // ════════════════════════════════════════════════
 
 import { core, DEFAULT_STATUS_ORDER } from './core.js';
+import { calcAge, parseExcludeList } from './calc/wipage.calc.js';
 
 export function init() {
 
@@ -323,7 +324,7 @@ export function init() {
 
     // ── Exclude-Liste ─────────────────────────
     const excluded = cfg.excludeList
-      ? cfg.excludeList.split(/[,;]/).map(s => s.trim().toLowerCase()).filter(Boolean)
+      ? parseExcludeList(cfg.excludeList).map(s => s.toLowerCase())
       : [];
 
     // ── stateOrder: Globale Reihenfolge laden + mit gefundenen Status abgleichen ──
@@ -353,38 +354,11 @@ export function init() {
     const allStatusGroups = visibleStatuses.map(statusName => {
       const items = activeRows
         .filter(r => String(r['Issue-Status'] || '').trim() === statusName)
-        .map(r => {
-          const entryFirst  = core.toDate(r[statusName + '_first']);
-          const entryReg    = core.toDate(r[statusName]);
-          const leavingFirst = core.toDate(r['leaving_' + statusName + '_first']);
-
-          let age = null;
-
-          if (entryReg != null) {
-            const ageReg = Math.max(0, Math.round((today_ms - entryReg.getTime()) / 86400000));
-
-            const hasTwoPeriods = entryFirst != null
-              && leavingFirst != null
-              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2;
-
-            if (hasTwoPeriods) {
-              const firstPeriod = Math.max(0, Math.round(
-                (leavingFirst.getTime() - entryFirst.getTime()) / 86400000
-              ) + 1);
-              age = firstPeriod + ageReg;
-            } else {
-              age = ageReg;
-            }
-          } else if (entryFirst != null) {
-            age = Math.max(0, Math.round((today_ms - entryFirst.getTime()) / 86400000));
-          }
-
-          return {
-            key: String(r['Jira-ID'] || ''),
-            age,
-            url: _resolveUrl(r),
-          };
-        })
+        .map(r => ({
+          key: String(r['Jira-ID'] || ''),
+          age: calcAge(r, statusName, today_ms),
+          url: _resolveUrl(r),
+        }))
         .filter(d => d.age != null);
       return { statusName, items };
     });

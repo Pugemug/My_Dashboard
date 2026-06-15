@@ -5,6 +5,7 @@
 // ════════════════════════════════════════════════
 
 import { core, LT_END_DEFAULT } from './core.js';
+import { calcCT } from './calc/scatter.calc.js';
 
 const CT_START_DEFAULT = 'In Progress_first';
 
@@ -17,7 +18,7 @@ export function init() {
     ctStart:     '',
     ctEnd:       '',
     dotSize:     4,
-    singleColor: '#38bdf8',
+    singleColor: '',   // leer = theme-aware Fallback via core.palette()[0]
     typeColors:  {},
     show50: true,  color50: '#22d3ee',
     show70: true,  color70: '#86efac',
@@ -169,7 +170,7 @@ export function init() {
     const t1 = document.createElement('div'); t1.className = 'sc-clr-heading'; t1.textContent = 'Einfarbig';
     const r1 = document.createElement('div'); r1.className = 'sc-clr-item';
     const l1 = document.createElement('label'); l1.textContent = 'Farbe';
-    const cp1 = document.createElement('input'); cp1.type = 'color'; cp1.value = cfg.singleColor;
+    const cp1 = document.createElement('input'); cp1.type = 'color'; cp1.value = cfg.singleColor || core.palette()[0];
     cp1.addEventListener('input', () => { cfg.singleColor = cp1.value; saveConfig(); render(); });
     r1.appendChild(l1); r1.appendChild(cp1); s1.appendChild(t1); s1.appendChild(r1); clrBody.appendChild(s1);
 
@@ -214,7 +215,7 @@ export function init() {
   function _dotColor(item, maxCT) {
     if (cfg.colorMode === 'issueType') return cfg.typeColors[item.type] || _typeColorFor(item.type);
     if (cfg.colorMode === 'heatmap')   return core.lerp(maxCT > 0 ? item.ct / maxCT : 0);
-    return cfg.singleColor;
+    return cfg.singleColor || core.palette()[0];
   }
 
   // ── Tick helpers ──────────────────────────────
@@ -307,12 +308,10 @@ export function init() {
     _typeMap = {};
 
     baseRows.forEach(r => {
-      const endDate = core.toDate(r[cfg.ctEnd]); if (!endDate) return;
-      let ct = null;
-      if (cfg.ctStart && cfg.ctStart !== cfg.ctEnd) {
-        const sd = core.toDate(r[cfg.ctStart]); if (sd) ct = (endDate - sd) / 86400000 + 1;
-      }
-      if (ct == null || ct < 1) return;
+      const ct = (cfg.ctStart && cfg.ctStart !== cfg.ctEnd)
+        ? calcCT(r[cfg.ctStart], r[cfg.ctEnd])
+        : null;
+      if (!ct) return;
       const key = String(r['Jira-ID'] || '');
       const url = core.state.urlTemplate ? core.state.urlTemplate.replace(/\{issueKey\}/g, key) : '';
       items.push({ key, type: String(r['Issue-Type'] || ''), ct, date: endDate, url });
@@ -329,8 +328,8 @@ export function init() {
     const ML = 50, MR = 88, MT = 20, MB = 44;
     const pW = Math.max(1, W - ML - MR), pH = Math.max(1, H - MT - MB);
 
-    const minD = new Date(Math.min(...items.map(d => d.date.getTime())));
-    const maxD = new Date(Math.max(...items.map(d => d.date.getTime())));
+    let minD = items[0].date, maxD = items[0].date;
+    items.forEach(d => { if (d.date < minD) minD = d.date; if (d.date > maxD) maxD = d.date; });
     const dateRange = Math.max(1, maxD.getTime() - minD.getTime());
     const xS = d => ML + ((d.getTime() - minD.getTime()) / dateRange) * pW;
 

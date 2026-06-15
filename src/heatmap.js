@@ -5,6 +5,7 @@
 // ════════════════════════════════════════════════
 
 import { core, LT_START_DEFAULT, LT_END_DEFAULT, DEFAULT_STATUS_ORDER } from './core.js';
+import { stateStats as _stateStatsCalc, calcHeatmapT } from './calc/heatmap.calc.js';
 
 export function init() {
 
@@ -395,10 +396,7 @@ export function init() {
   // ── Stats helpers ─────────────────────────────
   function _stateStats(rows, st) {
     if (!st.exitCol) return null;
-    const ds = rows.map(r => core.dur(r[st.entryCol], r[st.exitCol])).filter(d => d != null);
-    if (!ds.length) return null;
-    ds.sort((a, b) => a - b);
-    return { p25: core.pct(ds,25), med: core.pct(ds,50), p85: core.pct(ds,85), min: ds[0], max: ds[ds.length-1], n: ds.length };
+    return _stateStatsCalc(rows, st.entryCol, st.exitCol);
   }
 
   function _ltStats(rows) {

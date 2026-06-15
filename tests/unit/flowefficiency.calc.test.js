@@ -1,56 +1,16 @@
 /**
  * Unit Tests für Flow Efficiency Berechnungslogik (flowefficiency.js).
- * FE = (lt - totalWait) / lt × 100%
+ * Importiert direkt aus src/calc/flowefficiency.calc.js — kein Copy-Paste.
  */
 
 import { describe, it, expect } from 'vitest';
-
-const WAIT_STATUS = [
-  'Blocked', 'Ready4Test', 'Ready4QS',
-  'Ready4Review', 'Ready4E2E-Test', 'Ready4Production',
-];
-
-function toDate(v) {
-  if (!v) return null;
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-function dur(a, b) {
-  const da = toDate(a), db = toDate(b);
-  if (!da || !db) return null;
-  const d = (db - da) / 86400000 + 1;
-  return d > 0 ? d : null;
-}
-
-/**
- * Berechnet Flow Efficiency für ein einzelnes Item.
- * Gibt null zurück wenn LT nicht berechenbar oder totalWait > lt.
- */
-function calcItemFE(row, ltStartCol, ltEndCol) {
-  const lt = dur(row[ltStartCol], row[ltEndCol]);
-  if (!lt) return null;
-
-  let totalWait = 0;
-  WAIT_STATUS.forEach(status => {
-    const entry = row[status + '_first'] || row[status];
-    const exit  = row['leaving_' + status + '_first'] || row['leaving_' + status];
-    const d = dur(entry, exit);
-    if (d) totalWait += d;
-  });
-
-  if (totalWait > lt) return null; // Datenfehler
-  return ((lt - totalWait) / lt) * 100;
-}
-
-// ── Tests ──────────────────────────────────────────────────────────────────
+import { WAIT_STATUS, calcItemFE } from '../../src/calc/flowefficiency.calc.js';
 
 describe('Flow Efficiency Grundberechnung', () => {
   it('100% FE wenn keine Wartezeit', () => {
     const row = {
       'Ready4Progress_first': '2024-01-01',
       'Resolved': '2024-01-10',
-      // keine Wartezeiten
     };
     const fe = calcItemFE(row, 'Ready4Progress_first', 'Resolved');
     expect(fe).toBeCloseTo(100, 0);
@@ -75,7 +35,6 @@ describe('Flow Efficiency Grundberechnung', () => {
   });
 
   it('gibt null zurück wenn totalWait > lt (Datenfehler)', () => {
-    // Wartezeit länger als Gesamtdurchlaufzeit = inkonsistente Daten
     const row = {
       'Ready4Progress_first': '2024-01-05',
       'Resolved': '2024-01-06',           // LT = 2 Tage
@@ -115,5 +74,12 @@ describe('Flow Efficiency Grenzfälle', () => {
       'leaving_Blocked_first': null,
     };
     expect(calcItemFE(row, 'Ready4Progress_first', 'Resolved')).toBeCloseTo(100, 0);
+  });
+
+  it('WAIT_STATUS enthält alle erwarteten Warte-Zustände', () => {
+    expect(WAIT_STATUS).toContain('Blocked');
+    expect(WAIT_STATUS).toContain('Ready4Test');
+    expect(WAIT_STATUS).toContain('Ready4Production');
+    expect(WAIT_STATUS.length).toBeGreaterThanOrEqual(5);
   });
 });

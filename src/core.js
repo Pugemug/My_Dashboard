@@ -4,6 +4,14 @@
 // Phase 1a: Multi-Sheet-Loading + Navigation/Sidebar
 // ════════════════════════════════════════════════
 
+import {
+  toDate as _toDate,
+  dur    as _dur,
+  pct    as _pct,
+  fmt    as _fmt,
+  intTicks as _intTicks,
+} from './calc/core.calc.js';
+
 // ── Constants (exported for use in visuals) ──
 export const TARGET_SHEET      = 'JiraStories';
 export const LT_START_DEFAULT  = 'Ready4Progress_first';
@@ -41,16 +49,14 @@ const GRID_ROW_H = 70;   // px per grid row
 // ── Card → Page routing (kein Visual-JS anfassen nötig) ──
 // Neue Visuals hier eintragen: 'visualId': 'pageId'
 const CARD_PAGE_MAP = {
-  'heatmap':        'heatmap',
-  'scatter':        'scatter',
-  'wipage':         'wipage',
-  'boxchart':       'lieferfahigkeit',
-  'saydoratio':     'lieferfahigkeit',
-  'wipkpi':         'lieferfahigkeit',
-  'flowefficiency': 'lieferfahigkeit',
-  'happinessindex': 'lieferfahigkeit',
-  'akzeptanz':      'lieferfahigkeit',
-  'montecarlo':     'monte',
+  'heatmap':          'heatmap',
+  'scatter':          'scatter',
+  'wipage':           'wipage',
+  'boxchart':         'lieferfahigkeit',
+  'wip':              'lieferfahigkeit',
+  'flowefficiency':   'lieferfahigkeit',
+  'happinessfaktor':  'lieferfahigkeit',
+  'montecarlo':       'monte',
 };
 
 const COLOR_MIN_DARK  = [28,  42,  63 ];
@@ -170,50 +176,11 @@ export const core = {
     return s.rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
   },
 
-  toDate(v) {
-    if (!v) return null;
-    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-    if (typeof v === 'number') {
-      const d = new Date(Math.round((v - 25569) * 86400000));
-      return isNaN(d.getTime()) ? null : d;
-    }
-    if (typeof v === 'string') {
-      const d = new Date(v.trim());
-      return isNaN(d.getTime()) ? null : d;
-    }
-    return null;
-  },
-
-  dur(a, b) {
-    const da = core.toDate(a), db = core.toDate(b);
-    if (!da || !db) return null;
-    const d = (db - da) / 86400000 + 1;
-    return d > 0 ? d : null;
-  },
-
-  pct(arr, p) {
-    if (!arr.length) return null;
-    if (arr.length === 1) return arr[0];
-    const i = (p / 100) * (arr.length - 1);
-    const lo = Math.floor(i), hi = Math.ceil(i);
-    return lo === hi ? arr[lo] : arr[lo] + (arr[hi] - arr[lo]) * (i - lo);
-  },
-
-  fmt(v) { return v == null ? '–' : v.toFixed(1) + 'd'; },
-
-  intTicks(max, n) {
-    if (max <= 0) return [0];
-    n = n || 5;
-    const raw = max / n;
-    const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
-    let step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag * 10;
-    step = Math.max(1, Math.round(step));
-    const ticks = [];
-    for (let v = 0; v <= max + step * 0.01; v += step) ticks.push(Math.round(v));
-    // Sicherstellen dass letzter Tick >= max (Grenzfall: max liegt knapp über einem Tick)
-    if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
-    return [...new Set(ticks)];
-  },
+  toDate(v)       { return _toDate(v); },
+  dur(a, b)       { return _dur(a, b); },
+  pct(arr, p)     { return _pct(arr, p); },
+  fmt(v)          { return _fmt(v); },
+  intTicks(max, n){ return _intTicks(max, n); },
 
   // ── Theme ──────────────────────────────────────
   isLight() {
@@ -307,11 +274,6 @@ export const core = {
       _updateCanvasH();
       core.emit('resize');
     }, 50);
-  },
-
-  /** Gibt die aktuell sichtbare Page-ID zurück. */
-  activePage() {
-    return core.state.activePage;
   },
 
   // ── Card factory ───────────────────────────────
