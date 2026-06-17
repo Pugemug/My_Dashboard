@@ -1,0 +1,82 @@
+/*
+ * Flow Analytics – Design Tokens
+ * ================================
+ * Wahrheitsquelle für alle CSS-Custom-Properties.
+ *
+ * VERWENDUNG BEIM NEUBAU:
+ *   Diese Datei KOPIEREN — niemals neu erfinden.
+ *   CSS-Variablen exakt so in <style> oder als Link einbinden.
+ *
+ * SYNCHRONISATION:
+ *   Wird bei jeder Änderung der CSS-Variablen in src/index.html
+ *   parallel aktualisiert (M7 Datei-Check).
+ *
+ * Fonts (CDN, in index.html als <link> eingebunden):
+ *   DM Sans  400/500/600/700  → var(--sans)
+ *   DM Mono  300/400/500      → var(--mono)
+ *   URL: https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500
+ *                                          &family=DM+Sans:wght@400;500;600;700
+ *                                          &display=swap
+ */
+
+/* ── DARK MODE (Standard) ── */
+:root {
+  /* Hintergründe */
+  --bg:     #0f1c30;   /* Body-Hintergrund */
+  --bg2:    #162035;   /* Cards, Sidebar, Panels */
+  --bg3:    #1e2e47;   /* Inputs, sekundäre Flächen */
+  --bg4:    #273552;   /* Hover-Flächen */
+
+  /* Rahmen */
+  --border: #2a3d5c;
+
+  /* Text */
+  --text:   #e8f0fe;   /* Primärtext */
+  --dim:    #8ba8c8;   /* Sekundärtext */
+  --dimmer: #4d6a88;   /* Tertiärtext, Icons */
+
+  /* Akzentfarben */
+  --blue:   #38bdf8;   /* Akzentfarbe, Links, aktive Elemente */
+  --red:    #f87171;   /* Alert, Fehler */
+  --green:  #4ade80;   /* Positiv */
+  --yellow: #fbbf24;   /* Warn, Drag-Highlight */
+  --purple: #c084fc;   /* Select-Focus */
+  --orange: #fb923c;   /* Locked-Banner, Zustandsspalten-Hint */
+
+  /* Typografie */
+  --sans:   'DM Sans', system-ui, sans-serif;
+  --mono:   'DM Mono', 'Courier New', monospace;
+
+  /* Tile-Dimensionen (16:10, via Settings-Slider 390–720 px) */
+  --tile-w: 550px;
+  --tile-h: 344px;
+
+  color-scheme: dark;
+}
+
+/* ── LIGHT MODE ── */
+[data-theme="light"] {
+  /* Hintergründe */
+  --bg:     #f1f5f9;
+  --bg2:    #ffffff;
+  --bg3:    #f8fafc;
+  --bg4:    #e2e8f0;
+
+  /* Rahmen */
+  --border: #cbd5e1;
+
+  /* Text */
+  --text:   #0f172a;
+  --dim:    #475569;
+  --dimmer: #94a3b8;
+
+  /* Akzentfarben */
+  --blue:   #0284c7;
+  --red:    #dc2626;
+  --green:  #16a34a;
+  --yellow: #b45309;
+  --purple: #7c3aed;
+  --orange: #c2410c;
+
+  color-scheme: light;
+}

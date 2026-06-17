@@ -249,6 +249,7 @@ Ausnahme: Kleine Bugfixes oder Erweiterungen an bestehendem Code brauchen keinen
 |---|---|
 | `docs/specs/VisualName.md` | **Immer** – bei jeder Änderung am Visual |
 | `WebAppEntwickeln.md` | Bei Architektur-, Prozess- oder Protokolländerungen |
+| `docs/design/design-tokens.css` | Wenn CSS-Variablen in `src/index.html` geändert werden |
 | `src/core.js` | Wenn neue Core-Funktionen ergänzt oder geändert wurden |
 | `src/index.html` | Wenn neues Visual eingebunden oder Navigation geändert wurde |
 | `build.py` | Wenn neues Visual an allen 5 Stellen eingetragen werden muss |
@@ -257,11 +258,12 @@ Ausnahme: Kleine Bugfixes oder Erweiterungen an bestehendem Code brauchen keinen
 
 ```
 Datei-Check:
-- [x/–] docs/specs/VisualName.md     → [aktualisiert / nicht betroffen]
-- [x/–] WebAppEntwickeln.md          → [aktualisiert / nicht betroffen]
-- [x/–] core.js                      → [aktualisiert / nicht betroffen / bitte hochladen]
-- [x/–] index.html                   → [aktualisiert / nicht betroffen / bitte hochladen]
-- [x/–] build.py                     → [aktualisiert / nicht betroffen / bitte hochladen]
+- [x/–] docs/specs/VisualName.md          → [aktualisiert / nicht betroffen]
+- [x/–] WebAppEntwickeln.md               → [aktualisiert / nicht betroffen]
+- [x/–] docs/design/design-tokens.css     → [aktualisiert / nicht betroffen]
+- [x/–] core.js                           → [aktualisiert / nicht betroffen / bitte hochladen]
+- [x/–] index.html                        → [aktualisiert / nicht betroffen / bitte hochladen]
+- [x/–] build.py                          → [aktualisiert / nicht betroffen / bitte hochladen]
 ```
 
 Wenn eine benötigte Datei nicht hochgeladen wurde, sagt Claude:
@@ -554,6 +556,9 @@ Alle 4 Dateien in **einen gemeinsamen Ordner** auf SharePoint/OneDrive legen. Nu
 project-root/
   docs/
     WebAppEntwickeln.md        ← dieser Leitfaden
+    design/
+      design-tokens.css        ← Wahrheitsquelle: alle CSS-Variablen (beim Neubau kopieren, nie neu erfinden)
+      screenshots/             ← Referenz-Screenshots (15 PNGs: alle Seiten in Dark + Light)
     specs/
       LeadTime_BoxChart.md     ← bestätigte Spec
       WIPAge.md                ← bestätigte Spec
@@ -568,8 +573,9 @@ project-root/
     boxchart.js    ← LeadTime BoxChart (vollständig eigenständig)
     montecarlo.js  ← MonteCarlo Simulation (vollständig eigenständig)
   tools/
-    build.py              ← Bundle-Skript
-    create_testdata.py    ← Erzeugt tests/fixtures/testdata.xlsx (M17)
+    build.py                  ← Bundle-Skript
+    create_testdata.py        ← Erzeugt tests/fixtures/testdata.xlsx (M17)
+    take-screenshots.js       ← Erzeugt Referenz-Screenshots in docs/design/screenshots/ (nach CSS-Änderungen neu ausführen)
   tests/
     unit/                 ← Vitest Unit Tests (Berechnungslogik)
     e2e/                  ← Playwright E2E Tests (Browser)
