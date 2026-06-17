@@ -419,6 +419,13 @@ td.td-lt{background:rgba(192,132,252,.04)}
           </span>
         </div>
         <div class="sidebar-section">Detailanalysen</div>
+        <div class="sidebar-link" data-page="blocker">
+          <span class="sidebar-glyph">&#9940;</span>
+          <span class="sidebar-txt">
+            <span class="sidebar-name">Was blockiert uns?</span>
+            <span class="sidebar-tech">Blockermanagement</span>
+          </span>
+        </div>
         <div class="sidebar-link" data-page="wipage">
           <span class="sidebar-glyph">&#9716;</span>
           <span class="sidebar-txt">
@@ -522,8 +529,21 @@ td.td-lt{background:rgba(192,132,252,.04)}
         <!-- Scrollbarer Inhalt -->
         <div class="page-scroll">
           <div class="tile-container" id="tile-canvas-lieferfahigkeit"></div>
-          <!-- Fallback-Canvas bleibt bis boxchart.js auf createTile() migriert ist -->
-          <div class="page-canvas" id="page-canvas-lieferfahigkeit" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Page: Blockermanagement -->
+      <div class="page page-flex" id="page-blocker">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Was blockiert uns?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-blocker">SQUADS Alle &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-scroll" style="flex:1;overflow-y:auto;padding:1rem 1.2rem">
+          <div id="blocker-canvas"></div>
+          <div id="blocker-diag" style="font-size:.56rem;color:var(--dimmer);font-family:var(--mono);padding:.3rem 0"></div>
         </div>
       </div>
 
@@ -589,12 +609,272 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
 <!-- ══ ES MODULE BOOTSTRAP ══ -->
 <script>
+// ── calc/core.calc.js ──
+// Reine Berechnungsfunktionen aus core.js — keine Browser-APIs.
+// Importiert von core.js (Delegation) und von Unit-Tests direkt.
+
+function toDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof v === 'string') {
+    const d = new Date(v.trim());
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function dur(a, b) {
+  const da = toDate(a), db = toDate(b);
+  if (!da || !db) return null;
+  const d = (db - da) / 86400000 + 1;
+  return d > 0 ? d : null;
+}
+
+function pct(arr, p) {
+  if (!arr.length) return null;
+  if (arr.length === 1) return arr[0];
+  const i = (p / 100) * (arr.length - 1);
+  const lo = Math.floor(i), hi = Math.ceil(i);
+  return lo === hi ? arr[lo] : arr[lo] + (arr[hi] - arr[lo]) * (i - lo);
+}
+
+function fmt(v) { return v == null ? '–' : v.toFixed(1) + 'd'; }
+
+function intTicks(max, n) {
+  if (max <= 0) return [0];
+  n = n || 5;
+  const raw = max / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
+  let step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag * 10;
+  step = Math.max(1, Math.round(step));
+  const ticks = [];
+  for (let v = 0; v <= max + step * 0.01; v += step) ticks.push(Math.round(v));
+  if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+  return [...new Set(ticks)];
+}
+
+const DUAL_PERIOD_THRESHOLD_MS = 43_200_000; // 0,5 Tage
+
+function dualPeriodDuration(entryFirst, exitFirst, entry, exit) {
+  const ef = toDate(entryFirst), xf = toDate(exitFirst);
+  const e  = toDate(entry),      x  = toDate(exit);
+  if (!e || !x) return null;
+  const sameDay = ef && e && Math.abs(ef - e) < DUAL_PERIOD_THRESHOLD_MS;
+  if (sameDay || !ef || !xf) {
+    return dur(e, x);
+  }
+  const d1 = dur(ef, xf);
+  const d2 = dur(e,  x);
+  if (d1 == null || d2 == null) return null;
+  return d1 + d2;
+}
+
+function isErledigt(row) {
+  return !!(row['Resolved'] || row['Rejected']);
+}
+
+// ── calc/boxchart.calc.js ──
+// LeadTime BoxChart Berechnungslogik aus boxchart.js — keine Browser-APIs.
+
+
+/**
+ * Berechnet Box-Plot Statistiken (P25, Median, P85, Whisker, IQR, Ausreißergrenzen).
+ * Whisker = 1,5 × IQR außerhalb der Box.
+ * Gibt null zurück für leeres Array.
+ */
+function calcBoxStats(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const p25    = pct(sorted, 25);
+  const med    = pct(sorted, 50);
+  const p85    = pct(sorted, 85);
+  const iqr    = p85 - p25;
+  const fence  = 1.5 * iqr;
+  const allMax = sorted[sorted.length - 1];
+  const allMin = sorted[0];
+  const wUp    = Math.min(allMax, p85 + fence);
+  const wDn    = Math.max(allMin, p25 - fence);
+  return { sorted, p25, med, p85, iqr, fence, wUp, wDn, allMin, allMax, n: values.length };
+}
+
+function isOutlier(value, stats) {
+  return value > stats.wUp || value < stats.wDn;
+}
+
+// ── calc/flowefficiency.calc.js ──
+// Flow Efficiency Berechnungslogik aus flowefficiency.js — keine Browser-APIs.
+// Deckt den JiraStories-Anteil ab (ohne JiraBlockermanagement-Integration).
+
+
+const WAIT_STATUS = [
+  'Blocked', 'Ready4Test', 'Ready4QS',
+  'Ready4Review', 'Ready4E2E-Test', 'Ready4Production',
+];
+
+/**
+ * Berechnet Flow Efficiency für ein einzelnes Item.
+ * FE = (lt - totalWait) / lt × 100
+ * Gibt null zurück wenn LT nicht berechenbar oder totalWait > lt (Datenfehler).
+ */
+function calcItemFE(row, ltStartCol, ltEndCol) {
+  const lt = dur(row[ltStartCol], row[ltEndCol]);
+  if (!lt) return null;
+
+  let totalWait = 0;
+  WAIT_STATUS.forEach(status => {
+    const entry = row[status + '_first'] || row[status];
+    const exit  = row['leaving_' + status + '_first'] || row['leaving_' + status];
+    const d = dur(entry, exit);
+    if (d) totalWait += d;
+  });
+
+  if (totalWait > lt) return null;
+  return ((lt - totalWait) / lt) * 100;
+}
+
+// ── calc/heatmap.calc.js ──
+// FlowHeatmap Berechnungslogik aus heatmap.js — keine Browser-APIs.
+
+
+/**
+ * Berechnet P25/Median/P85 der Verweildauer eines Status über alle Rows.
+ * Gibt null zurück wenn keine gültigen Datums-Paare vorhanden.
+ */
+function stateStats(rows, entryCol, exitCol) {
+  const ds = rows
+    .map(r => dur(r[entryCol], r[exitCol]))
+    .filter(d => d != null);
+  if (!ds.length) return null;
+  ds.sort((a, b) => a - b);
+  return {
+    p25: pct(ds, 25),
+    med: pct(ds, 50),
+    p85: pct(ds, 85),
+    min: ds[0],
+    max: ds[ds.length - 1],
+    n:   ds.length,
+  };
+}
+
+/**
+ * Normiert einen Zellwert auf 0..1 für den Heatmap-Farbgradienten.
+ * gMax = 0 ergibt 0 (kein Div/0).
+ */
+function calcHeatmapT(cellValue, gMax) {
+  if (!gMax || gMax <= 0) return 0;
+  return Math.max(0, Math.min(1, cellValue / gMax));
+}
+
+// ── calc/montecarlo.calc.js ──
+// Monte Carlo Berechnungslogik aus montecarlo.js — keine Browser-APIs.
+
+/** Variationskoeffizient CV = σ/μ. Gibt null für leeres Array oder μ=0. */
+function calcCV(samples) {
+  if (!samples.length) return null;
+  const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
+  if (mean === 0) return null;
+  const variance = samples.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / samples.length;
+  return Math.sqrt(variance) / mean;
+}
+
+/**
+ * Monte Carlo Simulation (Modus „Wie viele Zeitscheiben für targetCount Items?").
+ * Gibt null zurück wenn samples leer oder alle 0.
+ */
+function runSimulation(samples, targetCount, numRuns) {
+  if (!samples.length || samples.every(v => v === 0)) return null;
+  const results = [];
+  for (let i = 0; i < numRuns; i++) {
+    let total = 0, slices = 0;
+    while (total < targetCount) {
+      total += samples[Math.floor(Math.random() * samples.length)];
+      slices++;
+      if (slices > 10000) break;
+    }
+    results.push(slices);
+  }
+  results.sort((a, b) => a - b);
+  return {
+    results,
+    p50: results[Math.floor(numRuns * 0.50)],
+    p70: results[Math.floor(numRuns * 0.70)],
+    p85: results[Math.floor(numRuns * 0.85)],
+    p95: results[Math.floor(numRuns * 0.95)],
+  };
+}
+
+// ── calc/scatter.calc.js ──
+// CycleTime Berechnungslogik aus scatter.js — keine Browser-APIs.
+
+
+function calcCT(startVal, endVal) {
+  const sd = toDate(startVal), ed = toDate(endVal);
+  if (!sd || !ed) return null;
+  const ct = (ed - sd) / 86400000 + 1;
+  return ct >= 1 ? ct : null;
+}
+
+function calcCTFromRow(row, ctStart, ctEnd) {
+  return calcCT(row[ctStart], row[ctEnd]);
+}
+
+// ── calc/wipage.calc.js ──
+// WIPAge Berechnungslogik aus wipage.js — keine Browser-APIs.
+
+
+const THRESHOLD_MS = 43_200_000; // 0,5 Tage
+
+/**
+ * Berechnet das Alter eines WIP-Items im aktuellen Status in Tagen.
+ * Bei Dual-Period wird die erste abgeschlossene Periode addiert.
+ */
+function calcAge(row, statusName, todayMs) {
+  const entryFirst   = toDate(row[statusName + '_first']);
+  const entryReg     = toDate(row[statusName]);
+  const leavingFirst = toDate(row['leaving_' + statusName + '_first']);
+
+  if (entryReg != null) {
+    const ageReg = Math.max(0, Math.round((todayMs - entryReg.getTime()) / 86400000));
+    if (entryFirst != null && leavingFirst != null &&
+        Math.abs(entryFirst.getTime() - entryReg.getTime()) >= THRESHOLD_MS) {
+      const firstPeriod = Math.max(0, Math.round(
+        (leavingFirst.getTime() - entryFirst.getTime()) / 86400000
+      ) + 1);
+      return firstPeriod + ageReg;
+    }
+    return ageReg;
+  }
+  if (entryFirst != null) {
+    return Math.max(0, Math.round((todayMs - entryFirst.getTime()) / 86400000));
+  }
+  return null;
+}
+
+/** Item ist aktiv wenn weder Resolved noch Rejected gefüllt. */
+function isActive(row) {
+  return !row['Resolved'] && !row['Rejected'];
+}
+
+/** Parst die Exclude-Liste aus dem Config-String "Status1, Status2". */
+function parseExcludeList(str) {
+  return str.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 // ── core.js ──
 // ════════════════════════════════════════════════
 // core.js  –  Shared Engine (State · Grid · Theme · Utils · Events)
 // Flow Analytics Dashboard v2.1
 // Phase 1a: Multi-Sheet-Loading + Navigation/Sidebar
 // ════════════════════════════════════════════════
+const _toDate = toDate;
+const _dur = dur;
+const _pct = pct;
+const _fmt = fmt;
+const _intTicks = intTicks;
 
 // ── Constants (exported for use in visuals) ──
 const TARGET_SHEET      = 'JiraStories';
@@ -633,16 +913,14 @@ const GRID_ROW_H = 70;   // px per grid row
 // ── Card → Page routing (kein Visual-JS anfassen nötig) ──
 // Neue Visuals hier eintragen: 'visualId': 'pageId'
 const CARD_PAGE_MAP = {
-  'heatmap':        'heatmap',
-  'scatter':        'scatter',
-  'wipage':         'wipage',
-  'boxchart':       'lieferfahigkeit',
-  'saydoratio':     'lieferfahigkeit',
-  'wipkpi':         'lieferfahigkeit',
-  'flowefficiency': 'lieferfahigkeit',
-  'happinessindex': 'lieferfahigkeit',
-  'akzeptanz':      'lieferfahigkeit',
-  'montecarlo':     'monte',
+  'heatmap':          'heatmap',
+  'scatter':          'scatter',
+  'wipage':           'wipage',
+  'boxchart':         'lieferfahigkeit',
+  'wip':              'lieferfahigkeit',
+  'flowefficiency':   'lieferfahigkeit',
+  'happinessfaktor':  'lieferfahigkeit',
+  'montecarlo':       'monte',
 };
 
 const COLOR_MIN_DARK  = [28,  42,  63 ];
@@ -737,7 +1015,7 @@ const core = {
       // wird, wenn der gespeicherte Order noch 'in Test' enthält.
       const baseLower = base.map(n => n.toLowerCase());
       knownNames.forEach(n => {
-        if (base.indexOf(n) < 0 && baseLower.indexOf(n.toLowerCase()) < 0) {
+        if (!base.includes(n) && !baseLower.includes(n.toLowerCase())) {
           base.push(n);
         }
       });
@@ -762,48 +1040,11 @@ const core = {
     return s.rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
   },
 
-  toDate(v) {
-    if (!v) return null;
-    if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-    if (typeof v === 'number') {
-      const d = new Date(Math.round((v - 25569) * 86400000));
-      return isNaN(d.getTime()) ? null : d;
-    }
-    if (typeof v === 'string') {
-      const d = new Date(v.trim());
-      return isNaN(d.getTime()) ? null : d;
-    }
-    return null;
-  },
-
-  dur(a, b) {
-    const da = core.toDate(a), db = core.toDate(b);
-    if (!da || !db) return null;
-    const d = (db - da) / 86400000 + 1;
-    return d > 0 ? d : null;
-  },
-
-  pct(arr, p) {
-    if (!arr.length) return null;
-    if (arr.length === 1) return arr[0];
-    const i = (p / 100) * (arr.length - 1);
-    const lo = Math.floor(i), hi = Math.ceil(i);
-    return lo === hi ? arr[lo] : arr[lo] + (arr[hi] - arr[lo]) * (i - lo);
-  },
-
-  fmt(v) { return v == null ? '–' : v.toFixed(1) + 'd'; },
-
-  intTicks(max, n) {
-    if (max <= 0) return [0];
-    n = n || 5;
-    const raw = max / n;
-    const mag = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1))));
-    let step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag * 10;
-    step = Math.max(1, Math.round(step));
-    const ticks = [];
-    for (let v = 0; v <= max + step * 0.01; v += step) ticks.push(Math.round(v));
-    return [...new Set(ticks)];
-  },
+  toDate(v)       { return _toDate(v); },
+  dur(a, b)       { return _dur(a, b); },
+  pct(arr, p)     { return _pct(arr, p); },
+  fmt(v)          { return _fmt(v); },
+  intTicks(max, n){ return _intTicks(max, n); },
 
   // ── Theme ──────────────────────────────────────
   isLight() {
@@ -897,11 +1138,6 @@ const core = {
       _updateCanvasH();
       core.emit('resize');
     }, 50);
-  },
-
-  /** Gibt die aktuell sichtbare Page-ID zurück. */
-  activePage() {
-    return core.state.activePage;
   },
 
   // ── Card factory ───────────────────────────────
@@ -1275,8 +1511,14 @@ function _initSidebarButtons() {
     // Upload-Screen zurücksetzen
     const dz = document.getElementById('drop-zone');
     const dc = document.getElementById('page-datencheck');
+    const dp = document.getElementById('data-preview');
     if (dz) dz.style.display = '';
     if (dc) dc.innerHTML = '';
+    if (dp) dp.innerHTML = '';
+    // Offene Tooltips ausblenden
+    document.querySelectorAll('body > div[style*="position:fixed"]').forEach(el => {
+      el.style.display = 'none';
+    });
     core.state.rows      = [];
     core.state.sheets    = {};
     core.state.sheetsRaw = {};
@@ -1375,14 +1617,17 @@ function _loadFile(file) {
       core.state.sheetsRaw = sheetsRaw;
 
       // Primär-Sheet: JiraStories (oder erstes Sheet als Fallback)
-      const sn = wb.SheetNames.indexOf(TARGET_SHEET) >= 0 ? TARGET_SHEET : wb.SheetNames[0];
+      const sn = wb.SheetNames.includes(TARGET_SHEET) ? TARGET_SHEET : wb.SheetNames[0];
       core.state.sheetName = sn;
       const rows = sheets[sn] || [];
 
       _processData(rows);
       _showDataPreview(wb.SheetNames, sheets);
     } catch (err) {
-      alert('Fehler beim Laden: ' + err.message);
+      const dp = document.getElementById('data-preview');
+      if (dp) {
+        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${_escHtml(err.message)}</div>`;
+      }
     }
   };
   reader.readAsArrayBuffer(file);
@@ -1395,8 +1640,8 @@ function _processData(rows) {
 
   // rows === state.sheets[TARGET_SHEET] (gleiche Array-Referenz)
   s.rows         = rows;
-  s.hasSquad     = cols.indexOf('Squad')      >= 0;
-  s.hasIssueType = cols.indexOf('Issue-Type') >= 0;
+  s.hasSquad     = cols.includes('Squad');
+  s.hasIssueType = cols.includes('Issue-Type');
 
   // Workflow state detection
   s.states = cols
@@ -1404,7 +1649,7 @@ function _processData(rows) {
     .map(ec => ({
       name:     ec,
       entryCol: ec,
-      exitCol:  cols.indexOf('leaving_' + ec) >= 0 ? 'leaving_' + ec : null,
+      exitCol:  cols.includes('leaving_' + ec) ? 'leaving_' + ec : null,
     }));
 
   // stateOrder: Basis-Reihenfolge aus Daten-Spalten
@@ -1417,7 +1662,7 @@ function _processData(rows) {
   } else {
     s.allSquads = [];
   }
-  s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.indexOf(sq) >= 0);
+  s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.includes(sq));
 
   // Date columns (used by visuals for LT/CT column selects)
   s.dateCols = cols.filter(c =>
@@ -1458,6 +1703,16 @@ function _switchToAppScreen() {
   app.style.display = 'block';
   _lockNav();
   core.showPage('datencheck');
+}
+
+// ── HTML-Sonderzeichen escapen (verhindert XSS aus Excel-Daten) ──
+function _escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ── Datencheck-Page befüllen ──
@@ -1511,17 +1766,17 @@ function _buildDatencheckPage(sheetNames, sheets) {
   // State-Pills (leaving-States farbig)
   const statePills = s.states.map(st => {
     const isLeaving = st.exitCol !== null;
-    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${st.name}</span>`;
+    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${_escHtml(st.name)}</span>`;
   }).join('');
 
   // Squad-Pills
   const squadPills = s.allSquads.map(sq =>
-    `<span class="dc-pill">&#127968; ${sq}</span>`
+    `<span class="dc-pill">&#127968; ${_escHtml(sq)}</span>`
   ).join('');
 
   // Type-Pills
   const typePills = issueTypes.map(t =>
-    `<span class="dc-pill type">${t}</span>`
+    `<span class="dc-pill type">${_escHtml(t)}</span>`
   ).join('');
 
   const page = document.getElementById('page-datencheck');
@@ -1531,7 +1786,7 @@ function _buildDatencheckPage(sheetNames, sheets) {
     <div class="dc-wrap">
       <div class="dc-badge">&#10003; Datei erkannt</div>
       <h2 class="dc-title">Das haben wir in deinem Export gefunden</h2>
-      <div class="dc-sub">${s.fileName} &middot; Sheet &bdquo;${s.sheetName}&ldquo; &middot; ${rows.length} Tickets</div>
+      <div class="dc-sub">${_escHtml(s.fileName)} &middot; Sheet &bdquo;${_escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
 
       <div class="dc-stats">
         <div class="dc-stat">
@@ -1602,7 +1857,7 @@ function _buildSquadDD() {
     const cb  = document.createElement('input');
     cb.type   = 'checkbox';
     cb.id     = 'sqcb_' + sq;
-    cb.checked = core.state.squadFilter.length === 0 || core.state.squadFilter.indexOf(sq) >= 0;
+    cb.checked = core.state.squadFilter.length === 0 || core.state.squadFilter.includes(sq);
     cb.addEventListener('change', _onSquadFilterChange);
     const lbl      = document.createElement('label');
     lbl.htmlFor    = 'sqcb_' + sq;
@@ -1633,6 +1888,804 @@ function _updateSquadBtn() {
   });
 }
 
+// ════════════════════════════════════════════════
+// Shared DOM Utility Helpers (P3.7)
+// Exportiert für alle Visuals – kein Kopieren mehr nötig.
+// ════════════════════════════════════════════════
+
+function _mkBtn(label, onClick) {
+  const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
+  b.addEventListener('click', onClick); return b;
+}
+
+function _mkPanel() {
+  const p = document.createElement('div'); p.className = 'sub-panel'; return p;
+}
+
+function _mkTglGrp(buttons, onChange) {
+  const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
+  buttons.forEach(({ val, label }) => {
+    const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
+    b.addEventListener('click', () => onChange(val));
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+function _mkSelect() {
+  const s = document.createElement('select'); s.className = 'lt-select'; return s;
+}
+
+function _mkLtField(label, selectEl) {
+  const f = document.createElement('div'); f.className = 'lt-field';
+  const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
+  f.appendChild(l); f.appendChild(selectEl); return f;
+}
+
+function _mkTTRow(label, val) {
+  const row = document.createElement('div'); row.className = 'tt-row';
+  const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
+  const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
+  row.appendChild(lb); row.appendChild(vl); return row;
+}
+
+function _posTooltip(tt, cx, cy) {
+  const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
+  let l = cx + 14, t = cy + 14;
+  if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
+  if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
+  tt.style.left = l + 'px'; tt.style.top = t + 'px';
+}
+
+// ════════════════════════════════════════════════
+// Shared Order-Panel Builder (P3.8)
+// Baut das ▲/▼-Drag-Panel für Status-Reihenfolge.
+// Wird von wipage.js und heatmap.js genutzt.
+//
+// @param {HTMLElement} orderList      – Container-Element (.order-list)
+// @param {string[]}    stateOrder     – Aktuelle Reihenfolge (cfg.stateOrder)
+// @param {function}    onReorder      – Callback(newOrder: string[]) nach Änderung
+// @param {function}   [decorateItem]  – Optional: extra Styling pro Item (item, name)
+// ════════════════════════════════════════════════
+function _buildOrderPanel(orderList, stateOrder, onReorder, decorateItem) {
+  orderList.innerHTML = '';
+  let panelDragSrc = null;
+  stateOrder.forEach((name, idx) => {
+    const isExtra = !DEFAULT_STATUS_ORDER.includes(name);
+    const item = document.createElement('div');
+    item.className = 'order-item' + (isExtra ? ' o-extra' : '');
+    item.draggable = true; item.dataset.name = name;
+    if (decorateItem) decorateItem(item, name);
+
+    item.addEventListener('dragstart', e => { panelDragSrc = name; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    item.addEventListener('dragover',  e => { e.preventDefault(); item.classList.add('drag-over-item'); });
+    item.addEventListener('dragleave', ()  => item.classList.remove('drag-over-item'));
+    item.addEventListener('drop', e => {
+      e.preventDefault(); item.classList.remove('drag-over-item');
+      if (!panelDragSrc || panelDragSrc === name) return;
+      const arr = [...stateOrder];
+      const fi = arr.indexOf(panelDragSrc), ti = arr.indexOf(name);
+      if (fi < 0 || ti < 0) return;
+      arr.splice(fi, 1); arr.splice(ti, 0, panelDragSrc);
+      panelDragSrc = null;
+      onReorder(arr);
+    });
+    item.addEventListener('dragend', () => { item.classList.remove('dragging'); panelDragSrc = null; });
+
+    const handle = document.createElement('span'); handle.className = 'o-handle'; handle.textContent = '⠿';
+    const num    = document.createElement('span'); num.className = 'o-num';    num.textContent = (idx + 1) + '.';
+    const lbl    = document.createElement('span'); lbl.className = 'o-name';   lbl.textContent = name;
+    const bu = document.createElement('button'); bu.className = 'obtn'; bu.textContent = '▲'; bu.disabled = idx === 0;
+    bu.onclick = () => { const arr = [...stateOrder]; [arr[idx], arr[idx-1]] = [arr[idx-1], arr[idx]]; onReorder(arr); };
+    const bd = document.createElement('button'); bd.className = 'obtn'; bd.textContent = '▼'; bd.disabled = idx === stateOrder.length - 1;
+    bd.onclick = () => { const arr = [...stateOrder]; [arr[idx], arr[idx+1]] = [arr[idx+1], arr[idx]]; onReorder(arr); };
+
+    item.appendChild(handle); item.appendChild(num); item.appendChild(lbl); item.appendChild(bu); item.appendChild(bd);
+    orderList.appendChild(item);
+  });
+}
+
+// ── blocker.js ──
+(function() {
+/**
+ * blocker.js – Blockermanagement Visual
+ * Page-ID: blocker | localStorage-Key: fhwa_blocker
+ * Spec: docs/specs/Blockermanagement.md v1.0
+ */
+
+
+// ── Feste Kategorie-Listen ──────────────────────────────────────────────────
+const BLOCKIERT_CATS = [
+  'Infrastruktur-Ausfall',
+  'Anforderungen unklar, oder fehlend',
+  'Anforderungen haben sich geändert',
+  'Fehlende Zugriffsrechte',
+  'Dokumentation unzureichend',
+  'Abhängigkeit zu anderen Aufgaben',
+  'Abhängigkeit zu anderen Teams',
+  'Probleme bei der Integration',
+  'Verzögerte externe Lieferungen',
+];
+
+const WARTEND_CATS = [
+  'Abstimmungen mit anderen Teams',
+  'Auf Freigabe warten',
+  'Deployment-Fenster',
+  'Externe Abhängigkeiten',
+  'Interne Abstimmung / Entscheidung / Termine',
+  'Infrastruktur-Aufbau',
+  'Person(en) abwesend',
+];
+
+// ── Kurznamen für Summary (mit title-Attribut für Volltext) ───────────────
+const BLOCKIERT_SHORT = [
+  'Infrastruktur-Ausfall',
+  'Anf. unklar/fehlend',
+  'Anf. geändert',
+  'Fehlende Zugriffsrechte',
+  'Doku unzureichend',
+  'Abh. and. Aufgaben',
+  'Abh. and. Teams',
+  'Integration',
+  'Verz. ext. Lieferungen',
+];
+
+const WARTEND_SHORT = [
+  'Abst. and. Teams',
+  'Auf Freigabe warten',
+  'Deployment-Fenster',
+  'Externe Abh.',
+  'Int. Abstimmung',
+  'Infra-Aufbau',
+  'Person(en) abwesend',
+];
+
+// ── Sortier-State ──────────────────────────────────────────────────────────
+const _sortState = {};
+
+// ── Datums-Hilfsfunktionen ─────────────────────────────────────────────────
+function _calcDays(startDate, endDate) {
+  const start = startDate instanceof Date ? startDate : new Date(startDate);
+  const end   = endDate  ? (endDate instanceof Date ? endDate : new Date(endDate))
+                         : new Date();
+  const diff = Math.round((end - start) / 86400000) + 1;
+  return Math.max(1, diff);
+}
+
+function _fmtDate(d) {
+  if (!d) return '';
+  const dt = d instanceof Date ? d : new Date(d);
+  if (isNaN(dt)) return '';
+  const dd = String(dt.getDate()).padStart(2,'0');
+  const mm = String(dt.getMonth()+1).padStart(2,'0');
+  return `${dd}.${mm}.${dt.getFullYear()}`;
+}
+
+// ── Haupt-Render ───────────────────────────────────────────────────────────
+function render() {
+  const canvas = document.getElementById('blocker-canvas');
+  const diagEl = document.getElementById('blocker-diag');
+  if (!canvas) return;
+
+  const allRows = core.state.sheets['JiraBlockermanagement'] ?? [];
+  const activeSquads = core.state.squadFilter ?? [];
+
+  // Squad-Filter
+  const rows = allRows.filter(r =>
+    activeSquads.length === 0 || activeSquads.includes(r['Squad'])
+  );
+
+  // Episode-Count-Map (issues.key + Squad → Anzahl Episoden), ungefiltert global
+  const countMap = new Map();
+  allRows.forEach(r => {
+    const grund = (r['Blockiert/Wartend_Grund'] || '').trim();
+    if (!grund) return;
+    const k = `${r['issues.key']}||${r['Squad']}`;
+    countMap.set(k, (countMap.get(k) ?? 0) + 1);
+  });
+
+  // AKTUELL: Grund gefüllt + BlockedEnd leer
+  let aktuell = rows.filter(r => {
+    const grund = (r['Blockiert/Wartend_Grund'] || '').trim();
+    const end   = r['BlockedEnd'];
+    return grund && !end;
+  });
+
+  // GESAMT: Grund gefüllt (alle)
+  let gesamt = rows.filter(r => {
+    const grund = (r['Blockiert/Wartend_Grund'] || '').trim();
+    return !!grund;
+  });
+
+  // Datenfehler zählen: Zeilen ohne BlockedStart (aus gefilterten mit Grund)
+  let errors = 0;
+  rows.forEach(r => {
+    const grund = (r['Blockiert/Wartend_Grund'] || '').trim();
+    if (grund && !r['BlockedStart']) errors++;
+  });
+
+  // Zeilen ohne BlockedStart aus Tabellen ausschließen (aber Fehler bereits gezählt)
+  aktuell = aktuell.filter(r => r['BlockedStart']);
+  gesamt  = gesamt.filter(r => r['BlockedStart']);
+
+  // Diag
+  const uniqueIssues = new Set(gesamt.map(r => `${r['issues.key']}||${r['Squad']}`));
+  if (diagEl) {
+    diagEl.textContent = `${uniqueIssues.size} Issues mit Blockier-/Warte-Episoden · ${aktuell.length} aktuell offen · ${errors} Datenfehler ausgeschlossen`;
+  }
+
+  // Default-Sortierung AKTUELL: Zustand aufsteigend (Blockiert vor Wartend)
+  const aktuellKey = 'aktuell_default';
+  if (!_sortState[aktuellKey]) {
+    aktuell = _sortRows(aktuell, 'zustand', true, countMap);
+  } else {
+    aktuell = _applySortState('aktuell', aktuell, countMap);
+  }
+
+  // Default-Sortierung GESAMT: BlockedStart absteigend
+  if (!_sortState['gesamt_default']) {
+    gesamt = _sortRows(gesamt, 'start', false, countMap);
+  } else {
+    gesamt = _applySortState('gesamt', gesamt, countMap);
+  }
+
+  canvas.innerHTML = '';
+  canvas.appendChild(_buildSection('aktuell', aktuell, gesamt, countMap));
+  canvas.appendChild(_buildSection('gesamt',  gesamt,  gesamt, countMap));
+}
+
+// ── Sortierung ─────────────────────────────────────────────────────────────
+function _sortRows(rows, field, asc, countMap) {
+  return [...rows].sort((a, b) => {
+    let va, vb;
+    switch (field) {
+      case 'key':    va = a['issues.key'] || ''; vb = b['issues.key'] || ''; break;
+      case 'status': va = a['Status'] || '';     vb = b['Status'] || ''; break;
+      case 'zustand':va = a['Blockiert/Wartend_Zustand'] || ''; vb = b['Blockiert/Wartend_Zustand'] || ''; break;
+      case 'grund':  va = a['Blockiert/Wartend_Grund'] || ''; vb = b['Blockiert/Wartend_Grund'] || ''; break;
+      case 'start': {
+        const da = a['BlockedStart'] ? new Date(a['BlockedStart']) : new Date(0);
+        const db = b['BlockedStart'] ? new Date(b['BlockedStart']) : new Date(0);
+        return asc ? da - db : db - da;
+      }
+      case 'end': {
+        const da = a['BlockedEnd'] ? new Date(a['BlockedEnd']) : new Date(9999,0,1);
+        const db = b['BlockedEnd'] ? new Date(b['BlockedEnd']) : new Date(9999,0,1);
+        return asc ? da - db : db - da;
+      }
+      case 'days': {
+        const da = _calcDays(a['BlockedStart'], a['BlockedEnd']);
+        const db = _calcDays(b['BlockedStart'], b['BlockedEnd']);
+        return asc ? da - db : db - da;
+      }
+      case 'count': {
+        const ka = `${a['issues.key']}||${a['Squad']}`;
+        const kb = `${b['issues.key']}||${b['Squad']}`;
+        va = countMap.get(ka) ?? 0; vb = countMap.get(kb) ?? 0;
+        return asc ? va - vb : vb - va;
+      }
+      default: va = ''; vb = '';
+    }
+    if (typeof va === 'string') return asc ? va.localeCompare(vb,'de') : vb.localeCompare(va,'de');
+    return asc ? va - vb : vb - va;
+  });
+}
+
+function _applySortState(tableId, rows, countMap) {
+  const state = _sortState[tableId];
+  if (!state) return rows;
+  return _sortRows(rows, state.field, state.asc, countMap);
+}
+
+// ── Section aufbauen ───────────────────────────────────────────────────────
+function _buildSection(type, tableRows, allGesamtRows, countMap) {
+  const isAktuell = type === 'aktuell';
+  const label = isAktuell
+    ? 'AKTUELL – Alle aktuell <span class="blk-hl-red">Blockierten</span> &amp; <span class="blk-hl-orange">Wartenden</span> Issues'
+    : 'GESAMT – Alle Issues mit <span class="blk-hl-blue">Blockier-</span> oder <span class="blk-hl-orange">Warte-</span>Episoden';
+
+  const section = document.createElement('div');
+  section.className = 'blk-section';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'blk-section-header';
+  header.innerHTML = `<span class="blk-section-title">${label}</span><span class="blk-section-n">N=${tableRows.length}</span>`;
+  section.appendChild(header);
+
+  // Body
+  const body = document.createElement('div');
+  body.className = 'blk-section-body';
+
+  // Haupt-Tabelle
+  const mainWrap = document.createElement('div');
+  mainWrap.className = 'blk-main';
+  mainWrap.appendChild(_buildMainTable(type, tableRows, countMap));
+  body.appendChild(mainWrap);
+
+  // Summary-Spalte
+  const summaryCol = document.createElement('div');
+  summaryCol.className = 'blk-summary-col';
+  summaryCol.appendChild(_buildSummaryBlock(tableRows, 'Blockiert', BLOCKIERT_CATS, BLOCKIERT_SHORT, 'blk-lbl-red', '⛔'));
+  summaryCol.appendChild(_buildSummaryBlock(tableRows, 'Wartend',   WARTEND_CATS,  WARTEND_SHORT,  'blk-lbl-orange', '⏳'));
+  summaryCol.appendChild(_buildRollupBlock(tableRows));
+  body.appendChild(summaryCol);
+
+  section.appendChild(body);
+  return section;
+}
+
+// ── Haupt-Tabelle ──────────────────────────────────────────────────────────
+function _buildMainTable(type, rows, countMap) {
+  const isAktuell = type === 'aktuell';
+  const table = document.createElement('table');
+  table.className = 'blk-table';
+  table.id = `blk-tbl-${type}`;
+
+  // Spalten-Definition
+  const cols = isAktuell
+    ? [
+        { label: 'Key',                              field: 'key',    sortable: true  },
+        { label: 'Status',                           field: 'status', sortable: true  },
+        { label: 'Zustand',                          field: 'zustand',sortable: true  },
+        { label: 'Aktueller Grund',                  field: 'grund',  sortable: true  },
+        { label: 'Gesetzt am',                       field: 'start',  sortable: true  },
+        { label: 'Ges. Zeit (Tage)',                 field: 'days',   sortable: true, center: true },
+        { label: 'Wie oft',                          field: 'count',  sortable: true, center: true },
+      ]
+    : [
+        { label: 'Key',                              field: 'key',    sortable: true  },
+        { label: 'Status',                           field: 'status', sortable: true  },
+        { label: 'Zustand',                          field: 'zustand',sortable: true  },
+        { label: 'Grund',                            field: 'grund',  sortable: true  },
+        { label: 'Gesetzt am',                       field: 'start',  sortable: true  },
+        { label: 'Verlassen am',                     field: 'end',    sortable: true  },
+        { label: 'Ges. Zeit (Tage)',                 field: 'days',   sortable: true, center: true },
+        { label: 'Wie oft',                          field: 'count',  sortable: true, center: true },
+      ];
+
+  // Thead
+  const thead = document.createElement('thead');
+  const trHead = document.createElement('tr');
+  cols.forEach((col, idx) => {
+    const th = document.createElement('th');
+    th.textContent = col.label;
+    if (col.center) th.style.textAlign = 'center';
+    if (col.sortable) {
+      th.classList.add('blk-th-sort');
+      th.addEventListener('click', () => _onSort(type, col.field, rows, countMap));
+      // Aktiven Sortier-Pfeil zeigen
+      const st = _sortState[type];
+      if (st && st.field === col.field) {
+        th.classList.add(st.asc ? 'blk-sort-asc' : 'blk-sort-desc');
+      } else if (!st && type === 'aktuell' && col.field === 'zustand') {
+        th.classList.add('blk-sort-asc');
+      } else if (!st && type === 'gesamt' && col.field === 'start') {
+        th.classList.add('blk-sort-desc');
+      }
+    }
+    trHead.appendChild(th);
+  });
+  thead.appendChild(trHead);
+  table.appendChild(thead);
+
+  // Tbody
+  const tbody = document.createElement('tbody');
+  if (rows.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = cols.length;
+    td.className = 'blk-empty';
+    td.textContent = isAktuell
+      ? 'Aktuell keine blockierten Issues – alles fließt! 🎉'
+      : 'Keine Episoden für den gewählten Squad gefunden.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  } else {
+    rows.forEach(r => {
+      tbody.appendChild(_buildRow(r, isAktuell, countMap));
+    });
+  }
+  table.appendChild(tbody);
+  return table;
+}
+
+function _buildRow(r, isAktuell, countMap) {
+  const tr = document.createElement('tr');
+  const key    = r['issues.key'] || '–';
+  const status = r['Status']     || '';
+  const zustand= r['Blockiert/Wartend_Zustand'] || '';
+  const grund  = r['Blockiert/Wartend_Grund']   || '';
+  const start  = r['BlockedStart'];
+  const end    = r['BlockedEnd'];
+  const days   = _calcDays(start, end);
+  const countKey = `${key}||${r['Squad']}`;
+  const count  = countMap.get(countKey) ?? 1;
+
+  // Key
+  const tdKey = document.createElement('td');
+  tdKey.className = 'blk-td-key';
+  const url = core.state.urlTemplate
+    ? core.state.urlTemplate.replace(/\{issueKey\}/g, key) : '';
+  if (url) {
+    tdKey.style.cursor = 'pointer';
+    tdKey.style.color = 'var(--blue)';
+    tdKey.style.textDecoration = 'underline';
+    tdKey.style.textUnderlineOffset = '2px';
+    tdKey.addEventListener('click', () => window.open(url, '_blank'));
+  }
+  tdKey.textContent = key;
+  tr.appendChild(tdKey);
+
+  // Status
+  const tdStatus = document.createElement('td');
+  const statusBadge = document.createElement('span');
+  statusBadge.className = 'blk-status-badge';
+  const sl = (status || '').toLowerCase();
+  if (sl.includes('progress') || sl === 'in bearbeitung') statusBadge.classList.add('blk-status-ip');
+  else if (sl.includes('block'))                          statusBadge.classList.add('blk-status-bl');
+  else if (sl.includes('wait') || sl.includes('wart'))   statusBadge.classList.add('blk-status-wt');
+  else if (sl.includes('resolv') || sl.includes('done') || sl.includes('erledigt')) statusBadge.classList.add('blk-status-done');
+  statusBadge.textContent = status || '–';
+  tdStatus.appendChild(statusBadge);
+  tr.appendChild(tdStatus);
+
+  // Zustand
+  const tdZustand = document.createElement('td');
+  const zustandBadge = document.createElement('span');
+  if (zustand === 'Blockiert') {
+    zustandBadge.className = 'blk-zustand-b';
+  } else if (zustand === 'Wartend') {
+    zustandBadge.className = 'blk-zustand-w';
+  } else {
+    zustandBadge.style.color = 'var(--dim)';
+    zustandBadge.style.fontSize = '.62rem';
+  }
+  zustandBadge.textContent = zustand || '–';
+  tdZustand.appendChild(zustandBadge);
+  tr.appendChild(tdZustand);
+
+  // Grund
+  const tdGrund = document.createElement('td');
+  tdGrund.className = 'blk-td-grund';
+  tdGrund.title = grund;
+  tdGrund.textContent = grund || '–';
+  tr.appendChild(tdGrund);
+
+  // Gesetzt am
+  const tdStart = document.createElement('td');
+  tdStart.className = 'blk-td-date';
+  tdStart.textContent = _fmtDate(start);
+  tr.appendChild(tdStart);
+
+  // Verlassen am (nur GESAMT)
+  if (!isAktuell) {
+    const tdEnd = document.createElement('td');
+    tdEnd.className = end ? 'blk-td-date' : 'blk-td-open';
+    tdEnd.textContent = end ? _fmtDate(end) : 'noch offen';
+    tr.appendChild(tdEnd);
+  }
+
+  // Ges. Zeit (Tage)
+  const tdDays = document.createElement('td');
+  tdDays.className = 'blk-td-days';
+  tdDays.dataset.sort = String(days);
+  if (days >= 14) tdDays.classList.add('blk-days-long');
+  else if (days >= 7) tdDays.classList.add('blk-days-medium');
+  tdDays.textContent = String(days);
+  tr.appendChild(tdDays);
+
+  // Wie oft
+  const tdCount = document.createElement('td');
+  tdCount.className = 'blk-td-count';
+  tdCount.textContent = String(count);
+  tr.appendChild(tdCount);
+
+  return tr;
+}
+
+// ── Sortier-Handler ────────────────────────────────────────────────────────
+function _onSort(type, field, _rows, countMap) {
+  const prev = _sortState[type];
+  const asc = prev && prev.field === field ? !prev.asc : true;
+  _sortState[type] = { field, asc };
+  // default-Markierung setzen
+  _sortState[type + '_default'] = true;
+  render();
+}
+
+// ── Summary-Tabellen ───────────────────────────────────────────────────────
+function _buildSummaryBlock(rows, zustand, cats, shorts, labelCls, icon) {
+  const block = document.createElement('div');
+  block.className = 'blk-summary-block';
+
+  const lbl = document.createElement('div');
+  lbl.className = `blk-summary-label ${labelCls}`;
+  lbl.textContent = `${icon} ${zustand}`;
+  block.appendChild(lbl);
+
+  const tbl = document.createElement('table');
+  tbl.className = 'blk-summary-table';
+
+  // Thead
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>Grund</th><th>Anz.</th><th>∑ Tage</th><th>Ø</th></tr>';
+  tbl.appendChild(thead);
+
+  // Aggregation
+  const filtered = rows.filter(r => (r['Blockiert/Wartend_Zustand'] || '') === zustand);
+  let totalCount = 0, totalDays = 0;
+  const tbody = document.createElement('tbody');
+
+  cats.forEach((cat, i) => {
+    const matching = filtered.filter(r => (r['Blockiert/Wartend_Grund'] || '') === cat);
+    const count = matching.length;
+    const daySum = matching.reduce((s, r) => s + _calcDays(r['BlockedStart'], r['BlockedEnd']), 0);
+    const avg = count > 0 ? (daySum / count).toFixed(1) : null;
+    totalCount += count;
+    totalDays  += daySum;
+
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.title = cat;
+    tdName.textContent = shorts[i] || cat;
+    tr.appendChild(tdName);
+
+    const tdCount = document.createElement('td');
+    tdCount.className = count === 0 ? 'blk-sum-zero' : '';
+    tdCount.textContent = count === 0 ? '–' : String(count);
+    tr.appendChild(tdCount);
+
+    const tdDays = document.createElement('td');
+    tdDays.className = count === 0 ? 'blk-sum-zero' : '';
+    tdDays.textContent = count === 0 ? '–' : String(daySum);
+    tr.appendChild(tdDays);
+
+    const tdAvg = document.createElement('td');
+    tdAvg.className = count === 0 ? 'blk-sum-zero' : '';
+    tdAvg.textContent = avg !== null ? avg : '–';
+    tr.appendChild(tdAvg);
+
+    tbody.appendChild(tr);
+  });
+
+  // Gesamt-Zeile
+  const trTotal = document.createElement('tr');
+  trTotal.className = 'blk-sum-total';
+  const totalAvg = totalCount > 0 ? (totalDays / totalCount).toFixed(1) : '–';
+  trTotal.innerHTML = `<td><strong>Gesamt ${zustand}</strong></td><td><strong>${totalCount || '–'}</strong></td><td><strong>${totalDays || '–'}</strong></td><td><strong>${totalAvg}</strong></td>`;
+  tbody.appendChild(trTotal);
+
+  tbl.appendChild(tbody);
+  block.appendChild(tbl);
+  return block;
+}
+
+function _buildRollupBlock(rows) {
+  const block = document.createElement('div');
+  block.className = 'blk-summary-block blk-summary-block--last';
+
+  const lbl = document.createElement('div');
+  lbl.className = 'blk-summary-label blk-lbl-blue';
+  lbl.textContent = '📊 Gesamt';
+  block.appendChild(lbl);
+
+  const tbl = document.createElement('table');
+  tbl.className = 'blk-summary-table';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>Zustand</th><th>Anz.</th><th>∑ Tage</th><th>Ø</th></tr>';
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  ['Blockiert', 'Wartend'].forEach(z => {
+    const matching = rows.filter(r => (r['Blockiert/Wartend_Zustand'] || '') === z);
+    const count = matching.length;
+    const daySum = matching.reduce((s, r) => s + _calcDays(r['BlockedStart'], r['BlockedEnd']), 0);
+    const avg = count > 0 ? (daySum / count).toFixed(1) : '–';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>Gesamt ${z}</td><td class="${count===0?'blk-sum-zero':''}">${count||'–'}</td><td class="${count===0?'blk-sum-zero':''}">${daySum||'–'}</td><td class="${count===0?'blk-sum-zero':''}">${avg}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Rollup-Gesamt
+  const allCount = rows.length;
+  const allDays  = rows.reduce((s, r) => s + _calcDays(r['BlockedStart'], r['BlockedEnd']), 0);
+  const allAvg   = allCount > 0 ? (allDays / allCount).toFixed(1) : '–';
+  const trTotal = document.createElement('tr');
+  trTotal.className = 'blk-sum-total';
+  trTotal.innerHTML = `<td><strong>Gesamt</strong></td><td><strong>${allCount||'–'}</strong></td><td><strong>${allDays||'–'}</strong></td><td><strong>${allAvg}</strong></td>`;
+  tbody.appendChild(trTotal);
+
+  tbl.appendChild(tbody);
+  block.appendChild(tbl);
+  return block;
+}
+
+// ── CSS injizieren ─────────────────────────────────────────────────────────
+function _injectStyles() {
+  if (document.getElementById('blk-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'blk-styles';
+  style.textContent = `
+/* ── Blocker Section ── */
+.blk-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+.blk-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.blk-section-title {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--text);
+}
+.blk-hl-red    { color: var(--red) }
+.blk-hl-orange { color: var(--orange) }
+.blk-hl-blue   { color: var(--blue) }
+.blk-section-n {
+  font-family: var(--mono);
+  font-size: .62rem;
+  color: var(--dimmer);
+}
+
+/* ── Section Body ── */
+.blk-section-body {
+  display: flex;
+  align-items: stretch;
+  min-height: 200px;
+}
+.blk-main {
+  flex: 1 1 58%;
+  min-width: 0;
+  overflow-x: auto;
+  border-right: 1px solid var(--border);
+}
+.blk-summary-col {
+  flex: 0 0 340px;
+  display: flex;
+  flex-direction: column;
+}
+@media (max-width: 800px) {
+  .blk-section-body { flex-direction: column; }
+  .blk-main { border-right: none; border-bottom: 1px solid var(--border); }
+  .blk-summary-col { flex: unset; width: 100%; }
+}
+
+/* ── Haupt-Tabelle ── */
+.blk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .68rem;
+}
+.blk-table thead th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  padding: .32rem .5rem;
+  color: var(--dimmer);
+  font-weight: 600; font-size: .58rem;
+  text-transform: uppercase; letter-spacing: .05em;
+  text-align: left; white-space: nowrap;
+}
+.blk-table thead th.blk-th-sort {
+  cursor: pointer; user-select: none;
+  transition: color .12s;
+}
+.blk-table thead th.blk-th-sort:hover { color: var(--dim) }
+.blk-table thead th.blk-sort-asc::after  { content: ' ▲'; color: var(--blue); font-size: .5rem }
+.blk-table thead th.blk-sort-desc::after { content: ' ▼'; color: var(--blue); font-size: .5rem }
+.blk-table thead th.blk-sort-asc,
+.blk-table thead th.blk-sort-desc { color: var(--blue) }
+.blk-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.blk-table tbody tr:hover { background: var(--bg3) }
+.blk-table tbody tr:last-child { border-bottom: none }
+.blk-table td { padding: .3rem .5rem; vertical-align: middle; white-space: nowrap }
+.blk-empty {
+  text-align: center; padding: 2rem;
+  color: var(--dimmer); font-family: var(--mono); font-size: .7rem;
+}
+.blk-td-key { font-family: var(--mono); font-size: .67rem; color: var(--dim) }
+.blk-status-badge {
+  font-size: .6rem; font-weight: 600;
+  padding: .14rem .38rem; border-radius: 4px;
+  background: var(--bg4); border: 1px solid var(--border);
+  color: var(--dim); white-space: nowrap; display: inline-block;
+}
+.blk-status-ip   { background: rgba(56,189,248,.1);  border-color: rgba(56,189,248,.3);  color: var(--blue)   }
+.blk-status-bl   { background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.3); color: var(--red)    }
+.blk-status-wt   { background: rgba(251,146,60,.1);  border-color: rgba(251,146,60,.3);  color: var(--orange) }
+.blk-status-done { background: rgba(74,222,128,.1);  border-color: rgba(74,222,128,.3);  color: var(--green)  }
+.blk-zustand-b {
+  font-size: .62rem; font-weight: 600; color: var(--red);
+  background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3);
+  padding: .1rem .32rem; border-radius: 4px; white-space: nowrap; display: inline-block;
+}
+.blk-zustand-w {
+  font-size: .62rem; font-weight: 600; color: var(--orange);
+  background: rgba(251,146,60,.1); border: 1px solid rgba(251,146,60,.3);
+  padding: .1rem .32rem; border-radius: 4px; white-space: nowrap; display: inline-block;
+}
+.blk-td-grund {
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: .65rem; color: var(--text);
+}
+.blk-td-date { font-family: var(--mono); font-size: .63rem; color: var(--dim) }
+.blk-td-open { color: var(--dimmer); font-style: italic; font-size: .6rem }
+.blk-td-days {
+  font-family: var(--mono); font-size: .62rem; color: var(--text);
+  text-align: center;
+}
+.blk-days-long   { color: var(--red) }
+.blk-days-medium { color: var(--orange) }
+.blk-td-count { font-family: var(--mono); font-size: .62rem; color: var(--dimmer); text-align: center }
+
+/* ── Summary-Spalte ── */
+.blk-summary-block {
+  border-bottom: 1px solid var(--border);
+  padding: .45rem .6rem;
+}
+.blk-summary-block--last { flex: 1; border-bottom: none }
+.blk-summary-label {
+  font-size: .56rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .09em;
+  padding: .15rem .3rem .25rem; margin-bottom: .22rem;
+  border-bottom: 1px solid var(--border);
+}
+.blk-lbl-red    { color: var(--red) }
+.blk-lbl-orange { color: var(--orange) }
+.blk-lbl-blue   { color: var(--blue) }
+.blk-summary-table { width: 100%; border-collapse: collapse; font-size: .61rem }
+.blk-summary-table th {
+  padding: .18rem .32rem;
+  color: var(--dimmer); font-size: .54rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border); text-align: right;
+  background: var(--bg2);
+}
+.blk-summary-table th:first-child { text-align: left }
+.blk-summary-table td {
+  padding: .2rem .32rem;
+  border-bottom: 1px solid rgba(42,61,92,.5);
+  font-family: var(--mono); color: var(--dim); text-align: right;
+}
+.blk-summary-table td:first-child {
+  text-align: left; color: var(--text);
+  font-family: var(--sans); font-size: .6rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+}
+.blk-summary-table tr.blk-sum-total td {
+  border-bottom: none; font-weight: 700; color: var(--text);
+  background: var(--bg3); border-top: 1px solid var(--border);
+}
+.blk-sum-zero { color: var(--dimmer); opacity: .4 }
+`;
+  document.head.appendChild(style);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+function init_blocker() {
+  _injectStyles();
+  core.on('data',   render);
+  core.on('filter', render);
+  core.on('theme',  render);
+}
+window.init_blocker = init_blocker;
+})();
+
 // ── heatmap.js ──
 (function() {
 // ════════════════════════════════════════════════
@@ -1641,6 +2694,7 @@ function _updateSquadBtn() {
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
+const _stateStatsCalc = stateStats;
 
 function init_heatmap() {
 
@@ -1660,7 +2714,6 @@ function init_heatmap() {
   const hiddenPerSquad = {};      // { squadName: Set<string> }
   let drillSquad    = null;
   let drillKeepFilter = false;
-  let panelDragSrc  = null;
   const colDrag     = { name: null };
   let   typeMap     = {};         // für Tooltip-Farbreferenz (nicht genutzt in HM)
 
@@ -1872,15 +2925,14 @@ function init_heatmap() {
   }
 
   function _getDrillRows() {
-    let rows = core.state.rows;
     if (drillSquad) {
-      rows = rows.filter(r => String(r['Squad'] || '') === drillSquad);
+      let rows = core.state.rows.filter(r => String(r['Squad'] || '') === drillSquad);
       if (drillKeepFilter && core.state.squadFilter.length > 0)
-        rows = rows.filter(r => core.state.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
-    } else if (core.state.squadFilter.length > 0) {
-      rows = rows.filter(r => core.state.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+        rows = rows.filter(r => core.state.squadFilter.includes(String(r['Squad'] || '')));
+      return rows;
     }
-    return rows;
+    // Kein Drill-Down: zentrale filteredRows() nutzen (Single Source of Truth)
+    return core.filteredRows();
   }
 
   function _filteredRows() {
@@ -1984,57 +3036,19 @@ function init_heatmap() {
 
   // ── Order panel ───────────────────────────────
   function _updateOrderPanel() {
-    orderList.innerHTML = '';
     const hidden = _getHiddenStates();
-    cfg.stateOrder.forEach((name, idx) => {
-      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
-      const item = document.createElement('div');
-      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
-      item.draggable = true; item.dataset.name = name;
-      if (hidden.has(name)) item.style.opacity = '.4';
-
-      item.addEventListener('dragstart', e => { panelDragSrc = name; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-      item.addEventListener('dragover',  e => { e.preventDefault(); item.classList.add('drag-over-item'); });
-      item.addEventListener('dragleave', ()  => item.classList.remove('drag-over-item'));
-      item.addEventListener('drop', e => {
-        e.preventDefault(); item.classList.remove('drag-over-item');
-        if (!panelDragSrc || panelDragSrc === name) return;
-        const arr = [...cfg.stateOrder];
-        const fi = arr.indexOf(panelDragSrc), ti = arr.indexOf(name);
-        if (fi < 0 || ti < 0) return;
-        arr.splice(fi, 1); arr.splice(ti, 0, panelDragSrc);
-        cfg.stateOrder = arr; panelDragSrc = null;
-        core.saveGlobalStatusOrder(cfg.stateOrder);
-        _updateOrderPanel(); _updateStatusPanel(); render();
-      });
-      item.addEventListener('dragend', () => { item.classList.remove('dragging'); panelDragSrc = null; });
-
-      const handle = document.createElement('span'); handle.className = 'o-handle'; handle.textContent = '⠿';
-      const num    = document.createElement('span'); num.className = 'o-num';    num.textContent = (idx+1) + '.';
-      const lbl    = document.createElement('span'); lbl.className = 'o-name';   lbl.textContent = name;
-      const bu = document.createElement('button'); bu.className = 'obtn'; bu.textContent = '▲'; bu.disabled = idx === 0; bu.onclick = () => _moveState(idx, -1);
-      const bd = document.createElement('button'); bd.className = 'obtn'; bd.textContent = '▼'; bd.disabled = idx === cfg.stateOrder.length - 1; bd.onclick = () => _moveState(idx, 1);
-      item.appendChild(handle); item.appendChild(num); item.appendChild(lbl); item.appendChild(bu); item.appendChild(bd);
-      orderList.appendChild(item);
-    });
-  }
-
-  function _moveState(idx, dir) {
-    const ni = idx + dir;
-    if (ni < 0 || ni >= cfg.stateOrder.length) return;
-    const a = [...cfg.stateOrder]; [a[idx], a[ni]] = [a[ni], a[idx]];
-    cfg.stateOrder = a;
-    core.saveGlobalStatusOrder(cfg.stateOrder);
-    _updateOrderPanel(); _updateStatusPanel(); render();
+    _buildOrderPanel(
+      orderList,
+      cfg.stateOrder,
+      arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); _updateStatusPanel(); render(); },
+      (item, name) => { if (hidden.has(name)) item.style.opacity = '.4'; },
+    );
   }
 
   // ── Stats helpers ─────────────────────────────
   function _stateStats(rows, st) {
     if (!st.exitCol) return null;
-    const ds = rows.map(r => core.dur(r[st.entryCol], r[st.exitCol])).filter(d => d != null);
-    if (!ds.length) return null;
-    ds.sort((a, b) => a - b);
-    return { p25: core.pct(ds,25), med: core.pct(ds,50), p85: core.pct(ds,85), min: ds[0], max: ds[ds.length-1], n: ds.length };
+    return _stateStatsCalc(rows, st.entryCol, st.exitCol);
   }
 
   function _ltStats(rows) {
@@ -2171,7 +3185,7 @@ function init_heatmap() {
     if (_hasLT()) { const th = document.createElement('th'); th.textContent = 'Lead Time'; hr.appendChild(th); }
 
     ordStates.forEach(s => {
-      const isExtra = DEFAULT_STATUS_ORDER.indexOf(s.name) < 0;
+      const isExtra = !DEFAULT_STATUS_ORDER.includes(s.name);
       const th = document.createElement('th');
       th.textContent = s.name;
       th.className = 'draggable-col' + (isExtra ? ' th-extra' : '');
@@ -2275,52 +3289,7 @@ function init_heatmap() {
   });
 }
 
-// ════════════════════════════════════════════════
-// Utility DOM helpers (module-private)
-// ════════════════════════════════════════════════
-function _mkTglGrp(buttons, onChange) {
-  const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
-  buttons.forEach(({ val, label }) => {
-    const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
-    b.addEventListener('click', () => onChange(val));
-    wrap.appendChild(b);
-  });
-  return wrap;
-}
-
-function _mkBtn(label, onClick) {
-  const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
-  b.addEventListener('click', onClick); return b;
-}
-
-function _mkPanel() {
-  const p = document.createElement('div'); p.className = 'sub-panel'; return p;
-}
-
-function _mkSelect() {
-  const s = document.createElement('select'); s.className = 'lt-select'; return s;
-}
-
-function _mkLtField(label, selectEl) {
-  const f = document.createElement('div'); f.className = 'lt-field';
-  const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
-  f.appendChild(l); f.appendChild(selectEl); return f;
-}
-
-function _mkTTRow(label, val) {
-  const row = document.createElement('div'); row.className = 'tt-row';
-  const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
-  const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
-  row.appendChild(lb); row.appendChild(vl); return row;
-}
-
-function _posTooltip(tt, cx, cy) {
-  const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
-  let l = cx + 14, t = cy + 14;
-  if (l + tw > window.innerWidth  - 6) l = cx - tw - 14;  if (l < 6) l = 6;
-  if (t + th > window.innerHeight - 6) t = cy - th - 14;  if (t < 6) t = 6;
-  tt.style.left = l + 'px'; tt.style.top = t + 'px';
-}
+// DOM helpers werden von core.js importiert (P3.7)
 window.init_heatmap = init_heatmap;
 })();
 
@@ -2331,6 +3300,7 @@ window.init_heatmap = init_heatmap;
 // Flow Analytics Dashboard v2.0
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
+
 
 
 const CT_START_DEFAULT = 'In Progress_first';
@@ -2344,7 +3314,7 @@ function init_scatter() {
     ctStart:     '',
     ctEnd:       '',
     dotSize:     4,
-    singleColor: '#38bdf8',
+    singleColor: '',   // leer = theme-aware Fallback via core.palette()[0]
     typeColors:  {},
     show50: true,  color50: '#22d3ee',
     show70: true,  color70: '#86efac',
@@ -2441,6 +3411,7 @@ function init_scatter() {
   contentEl.style.position = 'relative'; contentEl.style.overflow = 'hidden';
 
   const svgEl   = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgEl.id = 'sc-svg';   // stabile ID für eindeutige clipPath-Referenz
   svgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
 
   const noDataEl  = document.createElement('div'); noDataEl.className = 'sc-nodata';
@@ -2496,7 +3467,7 @@ function init_scatter() {
     const t1 = document.createElement('div'); t1.className = 'sc-clr-heading'; t1.textContent = 'Einfarbig';
     const r1 = document.createElement('div'); r1.className = 'sc-clr-item';
     const l1 = document.createElement('label'); l1.textContent = 'Farbe';
-    const cp1 = document.createElement('input'); cp1.type = 'color'; cp1.value = cfg.singleColor;
+    const cp1 = document.createElement('input'); cp1.type = 'color'; cp1.value = cfg.singleColor || core.palette()[0];
     cp1.addEventListener('input', () => { cfg.singleColor = cp1.value; saveConfig(); render(); });
     r1.appendChild(l1); r1.appendChild(cp1); s1.appendChild(t1); s1.appendChild(r1); clrBody.appendChild(s1);
 
@@ -2541,7 +3512,7 @@ function init_scatter() {
   function _dotColor(item, maxCT) {
     if (cfg.colorMode === 'issueType') return cfg.typeColors[item.type] || _typeColorFor(item.type);
     if (cfg.colorMode === 'heatmap')   return core.lerp(maxCT > 0 ? item.ct / maxCT : 0);
-    return cfg.singleColor;
+    return cfg.singleColor || core.palette()[0];
   }
 
   // ── Tick helpers ──────────────────────────────
@@ -2602,20 +3573,12 @@ function init_scatter() {
     _posTooltip(scTooltip, e.clientX, e.clientY);
   }
 
-  function _posTooltip(tt, cx, cy) {
-    const tw = tt.offsetWidth || 175, th = tt.offsetHeight || 110;
-    let l = cx + 14, t = cy + 14;
-    if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
-    if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
-    tt.style.left = l + 'px'; tt.style.top = t + 'px';
-  }
-
   // ════════════════════════════════════════════════
   // 4. Render
   // ════════════════════════════════════════════════
   function render() {
     clearTimeout(_renderTO);
-    _renderTO = setTimeout(_doRender, 0);
+    _renderTO = setTimeout(_doRender, 16);
   }
 
   function _doRender() {
@@ -2634,12 +3597,12 @@ function init_scatter() {
     _typeMap = {};
 
     baseRows.forEach(r => {
-      const endDate = core.toDate(r[cfg.ctEnd]); if (!endDate) return;
-      let ct = null;
-      if (cfg.ctStart && cfg.ctStart !== cfg.ctEnd) {
-        const sd = core.toDate(r[cfg.ctStart]); if (sd) ct = (endDate - sd) / 86400000 + 1;
-      }
-      if (ct == null || ct < 1) return;
+      const endDate = core.toDate(r[cfg.ctEnd]);
+      if (!endDate) return;
+      const ct = (cfg.ctStart && cfg.ctStart !== cfg.ctEnd)
+        ? calcCT(r[cfg.ctStart], r[cfg.ctEnd])
+        : null;
+      if (!ct) return;
       const key = String(r['Jira-ID'] || '');
       const url = core.state.urlTemplate ? core.state.urlTemplate.replace(/\{issueKey\}/g, key) : '';
       items.push({ key, type: String(r['Issue-Type'] || ''), ct, date: endDate, url });
@@ -2656,8 +3619,8 @@ function init_scatter() {
     const ML = 50, MR = 88, MT = 20, MB = 44;
     const pW = Math.max(1, W - ML - MR), pH = Math.max(1, H - MT - MB);
 
-    const minD = new Date(Math.min(...items.map(d => d.date.getTime())));
-    const maxD = new Date(Math.max(...items.map(d => d.date.getTime())));
+    let minD = items[0].date, maxD = items[0].date;
+    items.forEach(d => { if (d.date < minD) minD = d.date; if (d.date > maxD) maxD = d.date; });
     const dateRange = Math.max(1, maxD.getTime() - minD.getTime());
     const xS = d => ML + ((d.getTime() - minD.getTime()) / dateRange) * pW;
 
@@ -2790,44 +3753,7 @@ function init_scatter() {
   core.on('settings', () => render());
 }
 
-// ════════════════════════════════════════════════
-// Utility DOM helpers (module-private)
-// ════════════════════════════════════════════════
-function _mkTglGrp(buttons, onChange) {
-  const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
-  buttons.forEach(({ val, label }) => {
-    const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
-    b.addEventListener('click', () => onChange(val));
-    wrap.appendChild(b);
-  });
-  return wrap;
-}
-
-function _mkBtn(label, onClick) {
-  const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
-  b.addEventListener('click', onClick); return b;
-}
-
-function _mkPanel() {
-  const p = document.createElement('div'); p.className = 'sub-panel'; return p;
-}
-
-function _mkSelect() {
-  const s = document.createElement('select'); s.className = 'lt-select'; return s;
-}
-
-function _mkLtField(label, selectEl) {
-  const f = document.createElement('div'); f.className = 'lt-field';
-  const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
-  f.appendChild(l); f.appendChild(selectEl); return f;
-}
-
-function _mkTTRow(label, val) {
-  const row = document.createElement('div'); row.className = 'tt-row';
-  const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
-  const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
-  row.appendChild(lb); row.appendChild(vl); return row;
-}
+// DOM helpers werden von core.js importiert (P3.7)
 window.init_scatter = init_scatter;
 })();
 
@@ -2838,6 +3764,7 @@ window.init_scatter = init_scatter;
 // Flow Analytics Dashboard v2.0
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
+
 
 
 function init_wipage() {
@@ -2854,8 +3781,6 @@ function init_wipage() {
 
   // stateOrder: Runtime-only, nicht persistiert – kommt von core.loadGlobalStatusOrder()
   cfg.stateOrder = [];
-
-  let panelDragSrc = null;
 
   function saveConfig() {
     core.save('fhwa_wipage', {
@@ -3055,72 +3980,13 @@ function init_wipage() {
   contentEl.style.overflow = 'hidden';
   contentEl.appendChild(svgEl);
 
-  // ── 8. Order-Panel-Logik (heatmap.js-Muster) ─
+  // ── 8. Order-Panel-Logik ─────────────────────
   function _updateOrderPanel() {
-    orderList.innerHTML = '';
-    cfg.stateOrder.forEach((name, idx) => {
-      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
-      const item = document.createElement('div');
-      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
-      item.draggable = true;
-      item.dataset.name = name;
-
-      item.addEventListener('dragstart', e => {
-        panelDragSrc = name;
-        item.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      item.addEventListener('dragover', e => {
-        e.preventDefault();
-        item.classList.add('drag-over-item');
-      });
-      item.addEventListener('dragleave', () => item.classList.remove('drag-over-item'));
-      item.addEventListener('drop', e => {
-        e.preventDefault();
-        item.classList.remove('drag-over-item');
-        if (!panelDragSrc || panelDragSrc === name) return;
-        const arr = [...cfg.stateOrder];
-        const fi = arr.indexOf(panelDragSrc), ti = arr.indexOf(name);
-        if (fi < 0 || ti < 0) return;
-        arr.splice(fi, 1);
-        arr.splice(ti, 0, panelDragSrc);
-        cfg.stateOrder = arr;
-        panelDragSrc = null;
-        core.saveGlobalStatusOrder(cfg.stateOrder);
-        _updateOrderPanel(); render();
-      });
-      item.addEventListener('dragend', () => {
-        item.classList.remove('dragging');
-        panelDragSrc = null;
-      });
-
-      const handle = document.createElement('span'); handle.className = 'o-handle'; handle.textContent = '⠿';
-      const num    = document.createElement('span'); num.className = 'o-num';    num.textContent = (idx + 1) + '.';
-      const lbl    = document.createElement('span'); lbl.className = 'o-name';   lbl.textContent = name;
-      const bu     = document.createElement('button'); bu.className = 'obtn'; bu.textContent = '▲';
-      bu.disabled = idx === 0;
-      bu.onclick = () => _moveState(idx, -1);
-      const bd     = document.createElement('button'); bd.className = 'obtn'; bd.textContent = '▼';
-      bd.disabled = idx === cfg.stateOrder.length - 1;
-      bd.onclick = () => _moveState(idx, 1);
-
-      item.appendChild(handle);
-      item.appendChild(num);
-      item.appendChild(lbl);
-      item.appendChild(bu);
-      item.appendChild(bd);
-      orderList.appendChild(item);
-    });
-  }
-
-  function _moveState(idx, dir) {
-    const ni = idx + dir;
-    if (ni < 0 || ni >= cfg.stateOrder.length) return;
-    const a = [...cfg.stateOrder];
-    const tmp = a[idx]; a[idx] = a[ni]; a[ni] = tmp;
-    cfg.stateOrder = a;
-    core.saveGlobalStatusOrder(cfg.stateOrder);
-    _updateOrderPanel(); render();
+    _buildOrderPanel(
+      orderList,
+      cfg.stateOrder,
+      arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); render(); },
+    );
   }
 
   // ── 9. Render ─────────────────────────────────
@@ -3157,21 +4023,21 @@ function init_wipage() {
 
     // ── Exclude-Liste ─────────────────────────
     const excluded = cfg.excludeList
-      ? cfg.excludeList.split(/[,;]/).map(s => s.trim().toLowerCase()).filter(Boolean)
+      ? parseExcludeList(cfg.excludeList).map(s => s.toLowerCase())
       : [];
 
     // ── stateOrder: Globale Reihenfolge laden + mit gefundenen Status abgleichen ──
     const foundStatuses = [];
     activeRows.forEach(r => {
       const s = String(r['Issue-Status'] || '').trim();
-      if (s && foundStatuses.indexOf(s) < 0) foundStatuses.push(s);
+      if (s && !foundStatuses.includes(s)) foundStatuses.push(s);
     });
 
     cfg.stateOrder = core.loadGlobalStatusOrder(foundStatuses);
     _updateOrderPanel();
 
     const visibleStatuses = cfg.stateOrder.filter(n =>
-      excluded.indexOf(n.toLowerCase()) < 0
+      !excluded.includes(n.toLowerCase())
     );
 
     if (!visibleStatuses.length) {
@@ -3187,38 +4053,11 @@ function init_wipage() {
     const allStatusGroups = visibleStatuses.map(statusName => {
       const items = activeRows
         .filter(r => String(r['Issue-Status'] || '').trim() === statusName)
-        .map(r => {
-          const entryFirst  = core.toDate(r[statusName + '_first']);
-          const entryReg    = core.toDate(r[statusName]);
-          const leavingFirst = core.toDate(r['leaving_' + statusName + '_first']);
-
-          let age = null;
-
-          if (entryReg != null) {
-            const ageReg = Math.max(0, Math.round((today_ms - entryReg.getTime()) / 86400000));
-
-            const hasTwoPeriods = entryFirst != null
-              && leavingFirst != null
-              && Math.abs(entryFirst.getTime() - entryReg.getTime()) > 86400000 / 2;
-
-            if (hasTwoPeriods) {
-              const firstPeriod = Math.max(0, Math.round(
-                (leavingFirst.getTime() - entryFirst.getTime()) / 86400000
-              ) + 1);
-              age = firstPeriod + ageReg;
-            } else {
-              age = ageReg;
-            }
-          } else if (entryFirst != null) {
-            age = Math.max(0, Math.round((today_ms - entryFirst.getTime()) / 86400000));
-          }
-
-          return {
-            key: String(r['Jira-ID'] || ''),
-            age,
-            url: _resolveUrl(r),
-          };
-        })
+        .map(r => ({
+          key: String(r['Jira-ID'] || ''),
+          age: calcAge(r, statusName, today_ms),
+          url: _resolveUrl(r),
+        }))
         .filter(d => d.age != null);
       return { statusName, items };
     });
@@ -3389,7 +4228,7 @@ function init_wipage() {
       }
 
       // X-Achse: Status-Label
-      const isExtra   = DEFAULT_STATUS_ORDER.indexOf(statusName) < 0;
+      const isExtra   = !DEFAULT_STATUS_ORDER.includes(statusName);
       const labelColor = isExtra ? 'var(--orange)' : C.axisLabel;
       const labelTxt = statusName.length > 14 ? statusName.slice(0, 13) + '…' : statusName;
       const labelY   = MAR.top + pH + 18;
@@ -3597,27 +4436,14 @@ function init_wipage() {
     // Globale Reihenfolge sofort übernehmen, DANN Panel + Render
     const allKnown = (core.state.rows || [])
       .map(r => String(r['Issue-Status'] || '').trim())
-      .filter((v, i, a) => v && a.indexOf(v) === i);
+      .filter((v, i, a) => v && a.indexOf(v) === i);  // dedup – indexOf korrekt hier
     cfg.stateOrder = core.loadGlobalStatusOrder(allKnown);
     _updateOrderPanel();
     render();
   });
 }
 
-// ── Modul-private DOM-Helfer ────────────────────
-function _mkBtn(label, onClick) {
-  const b = document.createElement('button');
-  b.className = 'btn-icon';
-  b.textContent = label;
-  b.addEventListener('click', onClick);
-  return b;
-}
-
-function _mkPanel() {
-  const p = document.createElement('div');
-  p.className = 'sub-panel';
-  return p;
-}
+// DOM helpers werden von core.js importiert (P3.7)
 window.init_wipage = init_wipage;
 })();
 
@@ -3632,6 +4458,7 @@ window.init_wipage = init_wipage;
 //   - Panel: × Schließen-Button + Klick-außen schließt Panel
 //   - Y-Achse: Schrittweite konfigurierbar + Log-Skala wählbar (im ⚙-Panel)
 // ════════════════════════════════════════════════
+
 
 
 const LS_KEY     = 'fhwa_boxchart';
@@ -4105,20 +4932,7 @@ function _posTt(cx, cy) {
 // ════════════════════════════════════════════════
 // Statistik-Helpers
 // ════════════════════════════════════════════════
-function _calcStats(values) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const p25    = core.pct(sorted, 25);
-  const med    = core.pct(sorted, 50);
-  const p85    = core.pct(sorted, 85);
-  const iqr    = p85 - p25;
-  const fence  = 1.5 * iqr;
-  const allMax = sorted[sorted.length - 1];
-  const allMin = sorted[0];
-  const wUp    = Math.min(allMax, p85 + fence);
-  const wDn    = Math.max(allMin, p25 - fence);
-  return { sorted, p25, med, p85, wUp, wDn, n: values.length };
-}
+function _calcStats(values) { return calcBoxStats(values); }
 
 function _kde(sorted, bw, nPts) {
   if (sorted.length < 2) return [];
@@ -4389,7 +5203,7 @@ function _render() {
     if (cfg.chartMode === 'violin' || cfg.chartMode === 'combo') {
       const kde = _kde(st.sorted, bw, KDE_POINTS);
       if (kde.length >= 2) {
-        const maxD = Math.max(...kde.map(p => p.y));
+        const maxD = kde.reduce((m, p) => Math.max(m, p.y), 0);
         if (maxD > 0) {
           const pts = kde.map(p => ({
             xR: cx + (p.y / maxD) * vHW,
@@ -4544,10 +5358,20 @@ window.init_boxchart = init_boxchart;
 // localStorage: fhwa_happinessfaktor
 // ════════════════════════════════════════════════
 
+
 const VID    = 'happinessfaktor';
 const LS_KEY = 'fhwa_happinessfaktor';
 const SHEET  = 'Happiness Faktor';
 const NV_COL = '#9e9e9e';
+
+function _esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 const CFG_DEF = { title: 'Happiness Faktor', dotRadius: 6 };
 
@@ -4687,7 +5511,7 @@ function _buildHeaderControls() {
 }
 
 function _rebuildFmtPanel() {
-  const title = (_cfg.title || CFG_DEF.title).replace(/"/g, '&quot;');
+  const title = _esc(_cfg.title || CFG_DEF.title);
   _fmtPanelEl.innerHTML = `
     <div style="font-weight:600;font-size:.62rem;color:var(--blue);
                 text-transform:uppercase;letter-spacing:.08em;margin-bottom:.55rem">Format</div>
@@ -4827,6 +5651,7 @@ function _populateDateSelects() {
 // ════════════════════════════════════════════════
 function _render() {
   if (!_contentEl) return;
+  if (_contentEl.clientWidth < 20) return;
   if (_ttEl) _ttEl.style.display = 'none';
 
   // ── Noch keine Datei geladen ──
@@ -5034,6 +5859,7 @@ window.init_happiness = init_happiness;
 // ── wip.js ──
 (function() {
 
+
 function init_wip() {
 
   // ── Config ──────────────────────────────────────────────────────────────────
@@ -5111,9 +5937,9 @@ function init_wip() {
         ' style="width:60px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;">',
       '</label>',
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">',
-        `<input type="color" id="wip-cg" value="${cfg.colorGreen}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
-        `<input type="color" id="wip-cy" value="${cfg.colorYellow}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
-        `<input type="color" id="wip-cr" value="${cfg.colorRed}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
+        `<input type="color" id="wip-cg" value="${_safeColor(cfg.colorGreen)}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
+        `<input type="color" id="wip-cy" value="${_safeColor(cfg.colorYellow)}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
+        `<input type="color" id="wip-cr" value="${_safeColor(cfg.colorRed)}" style="width:30px;height:26px;border:none;border-radius:3px;cursor:pointer;">`,
         '<span style="font-size:11px;color:var(--dim);">Grün · Gelb · Rot</span>',
       '</div>',
       '<button id="wip-close" style="width:100%;padding:5px 0;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;">Schließen</button>',
@@ -5140,6 +5966,10 @@ function init_wip() {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
+  function _safeColor(v) {
+    return /^#[0-9a-fA-F]{6}$/.test(String(v)) ? String(v) : '#888888';
+  }
+
   const MONTH_NAMES = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
 
   function monthLabel(yyyymm) {
@@ -5210,6 +6040,7 @@ function init_wip() {
   // ── Render ───────────────────────────────────────────────────────────────────
   function render() {
     tooltip.style.display = 'none';
+    if (contentEl.clientWidth < 20) return;
 
     const filter = core.state.squadFilter || [];
     if (filter.length !== 1) {
@@ -5286,7 +6117,7 @@ function init_wip() {
         if (
           ip > 0 && ip <= M &&
           (res === 0 || res >= M) &&
-          (rej === 0 || rej >= M) &&
+          rej === 0 &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)
@@ -5311,7 +6142,7 @@ function init_wip() {
         if (
           ip <= M &&
           (res === 0 || res >= M) &&
-          (rej === 0 || rej >= M) &&
+          rej === 0 &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)
@@ -5419,13 +6250,10 @@ window.init_wip = init_wip;
 // Spec: docs/specs/FlowEfficiency.md v1.2
 // ════════════════════════════════════════════════
 
+
+
 function init_flowefficiency() {
 
-  // ── Constants ─────────────────────────────────
-  const WAIT_STATUS = [
-    'Blocked', 'Ready4Test', 'Ready4QS',
-    'Ready4Review', 'Ready4E2E-Test', 'Ready4Production',
-  ];
   const WAIT_STATUS_LOWER = WAIT_STATUS.map(s => s.toLowerCase());
 
   const BREAKDOWN_COLORS = {
@@ -5992,7 +6820,7 @@ function init_flowefficiency() {
       var entries = bMap[jid + '\u00a7' + sq] || bMapNS[jid] || [];
       var waiteZ  = 0;
       entries.forEach(function(ep) {
-        var isKnown = WAIT_STATUS_LOWER.indexOf(ep.zustand.toLowerCase()) >= 0;
+        var isKnown = WAIT_STATUS_LOWER.includes(ep.zustand.toLowerCase());
         if (!isKnown && ep.dauer > 0) {
           waiteZ += ep.dauer;
           var label = ep.zustand || 'Blockiert';
@@ -6073,6 +6901,7 @@ function init_flowefficiency() {
   // ── Chart render ───────────────────────────────
   function _renderChart() {
     var W  = contentEl.clientWidth  || 500;
+    if (W < 20) return;
     var H  = Math.max(60, contentEl.clientHeight - explanationEl.offsetHeight) || 280;
     var P  = { t: 18, r: 56, b: 34, l: 40 };
     var cW = W - P.l - P.r;
@@ -6311,6 +7140,7 @@ window.init_flowefficiency = init_flowefficiency;
 // Flow Analytics Dashboard
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
+
 
 
 function init_montecarlo() {
@@ -6641,10 +7471,8 @@ function init_montecarlo() {
       return;
     }
 
-    const mean   = samples.reduce((a, b) => a + b, 0) / samples.length;
-    const cv     = mean === 0
-      ? Infinity
-      : Math.sqrt(samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length) / mean;
+    const cv = calcCV(samples);
+    const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
 
     let ampel, stabText;
     if (cv <= cfg.cvThresholdGreen) {
@@ -6907,27 +7735,7 @@ function init_montecarlo() {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
   }
 
-  function _mkTglGrp(items, onChange) {
-    const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
-    items.forEach(({ val, label }) => {
-      const btn = document.createElement('button'); btn.className = 'tgl';
-      btn.textContent = label; btn.dataset.val = val;
-      btn.addEventListener('click', () => onChange(val));
-      wrap.appendChild(btn);
-    });
-    return wrap;
-  }
-
-  function _mkBtn(label, onClick) {
-    const b = document.createElement('button'); b.className = 'btn-icon';
-    b.textContent = label; b.addEventListener('click', onClick);
-    return b;
-  }
-
-  function _mkPanel() {
-    const p = document.createElement('div'); p.className = 'sub-panel';
-    return p;
-  }
+  // _mkTglGrp, _mkBtn, _mkPanel werden von core.js importiert (P3.7)
 
   function _mkSection(title, color) {
     const s = document.createElement('div'); s.style.cssText = 'margin-bottom:.65rem;';
@@ -7013,6 +7821,7 @@ window.init_montecarlo = init_montecarlo;
 })();
 
 // ── Bootstrap ──
+  init_blocker();
   init_heatmap();
   init_scatter();
   init_wipage();

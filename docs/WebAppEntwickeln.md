@@ -497,12 +497,13 @@ Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke S
 | Page | Sidebar-Label | Visuals |
 |---|---|---|
 | `lieferfahigkeit` | Lieferfähigkeit | LeadTime KPI, Say_Do_Ratio, WIP, Flow Efficiency, Happiness Index, Akzeptanzkriterien |
+| `blocker` | Was blockiert uns? | Blockermanagement |
 | `wipage` | Was liegt gerade rum? | WIPAge Chart |
 | `scatter` | Wie lange dauert ein Ticket? | CycleTime Scatterplot |
 | `heatmap` | Wo verbringen Tickets ihre Zeit? | FlowHeatmap |
 | `monte` | Wann sind wir fertig? | MonteCarlo |
 
-**Sidebar-Struktur:** Jeder Link hat Glyph-Icon (`▤ ◔ ◑ ◕ 🎲🎲`), Hauptname und technischen Untertitel (z.B. „WIP-Alter"). Die Links sind in zwei Sections aufgeteilt: „Überblick" (Lieferfähigkeit) und „Detailanalysen" (die 4 Deep-Dive-Pages).
+**Sidebar-Struktur:** Jeder Link hat Glyph-Icon, Hauptname und technischen Untertitel (z.B. „WIP-Alter"). Die Links sind in zwei Sections aufgeteilt: „Überblick" (Lieferfähigkeit) und „Detailanalysen" (5 Deep-Dive-Pages; Blockermanagement ist der erste Eintrag).
 
 **Einstieg:** Nach dem Datei-Upload zeigt der Upload-Screen eine Data-Preview („Das haben wir in deinem Export gefunden") und leitet per CTA-Button zur Lieferfähigkeit-Page weiter.
 
@@ -532,6 +533,8 @@ Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke S
 
 **Visual 10 – MonteCarlo (`montecarlo.js`):** Vorhersage-Simulation auf Basis historischem Throughput. Zwei Modi: „Bis wann fertig?" (N Issues → Fertigstellungsdatum) und „Wie viele bis X?" (Zieldatum → Issue-Anzahl). Stabilitäts-Check via Variationskoeffizient (CV), Sparkline, konfigurierbares Rolling Window. Datenquelle: `JiraStories`-Sheet (`Resolved`-Spalte, konfigurierbar). Eigenständige Deep-Dive-Page `monte`.
 
+**Visual 11 – Blockermanagement (`blocker.js`):** Tabellarische Analyse aller Blockier- und Warte-Episoden aus `JiraBlockermanagement`-Sheet. Zwei Bereiche: AKTUELL (offene Episoden) und GESAMT (alle Episoden). Je Bereich sortierbare Haupt-Tabelle + 3 Summary-Tabellen (Blockiert / Wartend / Rollup) mit festen Kategorie-Listen. Eigenständige Deep-Dive-Page `blocker` – erster Eintrag unter Detailanalysen. Kein Card/Tile-Modell – direktes Rendering in `#blocker-canvas` (page-scroll). Implementiert v1.0. localStorage-Key: `fhwa_blocker`.
+
 ---
 
 ## Was die App NICHT macht
@@ -560,6 +563,7 @@ project-root/
     core.js        ← Gemeinsame Engine (State, Grid, Theme, Utils, Events)
     heatmap.js     ← FlowHeatmap Visual (vollständig eigenständig)
     scatter.js     ← CycleTime Scatterplot (vollständig eigenständig)
+    blocker.js     ← Blockermanagement (Deep-Dive-Page `blocker`, tabellarisch, kein Card/Tile)
     wipage.js      ← WIPAge Chart (vollständig eigenständig)
     boxchart.js    ← LeadTime BoxChart (vollständig eigenständig)
     montecarlo.js  ← MonteCarlo Simulation (vollständig eigenständig)
@@ -1710,6 +1714,7 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 | **Phase 1a: Multi-Sheet + Navigation** | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/index.html` |
 | Neues Visual schreiben | `docs/WebAppEntwickeln.md` + `src/core.js` |
 | Bestehendes Visual ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + betroffene `.js`-Datei |
+| Blockermanagement ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/blocker.js` |
 | WIPAge ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/wipage.js` |
 | Happiness ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/happiness.js` |
 | BoxChart ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/boxchart.js` |
@@ -1770,3 +1775,4 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 *v4.7 (2026-06-09): Flow Efficiency Visual (`flowefficiency.js`) implementiert v1.0. Sheet-Name `BlockedReasons` → `JiraBlockermanagement` (Worksheets-Übersicht + ADL). FE-Berechnung: Dual-Period-Wartezeit aus JiraStories-Warte-Status + statusunabhängige Zusatz-Episoden aus JiraBlockermanagement (Dedup per Status-Typ). Monatliche Aggregation: Median. Line/Violin-Toggle im Tile-Header. Konfigurierbare Ziellinie (FE%, ein/ausblendbar). `index.html` + `build.py` aktualisiert (6. Stelle). M11-Expected-Liste um `init_wip` + `init_flowefficiency` ergänzt. Chat-Start-Tabelle um `flowefficiency.js`-Zeile ergänzt. ADL um 5 Einträge ergänzt. Glossar um 3 Begriffe ergänzt.*
 *v4.8 (2026-06-11): Design-Standard §9.7 „Y-Achsen immer ganze Zahlen" eingeführt. `core.intTicks(max, n)` als neue Pflicht-Utility ergänzt (Schritt ≥ 1, dedupliciert). `wip.js`: Y-Tick-Loop auf `core.intTicks()` umgestellt (vorher gleichmäßige 5 Schritte → Dezimalwerte möglich). `boxchart.js`: `_niceYTicks()` erzwingt nun `step = Math.max(1, Math.round(step))`; Label-Format von `y.toFixed(1)` auf `Math.round(y)` geändert. Phase-2-Checkliste um §9.7-Check ergänzt.*
 *v4.9 (2026-06-15): 6 Bugfixes (Bug 10–15): fehlender core-Import flowefficiency.js, Math.max-Spread-Pattern (boxchart/scatter), XSS-Escaping (wip/happiness), Rejected-Ausschluss in WIP, CARD_PAGE_MAP bereinigt (happinessindex→happinessfaktor), hardcodierte Farbe scatter.js. Redundante `core.activePage()`-Methode entfernt (→ `core.state.activePage`). Toter Fallback-Div `#page-canvas-lieferfahigkeit` aus index.html entfernt. DOM-Struktur, API-Dok und localStorage-Keys entsprechend aktualisiert. M19 um Copy-Paste-Anti-Pattern-Warnung ergänzt. Visual 8 von `happinessindex.js` auf `happiness.js` korrigiert.*
+*v4.10 (2026-06-17): Blockermanagement Visual (`blocker.js`) implementiert v1.0. Neue Deep-Dive-Page `blocker` – erster Eintrag unter Detailanalysen. Tabellarisches Rendering (kein Card/Tile-Modell, direktes Rendering in `#blocker-canvas`). Zwei Bereiche: AKTUELL (offene Episoden, Default-Sort Zustand asc) + GESAMT (alle Episoden, Default-Sort BlockedStart desc), je mit sortierbarer Haupt-Tabelle und 3 Summary-Tabellen (Blockiert/Wartend/Rollup, feste Kategorien). Bugfix: `core.state.filter` → `core.state.squadFilter`. `index.html` + `build.py` aktualisiert (alle 5+1 Stellen). M11-Expected-Liste um `init_blocker` ergänzt. Chat-Start-Tabelle um `blocker.js`-Zeile ergänzt. Pages-Tabelle + Sidebar-Struktur + Visuals-Abschnitt + Projektstruktur aktualisiert.*

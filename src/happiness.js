@@ -299,6 +299,7 @@ function _populateDateSelects() {
 // ════════════════════════════════════════════════
 function _render() {
   if (!_contentEl) return;
+  if (_contentEl.clientWidth < 20) return;
   if (_ttEl) _ttEl.style.display = 'none';
 
   // ── Noch keine Datei geladen ──

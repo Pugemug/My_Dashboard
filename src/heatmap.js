@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, LT_START_DEFAULT, LT_END_DEFAULT, DEFAULT_STATUS_ORDER } from './core.js';
+import { core, LT_START_DEFAULT, LT_END_DEFAULT, DEFAULT_STATUS_ORDER, _mkBtn, _mkPanel, _mkTglGrp, _mkSelect, _mkLtField, _mkTTRow, _posTooltip, _buildOrderPanel } from './core.js';
 import { stateStats as _stateStatsCalc, calcHeatmapT } from './calc/heatmap.calc.js';
 
 export function init() {
@@ -25,7 +25,6 @@ export function init() {
   const hiddenPerSquad = {};      // { squadName: Set<string> }
   let drillSquad    = null;
   let drillKeepFilter = false;
-  let panelDragSrc  = null;
   const colDrag     = { name: null };
   let   typeMap     = {};         // für Tooltip-Farbreferenz (nicht genutzt in HM)
 
@@ -237,15 +236,14 @@ export function init() {
   }
 
   function _getDrillRows() {
-    let rows = core.state.rows;
     if (drillSquad) {
-      rows = rows.filter(r => String(r['Squad'] || '') === drillSquad);
+      let rows = core.state.rows.filter(r => String(r['Squad'] || '') === drillSquad);
       if (drillKeepFilter && core.state.squadFilter.length > 0)
-        rows = rows.filter(r => core.state.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
-    } else if (core.state.squadFilter.length > 0) {
-      rows = rows.filter(r => core.state.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+        rows = rows.filter(r => core.state.squadFilter.includes(String(r['Squad'] || '')));
+      return rows;
     }
-    return rows;
+    // Kein Drill-Down: zentrale filteredRows() nutzen (Single Source of Truth)
+    return core.filteredRows();
   }
 
   function _filteredRows() {
@@ -349,48 +347,13 @@ export function init() {
 
   // ── Order panel ───────────────────────────────
   function _updateOrderPanel() {
-    orderList.innerHTML = '';
     const hidden = _getHiddenStates();
-    cfg.stateOrder.forEach((name, idx) => {
-      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
-      const item = document.createElement('div');
-      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
-      item.draggable = true; item.dataset.name = name;
-      if (hidden.has(name)) item.style.opacity = '.4';
-
-      item.addEventListener('dragstart', e => { panelDragSrc = name; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-      item.addEventListener('dragover',  e => { e.preventDefault(); item.classList.add('drag-over-item'); });
-      item.addEventListener('dragleave', ()  => item.classList.remove('drag-over-item'));
-      item.addEventListener('drop', e => {
-        e.preventDefault(); item.classList.remove('drag-over-item');
-        if (!panelDragSrc || panelDragSrc === name) return;
-        const arr = [...cfg.stateOrder];
-        const fi = arr.indexOf(panelDragSrc), ti = arr.indexOf(name);
-        if (fi < 0 || ti < 0) return;
-        arr.splice(fi, 1); arr.splice(ti, 0, panelDragSrc);
-        cfg.stateOrder = arr; panelDragSrc = null;
-        core.saveGlobalStatusOrder(cfg.stateOrder);
-        _updateOrderPanel(); _updateStatusPanel(); render();
-      });
-      item.addEventListener('dragend', () => { item.classList.remove('dragging'); panelDragSrc = null; });
-
-      const handle = document.createElement('span'); handle.className = 'o-handle'; handle.textContent = '⠿';
-      const num    = document.createElement('span'); num.className = 'o-num';    num.textContent = (idx+1) + '.';
-      const lbl    = document.createElement('span'); lbl.className = 'o-name';   lbl.textContent = name;
-      const bu = document.createElement('button'); bu.className = 'obtn'; bu.textContent = '▲'; bu.disabled = idx === 0; bu.onclick = () => _moveState(idx, -1);
-      const bd = document.createElement('button'); bd.className = 'obtn'; bd.textContent = '▼'; bd.disabled = idx === cfg.stateOrder.length - 1; bd.onclick = () => _moveState(idx, 1);
-      item.appendChild(handle); item.appendChild(num); item.appendChild(lbl); item.appendChild(bu); item.appendChild(bd);
-      orderList.appendChild(item);
-    });
-  }
-
-  function _moveState(idx, dir) {
-    const ni = idx + dir;
-    if (ni < 0 || ni >= cfg.stateOrder.length) return;
-    const a = [...cfg.stateOrder]; [a[idx], a[ni]] = [a[ni], a[idx]];
-    cfg.stateOrder = a;
-    core.saveGlobalStatusOrder(cfg.stateOrder);
-    _updateOrderPanel(); _updateStatusPanel(); render();
+    _buildOrderPanel(
+      orderList,
+      cfg.stateOrder,
+      arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); _updateStatusPanel(); render(); },
+      (item, name) => { if (hidden.has(name)) item.style.opacity = '.4'; },
+    );
   }
 
   // ── Stats helpers ─────────────────────────────
@@ -533,7 +496,7 @@ export function init() {
     if (_hasLT()) { const th = document.createElement('th'); th.textContent = 'Lead Time'; hr.appendChild(th); }
 
     ordStates.forEach(s => {
-      const isExtra = DEFAULT_STATUS_ORDER.indexOf(s.name) < 0;
+      const isExtra = !DEFAULT_STATUS_ORDER.includes(s.name);
       const th = document.createElement('th');
       th.textContent = s.name;
       th.className = 'draggable-col' + (isExtra ? ' th-extra' : '');
@@ -637,49 +600,4 @@ export function init() {
   });
 }
 
-// ════════════════════════════════════════════════
-// Utility DOM helpers (module-private)
-// ════════════════════════════════════════════════
-function _mkTglGrp(buttons, onChange) {
-  const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
-  buttons.forEach(({ val, label }) => {
-    const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
-    b.addEventListener('click', () => onChange(val));
-    wrap.appendChild(b);
-  });
-  return wrap;
-}
-
-function _mkBtn(label, onClick) {
-  const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
-  b.addEventListener('click', onClick); return b;
-}
-
-function _mkPanel() {
-  const p = document.createElement('div'); p.className = 'sub-panel'; return p;
-}
-
-function _mkSelect() {
-  const s = document.createElement('select'); s.className = 'lt-select'; return s;
-}
-
-function _mkLtField(label, selectEl) {
-  const f = document.createElement('div'); f.className = 'lt-field';
-  const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
-  f.appendChild(l); f.appendChild(selectEl); return f;
-}
-
-function _mkTTRow(label, val) {
-  const row = document.createElement('div'); row.className = 'tt-row';
-  const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
-  const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
-  row.appendChild(lb); row.appendChild(vl); return row;
-}
-
-function _posTooltip(tt, cx, cy) {
-  const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
-  let l = cx + 14, t = cy + 14;
-  if (l + tw > window.innerWidth  - 6) l = cx - tw - 14;  if (l < 6) l = 6;
-  if (t + th > window.innerHeight - 6) t = cy - th - 14;  if (t < 6) t = 6;
-  tt.style.left = l + 'px'; tt.style.top = t + 'px';
-}
+// DOM helpers werden von core.js importiert (P3.7)

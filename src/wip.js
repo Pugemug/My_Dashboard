@@ -180,6 +180,7 @@ export function init() {
   // ── Render ───────────────────────────────────────────────────────────────────
   function render() {
     tooltip.style.display = 'none';
+    if (contentEl.clientWidth < 20) return;
 
     const filter = core.state.squadFilter || [];
     if (filter.length !== 1) {

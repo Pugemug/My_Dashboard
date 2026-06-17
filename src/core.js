@@ -151,7 +151,7 @@ export const core = {
       // wird, wenn der gespeicherte Order noch 'in Test' enthält.
       const baseLower = base.map(n => n.toLowerCase());
       knownNames.forEach(n => {
-        if (base.indexOf(n) < 0 && baseLower.indexOf(n.toLowerCase()) < 0) {
+        if (!base.includes(n) && !baseLower.includes(n.toLowerCase())) {
           base.push(n);
         }
       });
@@ -647,8 +647,14 @@ function _initSidebarButtons() {
     // Upload-Screen zurücksetzen
     const dz = document.getElementById('drop-zone');
     const dc = document.getElementById('page-datencheck');
+    const dp = document.getElementById('data-preview');
     if (dz) dz.style.display = '';
     if (dc) dc.innerHTML = '';
+    if (dp) dp.innerHTML = '';
+    // Offene Tooltips ausblenden
+    document.querySelectorAll('body > div[style*="position:fixed"]').forEach(el => {
+      el.style.display = 'none';
+    });
     core.state.rows      = [];
     core.state.sheets    = {};
     core.state.sheetsRaw = {};
@@ -747,14 +753,17 @@ function _loadFile(file) {
       core.state.sheetsRaw = sheetsRaw;
 
       // Primär-Sheet: JiraStories (oder erstes Sheet als Fallback)
-      const sn = wb.SheetNames.indexOf(TARGET_SHEET) >= 0 ? TARGET_SHEET : wb.SheetNames[0];
+      const sn = wb.SheetNames.includes(TARGET_SHEET) ? TARGET_SHEET : wb.SheetNames[0];
       core.state.sheetName = sn;
       const rows = sheets[sn] || [];
 
       _processData(rows);
       _showDataPreview(wb.SheetNames, sheets);
     } catch (err) {
-      alert('Fehler beim Laden: ' + err.message);
+      const dp = document.getElementById('data-preview');
+      if (dp) {
+        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${_escHtml(err.message)}</div>`;
+      }
     }
   };
   reader.readAsArrayBuffer(file);
@@ -767,8 +776,8 @@ function _processData(rows) {
 
   // rows === state.sheets[TARGET_SHEET] (gleiche Array-Referenz)
   s.rows         = rows;
-  s.hasSquad     = cols.indexOf('Squad')      >= 0;
-  s.hasIssueType = cols.indexOf('Issue-Type') >= 0;
+  s.hasSquad     = cols.includes('Squad');
+  s.hasIssueType = cols.includes('Issue-Type');
 
   // Workflow state detection
   s.states = cols
@@ -776,7 +785,7 @@ function _processData(rows) {
     .map(ec => ({
       name:     ec,
       entryCol: ec,
-      exitCol:  cols.indexOf('leaving_' + ec) >= 0 ? 'leaving_' + ec : null,
+      exitCol:  cols.includes('leaving_' + ec) ? 'leaving_' + ec : null,
     }));
 
   // stateOrder: Basis-Reihenfolge aus Daten-Spalten
@@ -789,7 +798,7 @@ function _processData(rows) {
   } else {
     s.allSquads = [];
   }
-  s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.indexOf(sq) >= 0);
+  s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.includes(sq));
 
   // Date columns (used by visuals for LT/CT column selects)
   s.dateCols = cols.filter(c =>
@@ -830,6 +839,16 @@ function _switchToAppScreen() {
   app.style.display = 'block';
   _lockNav();
   core.showPage('datencheck');
+}
+
+// ── HTML-Sonderzeichen escapen (verhindert XSS aus Excel-Daten) ──
+function _escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ── Datencheck-Page befüllen ──
@@ -883,17 +902,17 @@ function _buildDatencheckPage(sheetNames, sheets) {
   // State-Pills (leaving-States farbig)
   const statePills = s.states.map(st => {
     const isLeaving = st.exitCol !== null;
-    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${st.name}</span>`;
+    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${_escHtml(st.name)}</span>`;
   }).join('');
 
   // Squad-Pills
   const squadPills = s.allSquads.map(sq =>
-    `<span class="dc-pill">&#127968; ${sq}</span>`
+    `<span class="dc-pill">&#127968; ${_escHtml(sq)}</span>`
   ).join('');
 
   // Type-Pills
   const typePills = issueTypes.map(t =>
-    `<span class="dc-pill type">${t}</span>`
+    `<span class="dc-pill type">${_escHtml(t)}</span>`
   ).join('');
 
   const page = document.getElementById('page-datencheck');
@@ -903,7 +922,7 @@ function _buildDatencheckPage(sheetNames, sheets) {
     <div class="dc-wrap">
       <div class="dc-badge">&#10003; Datei erkannt</div>
       <h2 class="dc-title">Das haben wir in deinem Export gefunden</h2>
-      <div class="dc-sub">${s.fileName} &middot; Sheet &bdquo;${s.sheetName}&ldquo; &middot; ${rows.length} Tickets</div>
+      <div class="dc-sub">${_escHtml(s.fileName)} &middot; Sheet &bdquo;${_escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
 
       <div class="dc-stats">
         <div class="dc-stat">
@@ -974,7 +993,7 @@ function _buildSquadDD() {
     const cb  = document.createElement('input');
     cb.type   = 'checkbox';
     cb.id     = 'sqcb_' + sq;
-    cb.checked = core.state.squadFilter.length === 0 || core.state.squadFilter.indexOf(sq) >= 0;
+    cb.checked = core.state.squadFilter.length === 0 || core.state.squadFilter.includes(sq);
     cb.addEventListener('change', _onSquadFilterChange);
     const lbl      = document.createElement('label');
     lbl.htmlFor    = 'sqcb_' + sq;
@@ -1002,5 +1021,102 @@ function _updateSquadBtn() {
     btn.textContent = text;
     btn.classList.toggle('pf-active', a > 0);
     btn.classList.remove('p-blue'); // nur blau wenn Dropdown offen
+  });
+}
+
+// ════════════════════════════════════════════════
+// Shared DOM Utility Helpers (P3.7)
+// Exportiert für alle Visuals – kein Kopieren mehr nötig.
+// ════════════════════════════════════════════════
+
+export function _mkBtn(label, onClick) {
+  const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
+  b.addEventListener('click', onClick); return b;
+}
+
+export function _mkPanel() {
+  const p = document.createElement('div'); p.className = 'sub-panel'; return p;
+}
+
+export function _mkTglGrp(buttons, onChange) {
+  const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
+  buttons.forEach(({ val, label }) => {
+    const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
+    b.addEventListener('click', () => onChange(val));
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+export function _mkSelect() {
+  const s = document.createElement('select'); s.className = 'lt-select'; return s;
+}
+
+export function _mkLtField(label, selectEl) {
+  const f = document.createElement('div'); f.className = 'lt-field';
+  const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
+  f.appendChild(l); f.appendChild(selectEl); return f;
+}
+
+export function _mkTTRow(label, val) {
+  const row = document.createElement('div'); row.className = 'tt-row';
+  const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
+  const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
+  row.appendChild(lb); row.appendChild(vl); return row;
+}
+
+export function _posTooltip(tt, cx, cy) {
+  const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
+  let l = cx + 14, t = cy + 14;
+  if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
+  if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
+  tt.style.left = l + 'px'; tt.style.top = t + 'px';
+}
+
+// ════════════════════════════════════════════════
+// Shared Order-Panel Builder (P3.8)
+// Baut das ▲/▼-Drag-Panel für Status-Reihenfolge.
+// Wird von wipage.js und heatmap.js genutzt.
+//
+// @param {HTMLElement} orderList      – Container-Element (.order-list)
+// @param {string[]}    stateOrder     – Aktuelle Reihenfolge (cfg.stateOrder)
+// @param {function}    onReorder      – Callback(newOrder: string[]) nach Änderung
+// @param {function}   [decorateItem]  – Optional: extra Styling pro Item (item, name)
+// ════════════════════════════════════════════════
+export function _buildOrderPanel(orderList, stateOrder, onReorder, decorateItem) {
+  orderList.innerHTML = '';
+  let panelDragSrc = null;
+  stateOrder.forEach((name, idx) => {
+    const isExtra = !DEFAULT_STATUS_ORDER.includes(name);
+    const item = document.createElement('div');
+    item.className = 'order-item' + (isExtra ? ' o-extra' : '');
+    item.draggable = true; item.dataset.name = name;
+    if (decorateItem) decorateItem(item, name);
+
+    item.addEventListener('dragstart', e => { panelDragSrc = name; item.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    item.addEventListener('dragover',  e => { e.preventDefault(); item.classList.add('drag-over-item'); });
+    item.addEventListener('dragleave', ()  => item.classList.remove('drag-over-item'));
+    item.addEventListener('drop', e => {
+      e.preventDefault(); item.classList.remove('drag-over-item');
+      if (!panelDragSrc || panelDragSrc === name) return;
+      const arr = [...stateOrder];
+      const fi = arr.indexOf(panelDragSrc), ti = arr.indexOf(name);
+      if (fi < 0 || ti < 0) return;
+      arr.splice(fi, 1); arr.splice(ti, 0, panelDragSrc);
+      panelDragSrc = null;
+      onReorder(arr);
+    });
+    item.addEventListener('dragend', () => { item.classList.remove('dragging'); panelDragSrc = null; });
+
+    const handle = document.createElement('span'); handle.className = 'o-handle'; handle.textContent = '⠿';
+    const num    = document.createElement('span'); num.className = 'o-num';    num.textContent = (idx + 1) + '.';
+    const lbl    = document.createElement('span'); lbl.className = 'o-name';   lbl.textContent = name;
+    const bu = document.createElement('button'); bu.className = 'obtn'; bu.textContent = '▲'; bu.disabled = idx === 0;
+    bu.onclick = () => { const arr = [...stateOrder]; [arr[idx], arr[idx-1]] = [arr[idx-1], arr[idx]]; onReorder(arr); };
+    const bd = document.createElement('button'); bd.className = 'obtn'; bd.textContent = '▼'; bd.disabled = idx === stateOrder.length - 1;
+    bd.onclick = () => { const arr = [...stateOrder]; [arr[idx], arr[idx+1]] = [arr[idx+1], arr[idx]]; onReorder(arr); };
+
+    item.appendChild(handle); item.appendChild(num); item.appendChild(lbl); item.appendChild(bu); item.appendChild(bd);
+    orderList.appendChild(item);
   });
 }

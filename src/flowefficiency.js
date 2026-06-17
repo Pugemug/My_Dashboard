@@ -574,7 +574,7 @@ export function init() {
       var entries = bMap[jid + '\u00a7' + sq] || bMapNS[jid] || [];
       var waiteZ  = 0;
       entries.forEach(function(ep) {
-        var isKnown = WAIT_STATUS_LOWER.indexOf(ep.zustand.toLowerCase()) >= 0;
+        var isKnown = WAIT_STATUS_LOWER.includes(ep.zustand.toLowerCase());
         if (!isKnown && ep.dauer > 0) {
           waiteZ += ep.dauer;
           var label = ep.zustand || 'Blockiert';
@@ -655,6 +655,7 @@ export function init() {
   // ── Chart render ───────────────────────────────
   function _renderChart() {
     var W  = contentEl.clientWidth  || 500;
+    if (W < 20) return;
     var H  = Math.max(60, contentEl.clientHeight - explanationEl.offsetHeight) || 280;
     var P  = { t: 18, r: 56, b: 34, l: 40 };
     var cW = W - P.l - P.r;

@@ -31,19 +31,44 @@ def read(filename):
         return f.read()
 
 
+def read_calc(filename):
+    """Liest eine calc-Datei aus SRC_DIR/calc/."""
+    with open(os.path.join(SRC_DIR, 'calc', filename), encoding='utf-8') as f:
+        return f.read()
+
+
 def strip_module_syntax(js):
     """
-    Entfernt ES-Modul-spezifische Syntax:
-      - import-Zeilen komplett entfernen
+    Verarbeitet ES-Modul-Syntax für den Bundle-Einsatz:
+      - import { X as Y } → const Y = X;   (Alias beibehalten)
+      - import { X, Y }   → entfernen       (bereits global im Bundle)
       - 'export ' Präfix vor const / let / var / function / class entfernen
     """
+    # Alle import-Statements (auch mehrzeilig) auf einmal verarbeiten
+    import_pattern = re.compile(
+        r'^\s*import\s*\{([^}]*)\}\s*from\s*["\'][^"\']*["\']\s*;?',
+        re.MULTILINE | re.DOTALL
+    )
+
+    def replace_import(m):
+        content = m.group(1)
+        aliases = []
+        for part in content.split(','):
+            part = part.strip()
+            if not part:
+                continue
+            if ' as ' in part:
+                original, alias = [x.strip() for x in part.split(' as ', 1)]
+                aliases.append(f'const {alias} = {original};')
+            # Nicht-aliasierte Imports: bereits global im Bundle → weglassen
+        return '\n'.join(aliases)
+
+    js = import_pattern.sub(replace_import, js)
+
+    # 'export const' → 'const', 'export function' → 'function', etc.
     lines = js.splitlines()
     out = []
     for line in lines:
-        # Import-Zeilen komplett entfernen
-        if re.match(r'^\s*import\s+', line):
-            continue
-        # 'export const' → 'const', 'export function' → 'function', etc.
         line = re.sub(
             r'^(\s*)export\s+(const|let|var|function|class|async\s+function)\s+',
             r'\1\2 ',
@@ -79,7 +104,17 @@ def build():
 
     print("▶ Lese Quelldateien …")
     html_src     = read('index.html')
+    # ── calc-Dateien (Hilfsfunktionen, müssen VOR den Visuals stehen) ──
+    core_calc_js          = read_calc('core.calc.js')
+    boxchart_calc_js      = read_calc('boxchart.calc.js')
+    flowefficiency_calc_js= read_calc('flowefficiency.calc.js')
+    heatmap_calc_js       = read_calc('heatmap.calc.js')
+    montecarlo_calc_js    = read_calc('montecarlo.calc.js')
+    scatter_calc_js       = read_calc('scatter.calc.js')
+    wipage_calc_js        = read_calc('wipage.calc.js')
+    # ── Visuals ──
     core_js      = read('core.js')
+    blocker_js   = read('blocker.js')
     heatmap_js   = read('heatmap.js')
     scatter_js   = read('scatter.js')
     wipage_js    = read('wipage.js')
@@ -90,7 +125,15 @@ def build():
     montecarlo_js     = read('montecarlo.js')
 
     print("▶ Transformiere JS (entferne import/export) …")
+    core_calc_out          = strip_module_syntax(core_calc_js)
+    boxchart_calc_out      = strip_module_syntax(boxchart_calc_js)
+    flowefficiency_calc_out= strip_module_syntax(flowefficiency_calc_js)
+    heatmap_calc_out       = strip_module_syntax(heatmap_calc_js)
+    montecarlo_calc_out    = strip_module_syntax(montecarlo_calc_js)
+    scatter_calc_out       = strip_module_syntax(scatter_calc_js)
+    wipage_calc_out        = strip_module_syntax(wipage_calc_js)
     core_out      = strip_module_syntax(core_js)
+    blocker_out   = strip_module_syntax(blocker_js)
     heatmap_out   = strip_module_syntax(heatmap_js)
     scatter_out   = strip_module_syntax(scatter_js)
     wipage_out    = strip_module_syntax(wipage_js)
@@ -109,6 +152,7 @@ def build():
     wip_out       = wip_out.replace(      'function init()', 'function init_wip()',       1)
     flowefficiency_out = flowefficiency_out.replace('function init()', 'function init_flowefficiency()', 1)
     montecarlo_out     = montecarlo_out.replace(    'function init()', 'function init_montecarlo()',     1)
+    blocker_out        = blocker_out.replace(        'function init()', 'function init_blocker()',        1)
 
     # Jedes Visual in eine IIFE einwickeln:
     # Verhindert, dass gleichnamige top-level const/let zwischen Visuals kollidieren.
@@ -129,12 +173,14 @@ def build():
     wip_out       = wrap_iife(wip_out,       'init_wip')
     flowefficiency_out = wrap_iife(flowefficiency_out, 'init_flowefficiency')
     montecarlo_out     = wrap_iife(montecarlo_out,     'init_montecarlo')
+    blocker_out        = wrap_iife(blocker_out,        'init_blocker')
 
     # Inline-Bootstrap (ersetzt den <script type="module">-Block aus index.html)
     # WICHTIG: Alle Logik aus dem Modul-Script muss hier vollständig enthalten sein,
     # da extract_module_script_block() den gesamten Block entfernt.
     # DEFAULT_STATUS_ORDER ist nach strip_module_syntax() als 'const' im Bundle vorhanden.
     bootstrap = (
+        "  init_blocker();\n"
         "  init_heatmap();\n"
         "  init_scatter();\n"
         "  init_wipage();\n"
@@ -282,8 +328,18 @@ def build():
     )
 
     # Gebündeltes JS zusammensetzen
+    # calc-Dateien kommen ZUERST, da sie Konstanten/Funktionen exportieren
+    # die von core.js und den Visuals genutzt werden.
     bundled_js = (
+        "// ── calc/core.calc.js ──\n"          + core_calc_out           + "\n\n" +
+        "// ── calc/boxchart.calc.js ──\n"      + boxchart_calc_out       + "\n\n" +
+        "// ── calc/flowefficiency.calc.js ──\n"+ flowefficiency_calc_out  + "\n\n" +
+        "// ── calc/heatmap.calc.js ──\n"       + heatmap_calc_out        + "\n\n" +
+        "// ── calc/montecarlo.calc.js ──\n"    + montecarlo_calc_out     + "\n\n" +
+        "// ── calc/scatter.calc.js ──\n"       + scatter_calc_out        + "\n\n" +
+        "// ── calc/wipage.calc.js ──\n"        + wipage_calc_out         + "\n\n" +
         "// ── core.js ──\n"       + core_out      + "\n\n" +
+        "// ── blocker.js ──\n"    + blocker_out   + "\n\n" +
         "// ── heatmap.js ──\n"    + heatmap_out   + "\n\n" +
         "// ── scatter.js ──\n"    + scatter_out   + "\n\n" +
         "// ── wipage.js ──\n"     + wipage_out    + "\n\n" +
@@ -311,16 +367,33 @@ def build():
 
     # ── M11 Selbst-Check: alle init_*-Funktionen im Bundle vorhanden? ──
     expected = [
+        'init_blocker',
         'init_heatmap', 'init_scatter', 'init_wipage',
         'init_boxchart', 'init_happiness', 'init_wip',
         'init_flowefficiency', 'init_montecarlo',
     ]
     print()
+    ok = True
     for fn in expected:
         if fn not in bundled_js:
             print(f"⚠️  WARNUNG: {fn}() fehlt im Bundle!")
+            ok = False
         else:
             print(f"✓  {fn}() vorhanden")
+
+    # ── Prüfe auf verbliebene ES-Modul-Syntax ──
+    import_remnants = re.findall(r'^\s*import\s+', bundled_js, re.MULTILINE)
+    from_remnants   = re.findall(r'\}\s*from\s+["\']', bundled_js)
+    if import_remnants or from_remnants:
+        print(f"\n⚠️  WARNUNG: Verbliebene import/from-Syntax im Bundle ({len(import_remnants)+len(from_remnants)} Treffer)!")
+        ok = False
+    else:
+        print("✓  Keine verbliebene import/from-Syntax")
+
+    if ok:
+        print("\n✅ Bundle-Selbstcheck bestanden.")
+    else:
+        print("\n❌ Bundle-Selbstcheck fehlgeschlagen – bitte Fehler beheben.")
 
 
 if __name__ == '__main__':

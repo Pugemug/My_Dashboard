@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, DEFAULT_STATUS_ORDER } from './core.js';
+import { core, DEFAULT_STATUS_ORDER, _mkBtn, _mkPanel, _buildOrderPanel } from './core.js';
 import { calcAge, parseExcludeList } from './calc/wipage.calc.js';
 
 export function init() {
@@ -21,8 +21,6 @@ export function init() {
 
   // stateOrder: Runtime-only, nicht persistiert – kommt von core.loadGlobalStatusOrder()
   cfg.stateOrder = [];
-
-  let panelDragSrc = null;
 
   function saveConfig() {
     core.save('fhwa_wipage', {
@@ -222,72 +220,13 @@ export function init() {
   contentEl.style.overflow = 'hidden';
   contentEl.appendChild(svgEl);
 
-  // ── 8. Order-Panel-Logik (heatmap.js-Muster) ─
+  // ── 8. Order-Panel-Logik ─────────────────────
   function _updateOrderPanel() {
-    orderList.innerHTML = '';
-    cfg.stateOrder.forEach((name, idx) => {
-      const isExtra = DEFAULT_STATUS_ORDER.indexOf(name) < 0;
-      const item = document.createElement('div');
-      item.className = 'order-item' + (isExtra ? ' o-extra' : '');
-      item.draggable = true;
-      item.dataset.name = name;
-
-      item.addEventListener('dragstart', e => {
-        panelDragSrc = name;
-        item.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      item.addEventListener('dragover', e => {
-        e.preventDefault();
-        item.classList.add('drag-over-item');
-      });
-      item.addEventListener('dragleave', () => item.classList.remove('drag-over-item'));
-      item.addEventListener('drop', e => {
-        e.preventDefault();
-        item.classList.remove('drag-over-item');
-        if (!panelDragSrc || panelDragSrc === name) return;
-        const arr = [...cfg.stateOrder];
-        const fi = arr.indexOf(panelDragSrc), ti = arr.indexOf(name);
-        if (fi < 0 || ti < 0) return;
-        arr.splice(fi, 1);
-        arr.splice(ti, 0, panelDragSrc);
-        cfg.stateOrder = arr;
-        panelDragSrc = null;
-        core.saveGlobalStatusOrder(cfg.stateOrder);
-        _updateOrderPanel(); render();
-      });
-      item.addEventListener('dragend', () => {
-        item.classList.remove('dragging');
-        panelDragSrc = null;
-      });
-
-      const handle = document.createElement('span'); handle.className = 'o-handle'; handle.textContent = '⠿';
-      const num    = document.createElement('span'); num.className = 'o-num';    num.textContent = (idx + 1) + '.';
-      const lbl    = document.createElement('span'); lbl.className = 'o-name';   lbl.textContent = name;
-      const bu     = document.createElement('button'); bu.className = 'obtn'; bu.textContent = '▲';
-      bu.disabled = idx === 0;
-      bu.onclick = () => _moveState(idx, -1);
-      const bd     = document.createElement('button'); bd.className = 'obtn'; bd.textContent = '▼';
-      bd.disabled = idx === cfg.stateOrder.length - 1;
-      bd.onclick = () => _moveState(idx, 1);
-
-      item.appendChild(handle);
-      item.appendChild(num);
-      item.appendChild(lbl);
-      item.appendChild(bu);
-      item.appendChild(bd);
-      orderList.appendChild(item);
-    });
-  }
-
-  function _moveState(idx, dir) {
-    const ni = idx + dir;
-    if (ni < 0 || ni >= cfg.stateOrder.length) return;
-    const a = [...cfg.stateOrder];
-    const tmp = a[idx]; a[idx] = a[ni]; a[ni] = tmp;
-    cfg.stateOrder = a;
-    core.saveGlobalStatusOrder(cfg.stateOrder);
-    _updateOrderPanel(); render();
+    _buildOrderPanel(
+      orderList,
+      cfg.stateOrder,
+      arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); render(); },
+    );
   }
 
   // ── 9. Render ─────────────────────────────────
@@ -331,14 +270,14 @@ export function init() {
     const foundStatuses = [];
     activeRows.forEach(r => {
       const s = String(r['Issue-Status'] || '').trim();
-      if (s && foundStatuses.indexOf(s) < 0) foundStatuses.push(s);
+      if (s && !foundStatuses.includes(s)) foundStatuses.push(s);
     });
 
     cfg.stateOrder = core.loadGlobalStatusOrder(foundStatuses);
     _updateOrderPanel();
 
     const visibleStatuses = cfg.stateOrder.filter(n =>
-      excluded.indexOf(n.toLowerCase()) < 0
+      !excluded.includes(n.toLowerCase())
     );
 
     if (!visibleStatuses.length) {
@@ -529,7 +468,7 @@ export function init() {
       }
 
       // X-Achse: Status-Label
-      const isExtra   = DEFAULT_STATUS_ORDER.indexOf(statusName) < 0;
+      const isExtra   = !DEFAULT_STATUS_ORDER.includes(statusName);
       const labelColor = isExtra ? 'var(--orange)' : C.axisLabel;
       const labelTxt = statusName.length > 14 ? statusName.slice(0, 13) + '…' : statusName;
       const labelY   = MAR.top + pH + 18;
@@ -737,24 +676,11 @@ export function init() {
     // Globale Reihenfolge sofort übernehmen, DANN Panel + Render
     const allKnown = (core.state.rows || [])
       .map(r => String(r['Issue-Status'] || '').trim())
-      .filter((v, i, a) => v && a.indexOf(v) === i);
+      .filter((v, i, a) => v && a.indexOf(v) === i);  // dedup – indexOf korrekt hier
     cfg.stateOrder = core.loadGlobalStatusOrder(allKnown);
     _updateOrderPanel();
     render();
   });
 }
 
-// ── Modul-private DOM-Helfer ────────────────────
-function _mkBtn(label, onClick) {
-  const b = document.createElement('button');
-  b.className = 'btn-icon';
-  b.textContent = label;
-  b.addEventListener('click', onClick);
-  return b;
-}
-
-function _mkPanel() {
-  const p = document.createElement('div');
-  p.className = 'sub-panel';
-  return p;
-}
+// DOM helpers werden von core.js importiert (P3.7)

@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, LT_END_DEFAULT } from './core.js';
+import { core, LT_END_DEFAULT, _mkBtn, _mkPanel, _mkTglGrp, _mkSelect, _mkLtField, _mkTTRow, _posTooltip } from './core.js';
 import { calcCT } from './calc/scatter.calc.js';
 
 const CT_START_DEFAULT = 'In Progress_first';
@@ -115,6 +115,7 @@ export function init() {
   contentEl.style.position = 'relative'; contentEl.style.overflow = 'hidden';
 
   const svgEl   = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgEl.id = 'sc-svg';   // stabile ID für eindeutige clipPath-Referenz
   svgEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
 
   const noDataEl  = document.createElement('div'); noDataEl.className = 'sc-nodata';
@@ -276,20 +277,12 @@ export function init() {
     _posTooltip(scTooltip, e.clientX, e.clientY);
   }
 
-  function _posTooltip(tt, cx, cy) {
-    const tw = tt.offsetWidth || 175, th = tt.offsetHeight || 110;
-    let l = cx + 14, t = cy + 14;
-    if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
-    if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
-    tt.style.left = l + 'px'; tt.style.top = t + 'px';
-  }
-
   // ════════════════════════════════════════════════
   // 4. Render
   // ════════════════════════════════════════════════
   function render() {
     clearTimeout(_renderTO);
-    _renderTO = setTimeout(_doRender, 0);
+    _renderTO = setTimeout(_doRender, 16);
   }
 
   function _doRender() {
@@ -308,6 +301,8 @@ export function init() {
     _typeMap = {};
 
     baseRows.forEach(r => {
+      const endDate = core.toDate(r[cfg.ctEnd]);
+      if (!endDate) return;
       const ct = (cfg.ctStart && cfg.ctStart !== cfg.ctEnd)
         ? calcCT(r[cfg.ctStart], r[cfg.ctEnd])
         : null;
@@ -462,41 +457,4 @@ export function init() {
   core.on('settings', () => render());
 }
 
-// ════════════════════════════════════════════════
-// Utility DOM helpers (module-private)
-// ════════════════════════════════════════════════
-function _mkTglGrp(buttons, onChange) {
-  const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
-  buttons.forEach(({ val, label }) => {
-    const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
-    b.addEventListener('click', () => onChange(val));
-    wrap.appendChild(b);
-  });
-  return wrap;
-}
-
-function _mkBtn(label, onClick) {
-  const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
-  b.addEventListener('click', onClick); return b;
-}
-
-function _mkPanel() {
-  const p = document.createElement('div'); p.className = 'sub-panel'; return p;
-}
-
-function _mkSelect() {
-  const s = document.createElement('select'); s.className = 'lt-select'; return s;
-}
-
-function _mkLtField(label, selectEl) {
-  const f = document.createElement('div'); f.className = 'lt-field';
-  const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
-  f.appendChild(l); f.appendChild(selectEl); return f;
-}
-
-function _mkTTRow(label, val) {
-  const row = document.createElement('div'); row.className = 'tt-row';
-  const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
-  const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
-  row.appendChild(lb); row.appendChild(vl); return row;
-}
+// DOM helpers werden von core.js importiert (P3.7)

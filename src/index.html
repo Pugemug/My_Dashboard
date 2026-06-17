@@ -419,6 +419,13 @@ td.td-lt{background:rgba(192,132,252,.04)}
           </span>
         </div>
         <div class="sidebar-section">Detailanalysen</div>
+        <div class="sidebar-link" data-page="blocker">
+          <span class="sidebar-glyph">&#9940;</span>
+          <span class="sidebar-txt">
+            <span class="sidebar-name">Was blockiert uns?</span>
+            <span class="sidebar-tech">Blockermanagement</span>
+          </span>
+        </div>
         <div class="sidebar-link" data-page="wipage">
           <span class="sidebar-glyph">&#9716;</span>
           <span class="sidebar-txt">
@@ -525,6 +532,21 @@ td.td-lt{background:rgba(192,132,252,.04)}
         </div>
       </div>
 
+      <!-- Page: Blockermanagement -->
+      <div class="page page-flex" id="page-blocker">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Was blockiert uns?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-blocker">SQUADS Alle &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-scroll" style="flex:1;overflow-y:auto;padding:1rem 1.2rem">
+          <div id="blocker-canvas"></div>
+          <div id="blocker-diag" style="font-size:.56rem;color:var(--dimmer);font-family:var(--mono);padding:.3rem 0"></div>
+        </div>
+      </div>
+
       <!-- Page: WIPAge -->
       <div class="page page-flex" id="page-wipage">
         <div class="page-filterbar">
@@ -588,6 +610,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
 <!-- ══ ES MODULE BOOTSTRAP ══ -->
 <script type="module">
   import { core, DEFAULT_STATUS_ORDER }  from './core.js';
+  import { init as initBlocker }   from './blocker.js';
   import { init as initHeatmap }   from './heatmap.js';
   import { init as initScatter }   from './scatter.js';
   import { init as initWipage }    from './wipage.js';
@@ -598,6 +621,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   import { init as initMonteCarlo }       from './montecarlo.js';
 
   // Visuals registrieren ihre Cards (werden an den richtigen Page-Canvas gehängt)
+  initBlocker();
   initHeatmap();
   initScatter();
   initWipage();

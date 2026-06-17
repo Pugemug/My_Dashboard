@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core } from './core.js';
+import { core, _mkBtn, _mkPanel, _mkTglGrp } from './core.js';
 import { calcCV } from './calc/montecarlo.calc.js';
 
 export function init() {
@@ -336,6 +336,7 @@ export function init() {
     }
 
     const cv = calcCV(samples);
+    const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
 
     let ampel, stabText;
     if (cv <= cfg.cvThresholdGreen) {
@@ -598,27 +599,7 @@ export function init() {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
   }
 
-  function _mkTglGrp(items, onChange) {
-    const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
-    items.forEach(({ val, label }) => {
-      const btn = document.createElement('button'); btn.className = 'tgl';
-      btn.textContent = label; btn.dataset.val = val;
-      btn.addEventListener('click', () => onChange(val));
-      wrap.appendChild(btn);
-    });
-    return wrap;
-  }
-
-  function _mkBtn(label, onClick) {
-    const b = document.createElement('button'); b.className = 'btn-icon';
-    b.textContent = label; b.addEventListener('click', onClick);
-    return b;
-  }
-
-  function _mkPanel() {
-    const p = document.createElement('div'); p.className = 'sub-panel';
-    return p;
-  }
+  // _mkTglGrp, _mkBtn, _mkPanel werden von core.js importiert (P3.7)
 
   function _mkSection(title, color) {
     const s = document.createElement('div'); s.style.cssText = 'margin-bottom:.65rem;';

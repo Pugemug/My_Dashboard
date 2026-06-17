@@ -86,6 +86,35 @@ Alle Unit-Tests importieren jetzt aus echten `src/calc/`-Dateien statt Logik zu 
 
 Ergebnis: 100 Unit-Tests + 10 E2E-Tests, alle grün.
 
+### Phase 3 – Bundle-Build-Fehler abfangen ✅ abgeschlossen (2026-06-16)
+
+**Hintergrund:** Beim Umstieg auf einen gebündelten Build (`build.py` + `src/calc/`) traten Laufzeitfehler auf, die weder Unit-Tests noch E2E-Tests aufgedeckt hätten:
+
+| Fehler | Ursache | Warum nicht gefunden |
+|---|---|---|
+| `Unexpected identifier 'as'` | Mehrzeiliger `import { X as Y }` nicht entfernt | Unit-Tests importieren ES-Module nativ; Build-Fehler unsichtbar |
+| `_toDate is not defined` | Aliasierter Import (`toDate as _toDate`) wurde gelöscht statt in `const` umgewandelt | Wie oben |
+| `WAIT_STATUS is not defined` | `calc/`-Dateien wurden nicht in Bundle eingebunden | Build-Skript prüfte nur `init_*`, nicht Vollständigkeit |
+| `mean is not defined` | Variable in `montecarlo.js` genutzt, aber nur innerhalb `calcCV` lokal definiert | Unit-Tests testen nur `calcCV()`-Rückgabewert, nicht Nutzung in `_renderStability` |
+
+**Kernproblem:** `alert('Fehler beim Laden: ...')` im `try/catch` von `_loadFile()` wirft **keinen** `pageerror`-Event. Playwright's `page.on('pageerror')` ist blind dafür.
+
+**Fixes (2026-06-16):**
+1. `strip_module_syntax` in `build.py` wandelt `import { X as Y }` → `const Y = X;` um
+2. `build.py` bündelt jetzt alle `src/calc/*.js` vor den Visuals
+3. `build.py`-Selbstcheck prüft auf verbliebene `import`/`from`-Syntax im Bundle
+4. Alle E2E-Tests registrieren `page.on('dialog')` zusätzlich zu `page.on('pageerror')`
+5. Bug in `montecarlo.js`: `mean` wird jetzt in `_renderStability` lokal berechnet
+
+**Regel für künftige E2E-Tests:** Immer beide Handler registrieren:
+```js
+page.on('pageerror', err => jsErrors.push(err.message));
+page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+// ...
+expect(dialogs, `alert() aufgetreten: ${dialogs.join(', ')}`).toHaveLength(0);
+expect(jsErrors).toHaveLength(0);
+```
+
 ---
 
 ## Ersteinrichtung
