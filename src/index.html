@@ -620,6 +620,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   import { init as initFlowEfficiency }   from './flowefficiency.js';
   import { init as initSayDoRatioEpics }  from './saydoratioepics.js';
   import { init as initMonteCarlo }       from './montecarlo.js';
+  import { init as initAkzeptanz }        from './akzeptanz.js';
 
   // Visuals registrieren ihre Cards (werden an den richtigen Page-Canvas gehängt)
   initBlocker();
@@ -632,6 +633,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   initFlowEfficiency();
   initSayDoRatioEpics();
   initMonteCarlo();
+  initAkzeptanz();
 
   // Core-App initialisieren (Theme, globaler State, File-Upload-Listener, Sidebar)
   core.initApp();

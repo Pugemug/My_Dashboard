@@ -124,6 +124,7 @@ def build():
     flowefficiency_js = read('flowefficiency.js')
     saydoratioepics_js = read('saydoratioepics.js')
     montecarlo_js     = read('montecarlo.js')
+    akzeptanz_js      = read('akzeptanz.js')
 
     print("▶ Transformiere JS (entferne import/export) …")
     core_calc_out          = strip_module_syntax(core_calc_js)
@@ -144,6 +145,9 @@ def build():
     flowefficiency_out = strip_module_syntax(flowefficiency_js)
     saydoratioepics_out = strip_module_syntax(saydoratioepics_js)
     montecarlo_out     = strip_module_syntax(montecarlo_js)
+    akzeptanz_js_src   = read_calc('akzeptanz.calc.js')
+    akzeptanz_calc_out = strip_module_syntax(akzeptanz_js_src)
+    akzeptanz_out      = strip_module_syntax(akzeptanz_js)
 
     # init()-Funktionen umbenennen um Kollisionen zu vermeiden
     heatmap_out   = heatmap_out.replace(  'function init()', 'function init_heatmap()',   1)
@@ -156,6 +160,7 @@ def build():
     saydoratioepics_out = saydoratioepics_out.replace('function init()', 'function init_saydoratioepics()', 1)
     montecarlo_out     = montecarlo_out.replace(    'function init()', 'function init_montecarlo()',     1)
     blocker_out        = blocker_out.replace(        'function init()', 'function init_blocker()',        1)
+    akzeptanz_out      = akzeptanz_out.replace(      'function init()', 'function init_akzeptanz()',      1)
 
     # Jedes Visual in eine IIFE einwickeln:
     # Verhindert, dass gleichnamige top-level const/let zwischen Visuals kollidieren.
@@ -178,6 +183,7 @@ def build():
     saydoratioepics_out = wrap_iife(saydoratioepics_out, 'init_saydoratioepics')
     montecarlo_out     = wrap_iife(montecarlo_out,     'init_montecarlo')
     blocker_out        = wrap_iife(blocker_out,        'init_blocker')
+    akzeptanz_out      = wrap_iife(akzeptanz_out,      'init_akzeptanz')
 
     # Inline-Bootstrap (ersetzt den <script type="module">-Block aus index.html)
     # WICHTIG: Alle Logik aus dem Modul-Script muss hier vollständig enthalten sein,
@@ -194,6 +200,7 @@ def build():
         "  init_flowefficiency();\n"
         "  init_saydoratioepics();\n"
         "  init_montecarlo();\n"
+        "  init_akzeptanz();\n"
         "  core.initApp();\n"
         "\n"
         "  // ── Settings-Panel: Overlay-Logik ──────────────────\n"
@@ -354,6 +361,8 @@ def build():
         "// ── flowefficiency.js ──\n"    + flowefficiency_out    + "\n\n" +
         "// ── saydoratioepics.js ──\n" + saydoratioepics_out  + "\n\n" +
         "// ── montecarlo.js ──\n"      + montecarlo_out        + "\n\n" +
+        "// ── calc/akzeptanz.calc.js ──\n" + akzeptanz_calc_out + "\n\n" +
+        "// ── akzeptanz.js ──\n"        + akzeptanz_out         + "\n\n" +
         "// ── Bootstrap ──\n"     + bootstrap      + "\n"
     )
 
@@ -377,6 +386,7 @@ def build():
         'init_heatmap', 'init_scatter', 'init_wipage',
         'init_boxchart', 'init_happiness', 'init_wip',
         'init_flowefficiency', 'init_saydoratioepics', 'init_montecarlo',
+        'init_akzeptanz',
     ]
     print()
     ok = True
