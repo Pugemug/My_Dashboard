@@ -122,6 +122,7 @@ def build():
     happiness_js = read('happiness.js')
     wip_js       = read('wip.js')
     flowefficiency_js = read('flowefficiency.js')
+    saydoratioepics_js = read('saydoratioepics.js')
     montecarlo_js     = read('montecarlo.js')
 
     print("▶ Transformiere JS (entferne import/export) …")
@@ -141,6 +142,7 @@ def build():
     happiness_out = strip_module_syntax(happiness_js)
     wip_out       = strip_module_syntax(wip_js)
     flowefficiency_out = strip_module_syntax(flowefficiency_js)
+    saydoratioepics_out = strip_module_syntax(saydoratioepics_js)
     montecarlo_out     = strip_module_syntax(montecarlo_js)
 
     # init()-Funktionen umbenennen um Kollisionen zu vermeiden
@@ -151,6 +153,7 @@ def build():
     happiness_out = happiness_out.replace('function init()', 'function init_happiness()', 1)
     wip_out       = wip_out.replace(      'function init()', 'function init_wip()',       1)
     flowefficiency_out = flowefficiency_out.replace('function init()', 'function init_flowefficiency()', 1)
+    saydoratioepics_out = saydoratioepics_out.replace('function init()', 'function init_saydoratioepics()', 1)
     montecarlo_out     = montecarlo_out.replace(    'function init()', 'function init_montecarlo()',     1)
     blocker_out        = blocker_out.replace(        'function init()', 'function init_blocker()',        1)
 
@@ -172,6 +175,7 @@ def build():
     happiness_out = wrap_iife(happiness_out, 'init_happiness')
     wip_out       = wrap_iife(wip_out,       'init_wip')
     flowefficiency_out = wrap_iife(flowefficiency_out, 'init_flowefficiency')
+    saydoratioepics_out = wrap_iife(saydoratioepics_out, 'init_saydoratioepics')
     montecarlo_out     = wrap_iife(montecarlo_out,     'init_montecarlo')
     blocker_out        = wrap_iife(blocker_out,        'init_blocker')
 
@@ -188,6 +192,7 @@ def build():
         "  init_happiness();\n"
         "  init_wip();\n"
         "  init_flowefficiency();\n"
+        "  init_saydoratioepics();\n"
         "  init_montecarlo();\n"
         "  core.initApp();\n"
         "\n"
@@ -346,8 +351,9 @@ def build():
         "// ── boxchart.js ──\n"   + boxchart_out  + "\n\n" +
         "// ── happiness.js ──\n"  + happiness_out + "\n\n" +
         "// ── wip.js ──\n"        + wip_out        + "\n\n" +
-        "// ── flowefficiency.js ──\n" + flowefficiency_out + "\n\n" +
-        "// ── montecarlo.js ──\n"    + montecarlo_out     + "\n\n" +
+        "// ── flowefficiency.js ──\n"    + flowefficiency_out    + "\n\n" +
+        "// ── saydoratioepics.js ──\n" + saydoratioepics_out  + "\n\n" +
+        "// ── montecarlo.js ──\n"      + montecarlo_out        + "\n\n" +
         "// ── Bootstrap ──\n"     + bootstrap      + "\n"
     )
 
@@ -370,7 +376,7 @@ def build():
         'init_blocker',
         'init_heatmap', 'init_scatter', 'init_wipage',
         'init_boxchart', 'init_happiness', 'init_wip',
-        'init_flowefficiency', 'init_montecarlo',
+        'init_flowefficiency', 'init_saydoratioepics', 'init_montecarlo',
     ]
     print()
     ok = True

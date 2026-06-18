@@ -332,7 +332,8 @@ Dauer: ca. 2 Minuten.
 # Am Ende von build.py ergänzen:
 expected = ['init_heatmap', 'init_scatter', 'init_wipage',
             'init_boxchart', 'init_happiness', 'init_wip',
-            'init_flowefficiency']  # ← Liste pflegen
+            'init_flowefficiency', 'init_saydoratioepics',
+            'init_montecarlo', 'init_blocker']  # ← Liste pflegen
 for fn in expected:
     if fn not in bundled_js:
         print(f"⚠️  WARNUNG: {fn}() fehlt im Bundle!")
@@ -523,6 +524,8 @@ Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke S
 
 **Visual 5 – Say_Do_Ratio (`saydoratio.js`):** Verhältnis geplanter zu abgeschlossener Epics pro Quartal, als Verlauf über alle vorhandenen Quartale. Datenquelle: `Epics`-Sheet.
 
+**Visual 12 – SayDoRatioEpics (`saydoratioepics.js`):** Gestapeltes Balkendiagramm pro Etappe mit committeten Epics aufgeteilt nach Abschlussstatus (Resolved · Rejected · UNCALLED · Offen). n=X + SDR% immer über dem Balken. Zeigt aktuelle + 3 vorherige Etappen. Farbkonfiguration per ⚙-Panel. Datenquellen: `JiraEpics`-Sheet + `BRP Etappen`-Sheet. Implementiert v1.1. localStorage-Key: `fhwa_saydoratioepics`.
+
 **Visual 6 – WIP KPI (`wipkpi.js`):** Aktuelle WIP-Anzahl als KPI-Card mit Trend. Datenquelle: `JiraStories`-Sheet.
 
 **Visual 7 – Flow Efficiency (`flowefficiency.js`):** Anteil aktiver Bearbeitungszeit an der Gesamtdurchlaufzeit. Berechnung aus Warte-Zuständen (`JiraStories`) und `BlockedReasons`-Sheet. Verknüpfung über JiraId + Squad.
@@ -690,6 +693,8 @@ Die Excel-Datei enthält **mehrere Worksheets**. `core.js` lädt alle Sheets bei
 |---|---|---|---|
 | `JiraStories` | ✅ Pflicht | alle bestehenden Visuals | Work-Item-Daten |
 | `Epics` | optional | Say_Do_Ratio | Epics mit Iterations-/Quartalszuordnung |
+| `JiraEpics` | optional | SayDoRatioEpics | Epics mit Stage, Squad, Resolved/Rejected/UNCALLED-Datum |
+| `BRP Etappen` | optional | SayDoRatioEpics | Etappenplan: Etappe · Startdatum · Endedatum; Join über `JiraEpics.Stage = BRP Etappen.Etappe` |
 | `JiraBlockermanagement` | optional | Flow Efficiency | issues.key · Squad · Blocked/Warte-Episoden (BlockiertWartendSeit, Blockiert/Wartend_Zustand, Blockiert/Wartend_Grund, BlockedStart, BlockedEnd) |
 | `Happiness Faktor` | optional | Happiness Index | Monats-Happiness (1–5) pro Squad; Custom-Header in Zeile 3 → `sheetsRaw` verwenden |
 | *(Acceptance-Sheet)* | optional | Akzeptanzkriterien | Name per SDD-Interview klären |
@@ -1039,6 +1044,7 @@ export function init() {
 | `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected, Resume'`) — **kein stateOrder mehr** |
 | `fhwa_boxchart` | boxchart.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_saydoratio` | saydoratio.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_saydoratioepics` | saydoratioepics.js | colorResolved, colorRejected, colorUncalled, colorOpen (alle hex-Strings, Defaults: `#4ade80`, `#fb923c`, `#c084fc`, `#8ba8c8`) |
 | `fhwa_wipkpi` | wipkpi.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_flowefficiency` | flowefficiency.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_happinessfaktor` | happiness.js | title, dotRadius — Spec: HappinessFaktor.md |
@@ -1725,6 +1731,7 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 | Happiness ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/happiness.js` |
 | BoxChart ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/boxchart.js` |
 | Flow Efficiency ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/flowefficiency.js` |
+| SayDoRatioEpics ändern | `docs/WebAppEntwickeln.md` + `src/core.js` + `src/saydoratioepics.js` |
 | index.html anpassen | `docs/WebAppEntwickeln.md` + `src/index.html` |
 | Spec nachschlagen / ändern | `docs/WebAppEntwickeln.md` + `docs/specs/VisualName.md` |
 
@@ -1781,4 +1788,6 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 *v4.7 (2026-06-09): Flow Efficiency Visual (`flowefficiency.js`) implementiert v1.0. Sheet-Name `BlockedReasons` → `JiraBlockermanagement` (Worksheets-Übersicht + ADL). FE-Berechnung: Dual-Period-Wartezeit aus JiraStories-Warte-Status + statusunabhängige Zusatz-Episoden aus JiraBlockermanagement (Dedup per Status-Typ). Monatliche Aggregation: Median. Line/Violin-Toggle im Tile-Header. Konfigurierbare Ziellinie (FE%, ein/ausblendbar). `index.html` + `build.py` aktualisiert (6. Stelle). M11-Expected-Liste um `init_wip` + `init_flowefficiency` ergänzt. Chat-Start-Tabelle um `flowefficiency.js`-Zeile ergänzt. ADL um 5 Einträge ergänzt. Glossar um 3 Begriffe ergänzt.*
 *v4.8 (2026-06-11): Design-Standard §9.7 „Y-Achsen immer ganze Zahlen" eingeführt. `core.intTicks(max, n)` als neue Pflicht-Utility ergänzt (Schritt ≥ 1, dedupliciert). `wip.js`: Y-Tick-Loop auf `core.intTicks()` umgestellt (vorher gleichmäßige 5 Schritte → Dezimalwerte möglich). `boxchart.js`: `_niceYTicks()` erzwingt nun `step = Math.max(1, Math.round(step))`; Label-Format von `y.toFixed(1)` auf `Math.round(y)` geändert. Phase-2-Checkliste um §9.7-Check ergänzt.*
 *v4.9 (2026-06-15): 6 Bugfixes (Bug 10–15): fehlender core-Import flowefficiency.js, Math.max-Spread-Pattern (boxchart/scatter), XSS-Escaping (wip/happiness), Rejected-Ausschluss in WIP, CARD_PAGE_MAP bereinigt (happinessindex→happinessfaktor), hardcodierte Farbe scatter.js. Redundante `core.activePage()`-Methode entfernt (→ `core.state.activePage`). Toter Fallback-Div `#page-canvas-lieferfahigkeit` aus index.html entfernt. DOM-Struktur, API-Dok und localStorage-Keys entsprechend aktualisiert. M19 um Copy-Paste-Anti-Pattern-Warnung ergänzt. Visual 8 von `happinessindex.js` auf `happiness.js` korrigiert.*
+*v4.11 (2026-06-18): SayDoRatioEpics Visual (`saydoratioepics.js`) implementiert v1.1. Neues Visual auf Lieferfähigkeit-Page: gestapeltes Balkendiagramm Epics nach Abschlussstatus pro Etappe. Datenquellen: `JiraEpics` + `BRP Etappen` (neu in Worksheets-Tabelle). localStorage-Key `fhwa_saydoratioepics` (4 Farbkonfigurationen). `core.js` CARD_PAGE_MAP ergänzt. `index.html` + `build.py` (alle 5 Stellen) aktualisiert. Chat-Start-Tabelle und M11-Liste ergänzt.*
+
 *v4.10 (2026-06-17): Blockermanagement Visual (`blocker.js`) implementiert v1.0. Neue Deep-Dive-Page `blocker` – erster Eintrag unter Detailanalysen. Tabellarisches Rendering (kein Card/Tile-Modell, direktes Rendering in `#blocker-canvas`). Zwei Bereiche: AKTUELL (offene Episoden, Default-Sort Zustand asc) + GESAMT (alle Episoden, Default-Sort BlockedStart desc), je mit sortierbarer Haupt-Tabelle und 3 Summary-Tabellen (Blockiert/Wartend/Rollup, feste Kategorien). Bugfix: `core.state.filter` → `core.state.squadFilter`. `index.html` + `build.py` aktualisiert (alle 5+1 Stellen). M11-Expected-Liste um `init_blocker` ergänzt. Chat-Start-Tabelle um `blocker.js`-Zeile ergänzt. Pages-Tabelle + Sidebar-Struktur + Visuals-Abschnitt + Projektstruktur aktualisiert.*

@@ -482,7 +482,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
           <!-- Abschnitt: Darstellung -->
           <div class="settings-section-label">Darstellung</div>
-          <div class="settings-row settings-row--disabled" id="settings-tile-row">
+          <div class="settings-row" id="settings-tile-row">
             <span class="settings-label">Kachelgr&ouml;&szlig;e</span>
             <input class="settings-range" id="settings-tile-height" type="range" min="390" max="720" step="10" value="550">
             <span class="settings-hint">Aktuell: <span id="tile-h-display">400 &times; 250</span>&thinsp;px (16&thinsp;:&thinsp;10)</span>
@@ -618,6 +618,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   import { init as initHappiness } from './happiness.js';
   import { init as initWip }              from './wip.js';
   import { init as initFlowEfficiency }   from './flowefficiency.js';
+  import { init as initSayDoRatioEpics }  from './saydoratioepics.js';
   import { init as initMonteCarlo }       from './montecarlo.js';
 
   // Visuals registrieren ihre Cards (werden an den richtigen Page-Canvas gehängt)
@@ -629,6 +630,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   initHappiness();
   initWip();
   initFlowEfficiency();
+  initSayDoRatioEpics();
   initMonteCarlo();
 
   // Core-App initialisieren (Theme, globaler State, File-Upload-Listener, Sidebar)
@@ -766,11 +768,6 @@ td.td-lt{background:rgba(192,132,252,.04)}
       });
     }
 
-    // Slider erst nach Datei-Load freischalten
-    const tileRow = document.getElementById('settings-tile-row');
-    if (tileRow) {
-      core.on('data', () => tileRow.classList.remove('settings-row--disabled'));
-    }
   })();
 
   // ── Lieferfähigkeit Filter-Reset wird jetzt in core.js via .squad-filter-reset behandelt ──

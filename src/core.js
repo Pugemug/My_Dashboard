@@ -56,6 +56,7 @@ const CARD_PAGE_MAP = {
   'wip':              'lieferfahigkeit',
   'flowefficiency':   'lieferfahigkeit',
   'happinessfaktor':  'lieferfahigkeit',
+  'saydoratioepics':  'lieferfahigkeit',
   'montecarlo':       'monte',
 };
 
@@ -116,7 +117,9 @@ export const core = {
   },
 
   emit(event) {
-    (_listeners[event] || []).forEach(fn => fn());
+    (_listeners[event] || []).forEach(fn => {
+      try { fn(); } catch (e) { console.error('[core] emit', event, e); }
+    });
   },
 
   // ── Storage ────────────────────────────────────
