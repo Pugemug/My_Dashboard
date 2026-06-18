@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Datum:** 2026-06-18  
-**Status:** [ ] Entwurf → [ ] Bestätigt (Gate 1) → [ ] Implementiert  
+**Status:** [x] Entwurf → [x] Bestätigt (Gate 1) → [x] Implementiert  
 **Datei:** `src/akzeptanz.js`
 
 ---
@@ -243,4 +243,5 @@ finalOrder = [...knownStages, ...unknownStages]
 
 | Datum | Version | Änderung | Bestätigt von |
 |---|---|---|---|
-| 2026-06-18 | 1.0 | Initiale Spec nach SDD-Interview | – |
+| 2026-06-18 | 1.0 | Initiale Spec nach SDD-Interview | Oliver |
+| 2026-06-18 | 1.0 | Implementiert: akzeptanz.js, calc/akzeptanz.calc.js, 16 Unit-Tests | Oliver |

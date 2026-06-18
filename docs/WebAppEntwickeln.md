@@ -333,7 +333,7 @@ Dauer: ca. 2 Minuten.
 expected = ['init_heatmap', 'init_scatter', 'init_wipage',
             'init_boxchart', 'init_happiness', 'init_wip',
             'init_flowefficiency', 'init_saydoratioepics',
-            'init_montecarlo', 'init_blocker']  # ← Liste pflegen
+            'init_montecarlo', 'init_blocker', 'init_akzeptanz']  # ← Liste pflegen
 for fn in expected:
     if fn not in bundled_js:
         print(f"⚠️  WARNUNG: {fn}() fehlt im Bundle!")
@@ -532,7 +532,7 @@ Die App ist in **Seiten (Pages)** gegliedert, die über eine persistente linke S
 
 **Visual 8 – Happiness Faktor (`happiness.js`):** Liniendiagramm der Team-Happiness (1–5) über Monate pro Squad. Datenquelle: `Happiness Faktor`-Sheet (Custom-Header-Zeile). Implementiert v1.0. localStorage-Key: `fhwa_happinessfaktor`.
 
-**Visual 9 – Akzeptanzkriterien (`akzeptanz.js`):** KPI-Card mit Verlauf. Datenquelle: dediziertes Worksheet (Name noch offen – per SDD-Interview klären).
+**Visual 9 – Akzeptanzkriterien (`akzeptanz.js`):** Liniendiagramm der AK-Qualität pro Etappe für den gewählten Squad. AK-Qualität = Anteil der Epics, deren Akzeptanzkriterien-Feld mehr als 3 Wörter enthält. X-Achse: Etappen chronologisch (via BRP Etappen), Y-Achse: 0–100 % fest. Squad-Validierung identisch zu Happiness/WIP (genau 1 Squad). Ausklappbares Erklärungs-Panel in der Diag-Bar. Berechnungslogik in `src/calc/akzeptanz.calc.js`. Implementiert v1.0. localStorage-Key: `fhwa_akzeptanz`. Datenquellen: `JiraEpics` + `BRP Etappen`.
 
 ### Visuals — Deep-Dive-Pages
 
@@ -694,10 +694,9 @@ Die Excel-Datei enthält **mehrere Worksheets**. `core.js` lädt alle Sheets bei
 | `JiraStories` | ✅ Pflicht | alle bestehenden Visuals | Work-Item-Daten |
 | `Epics` | optional | Say_Do_Ratio | Epics mit Iterations-/Quartalszuordnung |
 | `JiraEpics` | optional | SayDoRatioEpics | Epics mit Stage, Squad, Resolved/Rejected/UNCALLED-Datum |
-| `BRP Etappen` | optional | SayDoRatioEpics | Etappenplan: Etappe · Startdatum · Endedatum; Join über `JiraEpics.Stage = BRP Etappen.Etappe` |
+| `BRP Etappen` | optional | SayDoRatioEpics, Akzeptanzkriterien | Etappenplan: Etappe · Startdatum · Endedatum; Join über `JiraEpics.Stage = BRP Etappen.Etappe` |
 | `JiraBlockermanagement` | optional | Flow Efficiency | issues.key · Squad · Blocked/Warte-Episoden (BlockiertWartendSeit, Blockiert/Wartend_Zustand, Blockiert/Wartend_Grund, BlockedStart, BlockedEnd) |
 | `Happiness Faktor` | optional | Happiness Index | Monats-Happiness (1–5) pro Squad; Custom-Header in Zeile 3 → `sheetsRaw` verwenden |
-| *(Acceptance-Sheet)* | optional | Akzeptanzkriterien | Name per SDD-Interview klären |
 
 **Regel Standard-Header:** Fehlt ein optionales Sheet → `core.state.sheets['Name']` gibt `[]` zurück → das zugehörige Visual zeigt einen Leerzustand. Kein Fehler, kein Core-Umbau.
 
@@ -778,7 +777,7 @@ if (!epics.length) {
 
 ### Platzhalter-Regel
 
-Visuals deren Sheet noch nicht definiert ist (Happiness, Akzeptanzkriterien) werden zunächst als **Platzhalter** implementiert:
+Visuals deren Sheet noch nicht definiert ist, werden zunächst als **Platzhalter** implementiert:
 - Card existiert und ist in der Lieferfähigkeit-Page eingebettet
 - Zeigt „–" oder „Daten folgen" wenn Sheet fehlt oder leer
 - Vollständige Logik kommt im jeweiligen SDD-Interview wenn Sheet-Struktur bekannt ist
@@ -1048,7 +1047,7 @@ export function init() {
 | `fhwa_wipkpi` | wipkpi.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_flowefficiency` | flowefficiency.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_happinessfaktor` | happiness.js | title, dotRadius — Spec: HappinessFaktor.md |
-| `fhwa_akzeptanz` | akzeptanz.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_akzeptanz` | akzeptanz.js | dotRadius — Spec: Akzeptanzkriterien.md |
 | `fhwa_montecarlo` | montecarlo.js | mode, targetCount, targetDate, calcRollingDays, calcFromDate, calcToDate, stabilityRollingDays, stabilityFromDate, stabilityToDate, throughputUnit, completedCol, numRuns, cvThresholdGreen, cvThresholdRed, showP50/70/85/95, colorP50/70/85/95 |
 
 **Hinweis:** `fhwa_layout` (ohne `2`) war der Key der alten Single-File-Version (v1.x). Wird ignoriert.
@@ -1789,5 +1788,7 @@ Projektspezifische Begriffe die zu Missverständnissen geführt haben oder führ
 *v4.8 (2026-06-11): Design-Standard §9.7 „Y-Achsen immer ganze Zahlen" eingeführt. `core.intTicks(max, n)` als neue Pflicht-Utility ergänzt (Schritt ≥ 1, dedupliciert). `wip.js`: Y-Tick-Loop auf `core.intTicks()` umgestellt (vorher gleichmäßige 5 Schritte → Dezimalwerte möglich). `boxchart.js`: `_niceYTicks()` erzwingt nun `step = Math.max(1, Math.round(step))`; Label-Format von `y.toFixed(1)` auf `Math.round(y)` geändert. Phase-2-Checkliste um §9.7-Check ergänzt.*
 *v4.9 (2026-06-15): 6 Bugfixes (Bug 10–15): fehlender core-Import flowefficiency.js, Math.max-Spread-Pattern (boxchart/scatter), XSS-Escaping (wip/happiness), Rejected-Ausschluss in WIP, CARD_PAGE_MAP bereinigt (happinessindex→happinessfaktor), hardcodierte Farbe scatter.js. Redundante `core.activePage()`-Methode entfernt (→ `core.state.activePage`). Toter Fallback-Div `#page-canvas-lieferfahigkeit` aus index.html entfernt. DOM-Struktur, API-Dok und localStorage-Keys entsprechend aktualisiert. M19 um Copy-Paste-Anti-Pattern-Warnung ergänzt. Visual 8 von `happinessindex.js` auf `happiness.js` korrigiert.*
 *v4.11 (2026-06-18): SayDoRatioEpics Visual (`saydoratioepics.js`) implementiert v1.1. Neues Visual auf Lieferfähigkeit-Page: gestapeltes Balkendiagramm Epics nach Abschlussstatus pro Etappe. Datenquellen: `JiraEpics` + `BRP Etappen` (neu in Worksheets-Tabelle). localStorage-Key `fhwa_saydoratioepics` (4 Farbkonfigurationen). `core.js` CARD_PAGE_MAP ergänzt. `index.html` + `build.py` (alle 5 Stellen) aktualisiert. Chat-Start-Tabelle und M11-Liste ergänzt.*
+
+*v4.12 (2026-06-18): Akzeptanzkriterien Visual (`akzeptanz.js`) implementiert v1.0. Liniendiagramm AK-Qualität pro Etappe auf Lieferfähigkeit-Page. Berechnungslogik in `src/calc/akzeptanz.calc.js` (wordCount, calcAkQuality, sortStagesByBrpEtappen). 16 Unit-Tests. Datenquellen: `JiraEpics` + `BRP Etappen`. `index.html` + `build.py` (alle 5 Stellen + M11-Liste) aktualisiert. Worksheets-Tabelle, localStorage-Tabelle, Visual-9-Beschreibung und Platzhalter-Regel aktualisiert. Spec: Akzeptanzkriterien.md v1.0.*
 
 *v4.10 (2026-06-17): Blockermanagement Visual (`blocker.js`) implementiert v1.0. Neue Deep-Dive-Page `blocker` – erster Eintrag unter Detailanalysen. Tabellarisches Rendering (kein Card/Tile-Modell, direktes Rendering in `#blocker-canvas`). Zwei Bereiche: AKTUELL (offene Episoden, Default-Sort Zustand asc) + GESAMT (alle Episoden, Default-Sort BlockedStart desc), je mit sortierbarer Haupt-Tabelle und 3 Summary-Tabellen (Blockiert/Wartend/Rollup, feste Kategorien). Bugfix: `core.state.filter` → `core.state.squadFilter`. `index.html` + `build.py` aktualisiert (alle 5+1 Stellen). M11-Expected-Liste um `init_blocker` ergänzt. Chat-Start-Tabelle um `blocker.js`-Zeile ergänzt. Pages-Tabelle + Sidebar-Struktur + Visuals-Abschnitt + Projektstruktur aktualisiert.*
