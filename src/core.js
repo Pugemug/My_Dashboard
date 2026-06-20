@@ -974,6 +974,102 @@ function _buildDatencheckPage(sheetNames, sheets) {
     `<span class="dc-pill type">${_escHtml(t)}</span>`
   ).join('');
 
+  // ── Optionale Sheets ──
+  const epics       = (s.sheets && s.sheets['JiraEpics']) || [];
+  const blockerRows = (s.sheets && s.sheets['JiraBlockermanagement']) || [];
+  const happRaw     = ((s.sheetsRaw || {})['Happiness Faktor']) || [];
+
+  // JiraEpics-Auswertung
+  let epicCard = '';
+  if (epics.length > 0) {
+    const epicResolved = epics.filter(r => r['Resolved'] != null && r['Resolved'] !== '').length;
+    const epicRejected = epics.filter(r => r['Rejected'] != null && r['Rejected'] !== '').length;
+    const epicUncalled = epics.filter(r => r['UNCALLED'] != null && r['UNCALLED'] !== '').length;
+    const epicOpen     = epics.length - epicResolved - epicRejected - epicUncalled;
+    epicCard = `
+      <div class="dc-sheet-card">
+        <div class="dc-sheet-card-title">JiraEpics</div>
+        <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${epics.length}</div>
+        <div class="dc-stat-lbl">Epics gesamt</div>
+        <div class="dc-sheet-pills">
+          ${epicResolved > 0 ? `<span class="dc-pill resolved">${epicResolved} Resolved</span>` : ''}
+          ${epicRejected > 0 ? `<span class="dc-pill rejected">${epicRejected} Rejected</span>` : ''}
+          ${epicUncalled > 0 ? `<span class="dc-pill uncalled">${epicUncalled} UNCALLED</span>` : ''}
+          ${epicOpen     > 0 ? `<span class="dc-pill type">${epicOpen} Offen</span>` : ''}
+        </div>
+      </div>`;
+  }
+
+  // Blockermanagement-Auswertung
+  let blockerCard = '';
+  if (blockerRows.length > 0) {
+    const blockerOpen = blockerRows.filter(r =>
+      r['BlockedEnd'] == null || r['BlockedEnd'] === ''
+    ).length;
+    blockerCard = `
+      <div class="dc-sheet-card">
+        <div class="dc-sheet-card-title">Blockermanagement</div>
+        <div style="display:flex;gap:1.2rem;align-items:flex-end">
+          <div>
+            <div class="dc-stat-val ${blockerOpen > 0 ? 'orange' : ''}" style="font-size:1.25rem;margin-bottom:.12rem">${blockerOpen}</div>
+            <div class="dc-stat-lbl">Offene Episoden</div>
+          </div>
+          <div>
+            <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${blockerRows.length}</div>
+            <div class="dc-stat-lbl">Gesamt-Episoden</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Happiness-Faktor-Auswertung
+  let happCard = '';
+  if (happRaw.length > 3) {
+    const headerIdx = happRaw.findIndex(row => row.some(c => c === 'Squad'));
+    if (headerIdx >= 0) {
+      const header = happRaw[headerIdx];
+      const dataRows = happRaw.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim());
+      // Letzte Monatsspalte mit Daten finden
+      let lastColIdx = -1, lastColName = '';
+      for (let ci = header.length - 1; ci >= 1; ci--) {
+        const hasData = dataRows.some(r => r[ci] != null && r[ci] !== '' && !isNaN(parseFloat(r[ci])));
+        if (hasData) { lastColIdx = ci; lastColName = String(header[ci] || ''); break; }
+      }
+      if (lastColIdx >= 0) {
+        const lastVals = dataRows.map(r => parseFloat(r[lastColIdx])).filter(v => !isNaN(v));
+        const happLast = lastVals.length ? (lastVals.reduce((a, b) => a + b, 0) / lastVals.length) : null;
+        // Gesamt-Durchschnitt über alle Monatsspalten
+        let allVals = [];
+        for (let ci = 1; ci < header.length; ci++) {
+          dataRows.forEach(r => { const v = parseFloat(r[ci]); if (!isNaN(v)) allVals.push(v); });
+        }
+        const happAvg = allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length) : null;
+        const fmtH = v => v != null ? v.toFixed(1) : '–';
+        const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
+        happCard = `
+          <div class="dc-sheet-card">
+            <div class="dc-sheet-card-title">Happiness Faktor</div>
+            <div style="display:flex;gap:1.2rem;align-items:flex-end">
+              <div>
+                <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
+                <div class="dc-stat-lbl">Letzter Wert &middot; ${_escHtml(lastColName)}</div>
+              </div>
+              <div>
+                <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
+                <div class="dc-stat-lbl">&Oslash; alle Monate</div>
+              </div>
+            </div>
+          </div>`;
+      }
+    }
+  }
+
+  const extraSheetsHtml = (epicCard || blockerCard || happCard) ? `
+    <div class="dc-extra-sheets">
+      <div class="dc-section-title">Weitere Daten erkannt</div>
+      <div class="dc-sheets">${epicCard}${blockerCard}${happCard}</div>
+    </div>` : '';
+
   const page = document.getElementById('page-datencheck');
   if (!page) return;
 
@@ -1001,7 +1097,7 @@ function _buildDatencheckPage(sheetNames, sheets) {
         </div>
         <div class="dc-stat">
           <div class="dc-stat-val orange">${oldCount}</div>
-          <div class="dc-stat-lbl">Auffl&auml;llig alt</div>
+          <div class="dc-stat-lbl">Auff&auml;llig alt</div>
           <div class="dc-stat-sub">aktive &uuml;ber 90&thinsp;T.</div>
         </div>
       </div>
@@ -1018,6 +1114,8 @@ function _buildDatencheckPage(sheetNames, sheets) {
           ${typePills ? `<div class="dc-pills" style="margin-top:.35rem">${typePills}</div>` : ''}
         </div>
       </div>
+
+      ${extraSheetsHtml}
 
       <div class="dc-cta">
         <button class="btn-cta" id="btn-goto-app">Weiter zu Lieferf&auml;higkeit &rarr;</button>
@@ -1074,12 +1172,24 @@ function _onSquadFilterChange() {
 }
 
 function _updateSquadBtn() {
-  const a    = core.state.squadFilter.length;
-  const text = a ? `SQUADS ${a}/${core.state.allSquads.length} \u25bd` : 'SQUADS Alle \u25bd';
+  const f = core.state.squadFilter;
+  const m = core.state.allSquads.length;
+  const a = f.length;
+  let text;
+  if (!a || a === m) {
+    text = 'SQUADS Alle \u25bd';
+  } else if (a === 1) {
+    text = `SQUADS ${f[0]} \u25bd`;
+  } else if (a === 2) {
+    text = `SQUADS ${f[0]}, ${f[1]} \u25bd`;
+  } else {
+    text = `SQUADS ${a}/${m} \u25bd`;
+  }
+  const isActive = a > 0 && a < m;
   document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
     btn.textContent = text;
-    btn.classList.toggle('pf-active', a > 0);
-    btn.classList.remove('p-blue'); // nur blau wenn Dropdown offen
+    btn.classList.toggle('pf-active', isActive);
+    btn.classList.remove('p-blue');
   });
 }
 

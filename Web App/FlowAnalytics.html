@@ -48,8 +48,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .btn-pick{display:inline-block;margin-top:1.2rem;padding:.5rem 1.3rem;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--sans);font-size:.85rem;font-weight:500;cursor:pointer;transition:background .15s}
 .btn-pick:hover{background:var(--bg4);border-color:var(--dim)}
 #file-input{display:none}
-.hint-box{max-width:440px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.2rem}
-.hint-title{font-size:.67rem;font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.55rem}
+/* Sheet-Navigator (Upload-Screen) */
+.sheet-nav{width:100%;max-width:440px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.sheet-tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--bg3)}
+.sheet-tab{display:flex;align-items:center;gap:.3rem;padding:.32rem .58rem;font-size:.63rem;font-weight:500;color:var(--dim);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s,background .12s;font-family:var(--sans);flex-shrink:0;margin-bottom:-1px}
+.sheet-tab:hover{color:var(--text)}
+.sheet-tab.active{color:var(--blue);border-bottom-color:var(--blue);background:var(--bg2)}
+.tab-badge{font-size:.55rem;font-family:var(--mono);padding:.1rem .28rem;border-radius:3px;font-weight:600;flex-shrink:0}
+.tab-badge.req{background:rgba(56,189,248,.12);color:var(--blue)}
+.tab-badge.opt{background:rgba(255,255,255,.05);color:var(--dimmer)}
+.sheet-tab-content{display:none;padding:.75rem 1rem}
+.sheet-tab-content.active{display:block}
 .hint-cols{display:flex;flex-wrap:wrap;gap:.3rem}
 .hint-col{font-family:var(--mono);font-size:.67rem;padding:.18rem .45rem;border-radius:4px;white-space:nowrap}
 .hc-req{background:rgba(56,189,248,.12);color:var(--blue)}.hc-opt{background:rgba(255,255,255,.05);color:var(--dim)}.hc-state{background:rgba(251,146,60,.12);color:var(--orange)}
@@ -179,7 +188,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 
 /* ── DATENCHECK PAGE ── */
 #page-datencheck{background:var(--bg)}
-.dc-wrap{padding:2rem 2.4rem;max-width:860px}
+.dc-wrap{padding:2rem 2.4rem;max-width:860px;margin:0 auto}
 .dc-badge{display:inline-flex;align-items:center;gap:.35rem;font-size:.67rem;font-weight:600;color:var(--green);background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);border-radius:5px;padding:.2rem .55rem;margin-bottom:1rem}
 .dc-title{font-size:1.55rem;font-weight:700;letter-spacing:-.03em;margin-bottom:.28rem;color:var(--text)}
 .dc-sub{font-size:.7rem;color:var(--dim);font-family:var(--mono);margin-bottom:1.35rem}
@@ -189,7 +198,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .dc-stat-val.green{color:var(--green)}.dc-stat-val.orange{color:var(--orange)}
 .dc-stat-lbl{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:.14rem}
 .dc-stat-sub{font-size:.6rem;color:var(--dimmer);font-family:var(--mono)}
-.dc-cards{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.6rem}
+.dc-cards{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.25rem}
 .dc-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.72rem .88rem}
 .dc-card-title{font-size:.57rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);margin-bottom:.55rem}
 .dc-pills{display:flex;flex-wrap:wrap;gap:.28rem;margin-bottom:.42rem}
@@ -197,6 +206,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .dc-pill.leaving{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.3);color:var(--red)}
 .dc-pill.type{border-color:var(--border);color:var(--dim)}
 .dc-note{font-size:.59rem;color:var(--dimmer);font-family:var(--mono);line-height:1.5}
+/* Optionale Sheets-Sektion */
+.dc-extra-sheets{margin-bottom:1.6rem}
+.dc-section-title{font-size:.57rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);margin-bottom:.6rem}
+.dc-sheets{display:flex;flex-wrap:wrap;gap:.6rem}
+.dc-sheet-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.72rem .88rem;min-width:200px;flex:1}
+.dc-sheet-card-title{font-size:.57rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--blue);margin-bottom:.5rem}
+.dc-sheet-pills{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem}
+.dc-pill.resolved{background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.3);color:var(--green)}
+.dc-pill.rejected{background:rgba(251,146,60,.08);border-color:rgba(251,146,60,.3);color:var(--orange)}
+.dc-pill.uncalled{background:rgba(192,132,252,.08);border-color:rgba(192,132,252,.3);color:var(--purple)}
+.dc-pill.alert{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.3);color:var(--red)}
 .dc-cta{display:flex;align-items:center;gap:1.1rem;flex-wrap:wrap}
 .dc-cta-note{font-size:.7rem;color:var(--dim)}
 
@@ -370,19 +390,67 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <input type="file" id="file-input" accept=".xlsx,.xlsm,.xls">
   </div>
 
-  <!-- Daten-Preview (wird nach Datei-Load gezeigt, Drop-Zone wird ausgeblendet) -->
+  <!-- Daten-Preview (Kompatibilitäts-Rest, nicht aktiv genutzt) -->
   <div id="data-preview"></div>
 
-  <div class="hint-box">
-    <div class="hint-title">Erwartet Sheet &bdquo;JiraStories&ldquo;</div>
-    <div class="hint-cols">
-      <span class="hint-col hc-req">Jira-ID</span>
-      <span class="hint-col hc-opt">Issue-Type</span>
-      <span class="hint-col hc-opt">Squad</span>
-      <span class="hint-col hc-state">Zustand</span>
-      <span class="hint-col hc-state">leaving_Zustand</span>
+  <!-- Sheet-Navigator -->
+  <div class="sheet-nav">
+    <div class="sheet-tabs">
+      <button class="sheet-tab active" data-sntab="jira-stories">JiraStories <span class="tab-badge req">Pflicht</span></button>
+      <button class="sheet-tab" data-sntab="jira-epics">JiraEpics <span class="tab-badge opt">optional</span></button>
+      <button class="sheet-tab" data-sntab="brp-etappen">BRP Etappen <span class="tab-badge opt">optional</span></button>
+      <button class="sheet-tab" data-sntab="blockermanagement">Blockermgmt. <span class="tab-badge opt">optional</span></button>
+      <button class="sheet-tab" data-sntab="happiness">Happiness <span class="tab-badge opt">optional</span></button>
     </div>
-    <div class="hint-note">Blau = Pflicht &middot; Grau = optional &middot; Orange = Zustandsspalten<br>Weitere Sheets (Epics, BlockedReasons&hellip;) werden automatisch mitgeladen.</div>
+    <div class="sheet-tab-content active" data-sntab="jira-stories">
+      <div class="hint-cols">
+        <span class="hint-col hc-req">Jira-ID</span>
+        <span class="hint-col hc-opt">Issue-Type</span>
+        <span class="hint-col hc-opt">Squad</span>
+        <span class="hint-col hc-state">Zustand</span>
+        <span class="hint-col hc-state">leaving_Zustand</span>
+      </div>
+      <div class="hint-note">Blau&nbsp;=&nbsp;Pflicht &middot; Grau&nbsp;=&nbsp;optional &middot; Orange&nbsp;=&nbsp;Zustandsspalten<br>Zustandsspalten werden automatisch aus den Spaltennamen erkannt.</div>
+    </div>
+    <div class="sheet-tab-content" data-sntab="jira-epics">
+      <div class="hint-cols">
+        <span class="hint-col hc-opt">Stage</span>
+        <span class="hint-col hc-opt">Squad</span>
+        <span class="hint-col hc-opt">Resolved</span>
+        <span class="hint-col hc-opt">Rejected</span>
+        <span class="hint-col hc-opt">UNCALLED</span>
+      </div>
+      <div class="hint-note">Genutzt von: SayDo&nbsp;Ratio&nbsp;Epics &middot; Akzeptanzkriterien</div>
+    </div>
+    <div class="sheet-tab-content" data-sntab="brp-etappen">
+      <div class="hint-cols">
+        <span class="hint-col hc-opt">Etappe</span>
+        <span class="hint-col hc-opt">Startdatum</span>
+        <span class="hint-col hc-opt">Endedatum</span>
+      </div>
+      <div class="hint-note">Verkn&uuml;pft mit JiraEpics via Stage&nbsp;=&nbsp;Etappe<br>Genutzt von: SayDo&nbsp;Ratio&nbsp;Epics &middot; Akzeptanzkriterien</div>
+    </div>
+    <div class="sheet-tab-content" data-sntab="blockermanagement">
+      <div class="hint-cols">
+        <span class="hint-col hc-opt">issues.key</span>
+        <span class="hint-col hc-opt">Squad</span>
+        <span class="hint-col hc-opt">BlockiertWartendSeit</span>
+        <span class="hint-col hc-opt">Blockiert/Wartend_Zustand</span>
+        <span class="hint-col hc-opt">Blockiert/Wartend_Grund</span>
+        <span class="hint-col hc-opt">BlockedStart</span>
+        <span class="hint-col hc-opt">BlockedEnd</span>
+      </div>
+      <div class="hint-note">Genutzt von: Flow&nbsp;Efficiency &middot; Blockermanagement-Seite</div>
+    </div>
+    <div class="sheet-tab-content" data-sntab="happiness">
+      <div class="hint-cols">
+        <span class="hint-col hc-opt">Squad</span>
+        <span class="hint-col hc-opt">[Jan&nbsp;2025]</span>
+        <span class="hint-col hc-opt">[Feb&nbsp;2025]</span>
+        <span class="hint-col hc-opt">[&hellip;]</span>
+      </div>
+      <div class="hint-note">Header in Zeile&nbsp;3 (wird automatisch erkannt)<br>Genutzt von: Happiness&nbsp;Index</div>
+    </div>
   </div>
 </div>
 
@@ -421,7 +489,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
       <div class="sidebar-nav">
         <div class="sidebar-section">&Uuml;berblick</div>
         <div class="sidebar-link" data-page="lieferfahigkeit">
-          <span class="sidebar-glyph">&#9636;</span>
+          <span class="sidebar-glyph">&#128230;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Lieferf&auml;higkeit</span>
             <span class="sidebar-tech">6 Metriken</span>
@@ -436,21 +504,21 @@ td.td-lt{background:rgba(192,132,252,.04)}
           </span>
         </div>
         <div class="sidebar-link" data-page="wipage">
-          <span class="sidebar-glyph">&#9716;</span>
+          <span class="sidebar-glyph">&#9203;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Was liegt gerade rum?</span>
             <span class="sidebar-tech">WIP-Alter</span>
           </span>
         </div>
         <div class="sidebar-link" data-page="scatter">
-          <span class="sidebar-glyph">&#9713;</span>
+          <span class="sidebar-glyph">&#9200;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wie lange dauert ein Ticket?</span>
             <span class="sidebar-tech">Cycle Time</span>
           </span>
         </div>
         <div class="sidebar-link" data-page="heatmap">
-          <span class="sidebar-glyph">&#9717;</span>
+          <span class="sidebar-glyph">&#128293;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wo verbringen Tickets ihre Zeit?</span>
             <span class="sidebar-tech">Flow-Heatmap</span>
@@ -1847,6 +1915,102 @@ function _buildDatencheckPage(sheetNames, sheets) {
     `<span class="dc-pill type">${_escHtml(t)}</span>`
   ).join('');
 
+  // ── Optionale Sheets ──
+  const epics       = (s.sheets && s.sheets['JiraEpics']) || [];
+  const blockerRows = (s.sheets && s.sheets['JiraBlockermanagement']) || [];
+  const happRaw     = ((s.sheetsRaw || {})['Happiness Faktor']) || [];
+
+  // JiraEpics-Auswertung
+  let epicCard = '';
+  if (epics.length > 0) {
+    const epicResolved = epics.filter(r => r['Resolved'] != null && r['Resolved'] !== '').length;
+    const epicRejected = epics.filter(r => r['Rejected'] != null && r['Rejected'] !== '').length;
+    const epicUncalled = epics.filter(r => r['UNCALLED'] != null && r['UNCALLED'] !== '').length;
+    const epicOpen     = epics.length - epicResolved - epicRejected - epicUncalled;
+    epicCard = `
+      <div class="dc-sheet-card">
+        <div class="dc-sheet-card-title">JiraEpics</div>
+        <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${epics.length}</div>
+        <div class="dc-stat-lbl">Epics gesamt</div>
+        <div class="dc-sheet-pills">
+          ${epicResolved > 0 ? `<span class="dc-pill resolved">${epicResolved} Resolved</span>` : ''}
+          ${epicRejected > 0 ? `<span class="dc-pill rejected">${epicRejected} Rejected</span>` : ''}
+          ${epicUncalled > 0 ? `<span class="dc-pill uncalled">${epicUncalled} UNCALLED</span>` : ''}
+          ${epicOpen     > 0 ? `<span class="dc-pill type">${epicOpen} Offen</span>` : ''}
+        </div>
+      </div>`;
+  }
+
+  // Blockermanagement-Auswertung
+  let blockerCard = '';
+  if (blockerRows.length > 0) {
+    const blockerOpen = blockerRows.filter(r =>
+      r['BlockedEnd'] == null || r['BlockedEnd'] === ''
+    ).length;
+    blockerCard = `
+      <div class="dc-sheet-card">
+        <div class="dc-sheet-card-title">Blockermanagement</div>
+        <div style="display:flex;gap:1.2rem;align-items:flex-end">
+          <div>
+            <div class="dc-stat-val ${blockerOpen > 0 ? 'orange' : ''}" style="font-size:1.25rem;margin-bottom:.12rem">${blockerOpen}</div>
+            <div class="dc-stat-lbl">Offene Episoden</div>
+          </div>
+          <div>
+            <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${blockerRows.length}</div>
+            <div class="dc-stat-lbl">Gesamt-Episoden</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Happiness-Faktor-Auswertung
+  let happCard = '';
+  if (happRaw.length > 3) {
+    const headerIdx = happRaw.findIndex(row => row.some(c => c === 'Squad'));
+    if (headerIdx >= 0) {
+      const header = happRaw[headerIdx];
+      const dataRows = happRaw.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim());
+      // Letzte Monatsspalte mit Daten finden
+      let lastColIdx = -1, lastColName = '';
+      for (let ci = header.length - 1; ci >= 1; ci--) {
+        const hasData = dataRows.some(r => r[ci] != null && r[ci] !== '' && !isNaN(parseFloat(r[ci])));
+        if (hasData) { lastColIdx = ci; lastColName = String(header[ci] || ''); break; }
+      }
+      if (lastColIdx >= 0) {
+        const lastVals = dataRows.map(r => parseFloat(r[lastColIdx])).filter(v => !isNaN(v));
+        const happLast = lastVals.length ? (lastVals.reduce((a, b) => a + b, 0) / lastVals.length) : null;
+        // Gesamt-Durchschnitt über alle Monatsspalten
+        let allVals = [];
+        for (let ci = 1; ci < header.length; ci++) {
+          dataRows.forEach(r => { const v = parseFloat(r[ci]); if (!isNaN(v)) allVals.push(v); });
+        }
+        const happAvg = allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length) : null;
+        const fmtH = v => v != null ? v.toFixed(1) : '–';
+        const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
+        happCard = `
+          <div class="dc-sheet-card">
+            <div class="dc-sheet-card-title">Happiness Faktor</div>
+            <div style="display:flex;gap:1.2rem;align-items:flex-end">
+              <div>
+                <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
+                <div class="dc-stat-lbl">Letzter Wert &middot; ${_escHtml(lastColName)}</div>
+              </div>
+              <div>
+                <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
+                <div class="dc-stat-lbl">&Oslash; alle Monate</div>
+              </div>
+            </div>
+          </div>`;
+      }
+    }
+  }
+
+  const extraSheetsHtml = (epicCard || blockerCard || happCard) ? `
+    <div class="dc-extra-sheets">
+      <div class="dc-section-title">Weitere Daten erkannt</div>
+      <div class="dc-sheets">${epicCard}${blockerCard}${happCard}</div>
+    </div>` : '';
+
   const page = document.getElementById('page-datencheck');
   if (!page) return;
 
@@ -1874,7 +2038,7 @@ function _buildDatencheckPage(sheetNames, sheets) {
         </div>
         <div class="dc-stat">
           <div class="dc-stat-val orange">${oldCount}</div>
-          <div class="dc-stat-lbl">Auffl&auml;llig alt</div>
+          <div class="dc-stat-lbl">Auff&auml;llig alt</div>
           <div class="dc-stat-sub">aktive &uuml;ber 90&thinsp;T.</div>
         </div>
       </div>
@@ -1891,6 +2055,8 @@ function _buildDatencheckPage(sheetNames, sheets) {
           ${typePills ? `<div class="dc-pills" style="margin-top:.35rem">${typePills}</div>` : ''}
         </div>
       </div>
+
+      ${extraSheetsHtml}
 
       <div class="dc-cta">
         <button class="btn-cta" id="btn-goto-app">Weiter zu Lieferf&auml;higkeit &rarr;</button>
@@ -1947,12 +2113,24 @@ function _onSquadFilterChange() {
 }
 
 function _updateSquadBtn() {
-  const a    = core.state.squadFilter.length;
-  const text = a ? `SQUADS ${a}/${core.state.allSquads.length} \u25bd` : 'SQUADS Alle \u25bd';
+  const f = core.state.squadFilter;
+  const m = core.state.allSquads.length;
+  const a = f.length;
+  let text;
+  if (!a || a === m) {
+    text = 'SQUADS Alle \u25bd';
+  } else if (a === 1) {
+    text = `SQUADS ${f[0]} \u25bd`;
+  } else if (a === 2) {
+    text = `SQUADS ${f[0]}, ${f[1]} \u25bd`;
+  } else {
+    text = `SQUADS ${a}/${m} \u25bd`;
+  }
+  const isActive = a > 0 && a < m;
   document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
     btn.textContent = text;
-    btn.classList.toggle('pf-active', a > 0);
-    btn.classList.remove('p-blue'); // nur blau wenn Dropdown offen
+    btn.classList.toggle('pf-active', isActive);
+    btn.classList.remove('p-blue');
   });
 }
 

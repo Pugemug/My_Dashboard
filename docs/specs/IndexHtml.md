@@ -1,8 +1,8 @@
 # index.html – Spezifikation
 
-**Version:** 2.4  
-**Datum:** 2026-06-19  
-**Status:** Implementiert · wird bei Änderungen aktualisiert
+**Version:** 2.5  
+**Datum:** 2026-06-20  
+**Status:** Teilweise implementiert · Abschnitte §3 (Upload-Screen) und §4 (Datencheck-Page) ausstehend
 
 ---
 
@@ -34,9 +34,9 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
           .sidebar-section  „Überblick"
           .sidebar-link[data-page="lieferfahigkeit"]   Lieferfähigkeit (▤ + 6 Metriken)
           .sidebar-section  „Detailanalysen"
-          .sidebar-link[data-page="wipage"]            Was liegt gerade rum? (◔)
-          .sidebar-link[data-page="scatter"]           Wie lange dauert ein Ticket? (◑)
-          .sidebar-link[data-page="heatmap"]           Wo verbringen Tickets ihre Zeit? (◕)
+          .sidebar-link[data-page="wipage"]            Was liegt gerade rum? (⏳)
+          .sidebar-link[data-page="scatter"]           Wie lange dauert ein Ticket? (⏰)
+          .sidebar-link[data-page="heatmap"]           Wo verbringen Tickets ihre Zeit? (🔥)
           .sidebar-link[data-page="monte"]             Wann sind wir fertig? (🎲🎲)
         .sidebar-bottom     Utility-Buttons (Einstellungen · Theme · Datencheck · Neue Datei)
           #settings-wrap    Einstellungen-Button + settings-panel (position:fixed)
@@ -97,9 +97,36 @@ Sichtbar beim Start, versteckt nach Datei-Laden.
 |---|---|---|
 | Drag&Drop-Zone | `#drop-zone` | `dragover`, `drop` → `_loadFile()` in core.js |
 | Datei-Picker | `#file-input` | `type="file"`, `display:none` |
-| Hint-Box | `.hint-box` | Zeigt erwartete Spalten (Pflicht/optional/Zustand) |
+| Sheet-Navigator | `.sheet-nav` | **Neu (v2.5)** – ersetzt bisherige `.hint-box`. Tab-Leiste mit 5 Reitern für alle bekannten Worksheets. JiraStories ist Standard-Tab (aktiv beim Öffnen). |
 
 > `#data-preview` existiert noch im DOM (Kompatibilitäts-Rest), wird aber nicht mehr aktiv genutzt. Die Daten-Preview findet jetzt auf `#page-datencheck` im App-Screen statt.
+> `.hint-box`, `.hint-title`, `.hint-cols`, `.hint-col`, `.hc-req/.hc-opt/.hc-state`, `.hint-note` entfallen mit v2.5 – werden durch `.sheet-nav`-Klassen ersetzt.
+
+### Sheet-Navigator (`.sheet-nav`) – Struktur
+
+```
+.sheet-nav                     max-width:440px, passend zur Drop-Zone
+  .sheet-tabs                  Horizontale Tab-Leiste (5 Tabs, flex-wrap möglich)
+    .sheet-tab[data-tab]       Tab-Button; .active → aktiver Tab (blau hervorgehoben)
+      .tab-name                Sheet-Name (z.B. „JiraStories")
+      .tab-badge.req           „Pflicht" (blau) – nur bei JiraStories
+      .tab-badge.opt           „optional" (gedimmt) – alle anderen Sheets
+  .sheet-tab-content[data-tab] Inhaltsbereich; nur der passende ist sichtbar (.active)
+    .hint-cols                 Spalten-Chips (Klassen .hc-req / .hc-opt / .hc-state bleiben)
+    .hint-note                 Hinweistext unten
+```
+
+**Tab-Switching:** `click` auf `.sheet-tab` → `.active` wechselt auf Klick; zugehöriger `.sheet-tab-content` wird eingeblendet. Kein Core-Event nötig – reine CSS-Klassen-Toggle-Logik im Bootstrap.
+
+### Inhalte der einzelnen Tabs
+
+| Tab | data-tab | Pflicht? | Spalten-Chips | Hinweistext |
+|---|---|---|---|---|
+| JiraStories | `jira-stories` | ✅ `.tab-badge.req` | `Jira-ID` (blau) · `Issue-Type` (grau) · `Squad` (grau) · `Zustand` (orange) · `leaving_Zustand` (orange) | Blau = Pflicht · Grau = optional · Orange = Zustandsspalten |
+| JiraEpics | `jira-epics` | optional | `Stage` (grau) · `Squad` (grau) · `Resolved` (grau) · `Rejected` (grau) · `UNCALLED` (grau) | Genutzt von: SayDo Ratio Epics · Akzeptanzkriterien |
+| BRP Etappen | `brp-etappen` | optional | `Etappe` (grau) · `Startdatum` (grau) · `Endedatum` (grau) | Verknüpft mit JiraEpics via `Stage = Etappe` |
+| Blockermanagement | `blockermanagement` | optional | `issues.key` (grau) · `Squad` (grau) · `BlockiertWartendSeit` (grau) · `Blockiert/Wartend_Zustand` (grau) · `Blockiert/Wartend_Grund` (grau) · `BlockedStart` (grau) · `BlockedEnd` (grau) | Genutzt von: Flow Efficiency · Blockermanagement-Seite |
+| Happiness Faktor | `happiness-faktor` | optional | `Squad` (grau) · `[Monat]` (grau) | Header in Zeile 3 · Genutzt von: Happiness Index |
 
 ---
 
@@ -107,10 +134,19 @@ Sichtbar beim Start, versteckt nach Datei-Laden.
 
 Wird nach File-Load von `_buildDatencheckPage()` in core.js dynamisch befüllt.
 
-**Struktur (dynamisch erzeugt):**
+### Zentrierungs-Fix (v2.5)
+
+`.dc-wrap` erhält `margin:0 auto` (ergänzt zu bestehendem `max-width:860px; padding:2rem 2.4rem`). Damit wird der Inhalt auf breiten Bildschirmen horizontal zentriert.
+
+**Vollständige neue CSS-Regel:**
+```css
+.dc-wrap { padding:2rem 2.4rem; max-width:860px; margin:0 auto; }
+```
+
+### Gesamtstruktur (dynamisch erzeugt)
 
 ```
-.dc-wrap
+.dc-wrap                         max-width:860px; margin:0 auto  ← NEU
   .dc-badge          „✓ Datei erkannt" (grün)
   .dc-title          „Das haben wir in deinem Export gefunden"
   .dc-sub            Dateiname · Sheet · Ticket-Anzahl
@@ -122,12 +158,18 @@ Wird nach File-Load von `_buildDatencheckPage()` in core.js dynamisch befüllt.
   .dc-cards (2-spaltig)
     .dc-card         Workflow-Status erkannt (.dc-pills mit .dc-pill / .dc-pill.leaving)
     .dc-card         Squads & Typen (.dc-pills)
+  .dc-extra-sheets (NEU – nur wenn mind. 1 optionales Sheet vorhanden)
+    .dc-section-title  „Weitere Daten erkannt"
+    .dc-sheets         Flex-Row der Sheet-Kacheln (flex-wrap:wrap, gap:.6rem)
+      .dc-sheet-card   [ein Card pro gefundenem Sheet] (max. 3 sichtbar)
   .dc-cta
     .btn-cta         „Weiter zu Lieferfähigkeit →" → ruft _launchApp()
     .dc-cta-note     Hinweistext
 ```
 
-**Berechnungen in `_buildDatencheckPage()` (core.js):**
+### Berechnungen in `_buildDatencheckPage()` (core.js)
+
+**Bestehende Berechnungen (unverändert):**
 
 | Wert | Berechnung |
 |---|---|
@@ -137,6 +179,24 @@ Wird nach File-Load von `_buildDatencheckPage()` in core.js dynamisch befüllt.
 | `throughput` | `Math.round(finished / totalDays * 30)` |
 | `oldCount` | aktive Tickets deren erster Zustands-Eintrag > 90 Tage zurückliegt |
 | Leaving-States | `st.exitCol !== null` → `.dc-pill.leaving` (rot) |
+
+**Neue Berechnungen (v2.5) – optional, nur wenn Sheet vorhanden:**
+
+| Sheet | Felder | Berechnung |
+|---|---|---|
+| `JiraEpics` | `epicCount`, `epicResolved`, `epicRejected`, `epicUncalled`, `epicOpen` | Aus `core.state.sheets['JiraEpics'] ?? []`; Zeilen mit `Resolved`-Datum zählen = resolved; `Rejected`-Datum = rejected; `UNCALLED`-Datum = uncalled; Rest = open |
+| `JiraBlockermanagement` | `blockerOpen`, `blockerTotal` | Aus `core.state.sheets['JiraBlockermanagement'] ?? []`; `BlockedEnd == null` → offen; gesamt = rows.length |
+| `Happiness Faktor` | `happLast`, `happLastMonth`, `happAvg` | Aus `core.state.sheetsRaw['Happiness Faktor'] ?? []`; Header-Zeile via `findIndex` (`row.some(c => c === 'Squad')`); letzte Monatsspalte mit Daten = letzter Wert; Durchschnitt über alle Zellen |
+
+### `.dc-sheet-card` – Inhalte pro Sheet
+
+| Sheet | Titel | Metriken (`.dc-stat-val` + `.dc-stat-lbl`) |
+|---|---|---|
+| JiraEpics | „JiraEpics" | Zeile 1: `epicCount` → „Epics gesamt" · Zeile 2 (Chips): X Resolved (grün) · Y Rejected (orange) · Z UNCALLED (lila) · W Offen (gedimmt) |
+| JiraBlockermanagement | „Blockermanagement" | `blockerOpen` → „Offene Episoden" (rot wenn > 0, gedimmt wenn 0) · `blockerTotal` → „Gesamt-Episoden" |
+| Happiness Faktor | „Happiness Faktor" | `happLast` (1 Dezimalstelle) → „Letzter Wert · [Monat]" · `happAvg` (1 Dezimalstelle) → „Ø alle Monate" |
+
+**Leerzustand:** Wenn kein optionales Sheet erkannt → `.dc-extra-sheets` entfällt komplett (kein leerer Abschnitt).
 
 ---
 
@@ -156,10 +216,10 @@ Alle `.sidebar-link`-Elemente tragen `data-page="[pageId]"`. Click-Handler in `_
 
 | Link | data-page | Glyph | Tech-Untertitel |
 |---|---|---|---|
-| Lieferfähigkeit | `lieferfahigkeit` | ▤ | 6 Metriken |
-| Was liegt gerade rum? | `wipage` | ◔ | WIP-Alter |
-| Wie lange dauert ein Ticket? | `scatter` | ◑ | Cycle Time |
-| Wo verbringen Tickets ihre Zeit? | `heatmap` | ◕ | Flow-Heatmap |
+| Lieferfähigkeit | `lieferfahigkeit` | 📦 | 6 Metriken |
+| Was liegt gerade rum? | `wipage` | ⏳ | WIP-Alter |
+| Wie lange dauert ein Ticket? | `scatter` | ⏰ | Cycle Time |
+| Wo verbringen Tickets ihre Zeit? | `heatmap` | 🔥 | Flow-Heatmap |
 
 ### Sidebar-Bottom (`.sidebar-bottom`)
 
@@ -196,7 +256,14 @@ pf-spacer
 #lf-filter-reset (.squad-filter-reset)   „↻ Filter zurücksetzen" — setzt Squad + Issue-Type zurück (core.js)
 ```
 
-**Squad-Filter:** `#btn-squad` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateSquadBtn()` in core.js: `„SQUADS Alle ▽"` / `„SQUADS N/M ▽"`.
+**Squad-Filter:** `#btn-squad` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateSquadBtn()` in core.js:
+
+| Zustand | Anzeige |
+|---|---|
+| Alle ausgewählt / keine Restriction | `SQUADS Alle ▽` (kein `pf-active`) |
+| 1 Squad ausgewählt | `SQUADS {name} ▽` + `pf-active` |
+| 2 Squads ausgewählt | `SQUADS {name1}, {name2} ▽` + `pf-active` |
+| ≥3 Squads (nicht alle) | `SQUADS N/M ▽` + `pf-active` |
 
 **Issue-Type-Filter:** `.btn-issuetype-trigger` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateIssueTypeBtn()` in core.js (Logik siehe § Issue-Type-Filter).
 
@@ -506,6 +573,12 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 | **Card minimieren** | klein | `.card-content` auf `height:0` klappen; Button im Card-Header |
 | **Lieferfähigkeit Page-Header** | mittel | ÜBERSICHT-Label, Titel, Zeitraum-Anzeige, Aufmerksamkeits-Box — eigenes `lieferfahigkeit.js`-Modul |
 
+## Bekannte Bugs (separater Fix, nicht in Spec)
+
+| Bug | Symptom | Ursache (Vermutung) | Betroffene Datei |
+|---|---|---|---|
+| **Browser-Back-Button** | Nach Browser-Zurück (vom App-Screen zum Upload-Screen) und erneutem Datei-Auswählen löst der File-Input kein `change`-Event aus → App bleibt leer | Browser cached den File-Input-Wert; `input.value = ''` in `_resetToUpload()` reicht nicht, wenn der Nutzer denselben Dateinamen erneut wählt. Ursache: `_resetToUpload()` setzt `input.value = ''` nur synchron, der Event-Listener für `change` ist aber noch aktiv. | `core.js` → `_resetToUpload()` + File-Input-Handler |
+
 ---
 
 ## Exaktes CSS – vollständige Klassen-Referenz
@@ -541,8 +614,18 @@ body { background:var(--bg); color:var(--text); font-family:var(--sans); height:
 .btn-pick { display:inline-block; margin-top:1.2rem; padding:.5rem 1.3rem; background:var(--bg3); border:1px solid var(--border); border-radius:7px; color:var(--text); font-family:var(--sans); font-size:.85rem; font-weight:500; cursor:pointer; transition:background .15s }
 .btn-pick:hover { background:var(--bg4); border-color:var(--dim) }
 #file-input { display:none }
-.hint-box   { max-width:440px; background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:1rem 1.2rem }
-.hint-title { font-size:.67rem; font-weight:600; color:var(--blue); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.55rem }
+
+/* Sheet-Navigator (v2.5 – ersetzt .hint-box) */
+.sheet-nav   { width:100%; max-width:440px; background:var(--bg2); border:1px solid var(--border); border-radius:10px; overflow:hidden }
+.sheet-tabs  { display:flex; flex-wrap:wrap; border-bottom:1px solid var(--border); background:var(--bg3) }
+.sheet-tab   { display:flex; align-items:center; gap:.3rem; padding:.32rem .6rem; font-size:.65rem; font-weight:500; color:var(--dim); background:transparent; border:none; cursor:pointer; border-bottom:2px solid transparent; transition:color .12s,border-color .12s; font-family:var(--sans); flex-shrink:0 }
+.sheet-tab:hover { color:var(--text) }
+.sheet-tab.active { color:var(--blue); border-bottom-color:var(--blue); background:var(--bg2) }
+.tab-badge   { font-size:.55rem; font-family:var(--mono); padding:.1rem .28rem; border-radius:3px; font-weight:600; flex-shrink:0 }
+.tab-badge.req { background:rgba(56,189,248,.12); color:var(--blue) }
+.tab-badge.opt { background:rgba(255,255,255,.05); color:var(--dimmer) }
+.sheet-tab-content        { display:none; padding:.75rem 1rem }
+.sheet-tab-content.active { display:block }
 .hint-cols  { display:flex; flex-wrap:wrap; gap:.3rem }
 .hint-col   { font-family:var(--mono); font-size:.67rem; padding:.18rem .45rem; border-radius:4px; white-space:nowrap }
 .hc-req   { background:rgba(56,189,248,.12); color:var(--blue) }
@@ -622,7 +705,7 @@ body { background:var(--bg); color:var(--text); font-family:var(--sans); height:
 
 ```css
 #page-datencheck { background:var(--bg) }
-.dc-wrap         { padding:2rem 2.4rem; max-width:860px }
+.dc-wrap         { padding:2rem 2.4rem; max-width:860px; margin:0 auto }  /* ← margin:0 auto neu (v2.5) */
 .dc-badge        { display:inline-flex; align-items:center; gap:.35rem; font-size:.67rem; font-weight:600; color:var(--green); background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.3); border-radius:5px; padding:.2rem .55rem; margin-bottom:1rem }
 .dc-title        { font-size:1.55rem; font-weight:700; letter-spacing:-.03em; margin-bottom:.28rem; color:var(--text) }
 .dc-sub          { font-size:.7rem; color:var(--dim); font-family:var(--mono); margin-bottom:1.35rem }
@@ -633,7 +716,7 @@ body { background:var(--bg); color:var(--text); font-family:var(--sans); height:
 .dc-stat-val.orange { color:var(--orange) }
 .dc-stat-lbl     { font-size:.6rem; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--dim); margin-bottom:.14rem }
 .dc-stat-sub     { font-size:.6rem; color:var(--dimmer); font-family:var(--mono) }
-.dc-cards        { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:1.6rem }
+.dc-cards        { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:1.25rem }  /* margin-bottom reduziert (v2.5) */
 .dc-card         { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.72rem .88rem }
 .dc-card-title   { font-size:.57rem; font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--dimmer); margin-bottom:.55rem }
 .dc-pills        { display:flex; flex-wrap:wrap; gap:.28rem; margin-bottom:.42rem }
@@ -645,6 +728,18 @@ body { background:var(--bg); color:var(--text); font-family:var(--sans); height:
 .dc-cta-note     { font-size:.7rem; color:var(--dim) }
 .btn-cta         { padding:.52rem 1.4rem; background:var(--blue); border:none; border-radius:7px; color:#fff; font-family:var(--sans); font-size:.82rem; font-weight:600; cursor:pointer; transition:opacity .15s; letter-spacing:.01em }
 .btn-cta:hover   { opacity:.85 }
+
+/* Optionale Sheets-Sektion (v2.5) */
+.dc-extra-sheets    { margin-bottom:1.6rem }
+.dc-section-title   { font-size:.57rem; font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--dimmer); margin-bottom:.6rem }
+.dc-sheets          { display:flex; flex-wrap:wrap; gap:.6rem }
+.dc-sheet-card      { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.72rem .88rem; min-width:200px; flex:1 }
+.dc-sheet-card-title { font-size:.57rem; font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--blue); margin-bottom:.5rem }
+.dc-sheet-pills     { display:flex; flex-wrap:wrap; gap:.25rem; margin-top:.35rem }
+.dc-pill.resolved   { background:rgba(74,222,128,.08); border-color:rgba(74,222,128,.3); color:var(--green) }
+.dc-pill.rejected   { background:rgba(251,146,60,.08); border-color:rgba(251,146,60,.3); color:var(--orange) }
+.dc-pill.uncalled   { background:rgba(192,132,252,.08); border-color:rgba(192,132,252,.3); color:var(--purple) }
+.dc-pill.alert      { background:rgba(248,113,113,.08); border-color:rgba(248,113,113,.3); color:var(--red) }
 ```
 
 ### Tiles (Lieferfähigkeit-Page)
@@ -798,3 +893,5 @@ th.th-extra { color:var(--orange); opacity:.9 }
 | 2026-06-15 | 2.2 | Bugfix: `#page-canvas-lieferfahigkeit` (Fallback-Div) aus HTML-Struktur und Spec entfernt — Migration zu `core.createTile()` war bereits vollständig. |
 | 2026-06-17 | 2.3 | Neue Sektion „Exaktes CSS – vollständige Klassen-Referenz" ergänzt: alle Klassen mit vollständigen CSS-Regeln (inkl. Hover-, Active-, State-Varianten) als Neubau-Referenz. Design-Tokens ausgelagert nach `docs/design/design-tokens.css`. |
 | 2026-06-19 | 2.4 | Issue-Type-Filter implementiert: `#issuetype-dropdown` (shared, `position:fixed`), `.btn-issuetype-trigger` auf 5 Pages aktiv. `core.state.issueTypeFilter` + `allIssueTypes`. `filteredRows()` filtert Squad + Issue-Type. `fhwa_global` um `issueTypeFilter` erweitert. Filter-Reset setzt beide Filter zurück. Neue Sektion „Issue-Type-Filter" + Backlog-Eintrag entfernt. |
+| 2026-06-20 | 2.6 | **Squad-Filter Button-Text:** `_updateSquadBtn()` auf gleiche Logik wie Issue-Type-Filter umgestellt: 1 Name / 2 Namen / N/M (vorher immer N/M). |
+| 2026-06-20 | 2.5 | **Upload-Screen: Komplett neu gestalten.** `.hint-box` wird durch `.sheet-nav` mit 5 Tabs (JiraStories / JiraEpics / BRP Etappen / Blockermanagement / Happiness Faktor) ersetzt. Neue CSS-Klassen: `.sheet-nav`, `.sheet-tabs`, `.sheet-tab`, `.tab-badge.req/.opt`, `.sheet-tab-content`. **Datencheck-Page: Zentrierungs-Fix** (`.dc-wrap` + `margin:0 auto`). **Neue optionale Sheets-Sektion** (`.dc-extra-sheets` mit `.dc-sheet-card` je Sheet): JiraEpics (Epic-Anzahl + Status-Verteilung) · Blockermanagement (offene + Gesamt-Episoden) · Happiness Faktor (letzter Wert + Ø). Neue CSS-Klassen: `.dc-extra-sheets`, `.dc-section-title`, `.dc-sheets`, `.dc-sheet-card`, `.dc-sheet-card-title`, `.dc-sheet-pills`, `.dc-pill.resolved/.rejected/.uncalled/.alert`. **Browser-Back-Bug** (kein Neuladen nach Browser-Zurück) als separater Bugfix in core.js dokumentiert – nicht Teil dieser Spec. |
