@@ -23,7 +23,7 @@ function _esc(s) {
 const CFG_DEF = { dotRadius: 5 };
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
-let _cfg, _contentEl, _svgWrapEl, _diagEl, _diagTextEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
+let _cfg, _contentEl, _svgWrapEl, _diagEl, _diagTextEl, _nBadgeEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
 let _explanationEl, _showExplanation = false;
 let _stages   = []; // geordnete Stage-Namen (aus _onData)
 let _epicRows = []; // JiraEpics-Zeilen
@@ -37,7 +37,7 @@ export function init() {
 
   const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
     id:    VID,
-    title: 'Akzeptanzkriterien',
+    title: 'Akzeptanz<span class="hl">kriterien</span>',
   });
   _tileEl        = tileEl;
   _contentEl     = contentEl;
@@ -124,6 +124,10 @@ function _toggleExplanation() {
 // Header-Controls: ⚙-Button + Format-Panel
 // ════════════════════════════════════════════════
 function _buildHeaderControls() {
+  _nBadgeEl = document.createElement('span');
+  _nBadgeEl.style.cssText = 'font-size:11px;color:var(--dim);font-family:var(--mono);white-space:nowrap;margin-right:.15rem;';
+  _headerExtraEl.appendChild(_nBadgeEl);
+
   const sep = document.createElement('div');
   sep.style.cssText = 'width:1px;height:14px;background:var(--border);flex-shrink:0;margin:0 .1rem';
   _headerExtraEl.appendChild(sep);
@@ -224,6 +228,7 @@ function _render() {
   // ── Noch keine Datei geladen ──
   if (!core.state.rows || !core.state.rows.length) {
     _showMsg('Noch keine Datei geladen');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = '–';
     return;
   }
@@ -231,6 +236,7 @@ function _render() {
   // ── JiraEpics fehlt oder leer ──
   if (!_epicRows.length) {
     _showMsg('JiraEpics-Sheet nicht gefunden');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'JiraEpics fehlt';
     return;
   }
@@ -238,6 +244,7 @@ function _render() {
   // ── Keine Stage-Daten ──
   if (!_stages.length) {
     _showMsg('Keine Epics mit Stage-Daten');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Keine Stage-Daten';
     return;
   }
@@ -246,11 +253,13 @@ function _render() {
   const sf = core.state.squadFilter;
   if (!sf || !sf.length) {
     _showMsg('Kein Squad ausgewählt');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Kein Squad';
     return;
   }
   if (sf.length > 1) {
     _showMsg('Bitte nur 1 Squad wählen');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = `${sf.length} Squads gewählt`;
     return;
   }
@@ -265,17 +274,18 @@ function _render() {
 
   // ── Squad hat keine Epics in JiraEpics ──
   if (!qualities.some(d => d.q !== null)) {
-    _showMsg(`Keine Daten für Squad „${_esc(squadName)}“`);
+    _showMsg(`Keine Daten für Squad „${_esc(squadName)}”`);
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Squad fehlt';
     return;
   }
 
   const totalEpics   = _epicRows.filter(r => r['Squad'] === squadName && r['Stage'] != null && String(r['Stage']).trim() !== '').length;
-  const activeStages = qualities.filter(d => d.q !== null).length;
 
+  if (_nBadgeEl) _nBadgeEl.textContent = `N = ${totalEpics}`;
   _drawChart(squadName, qualities);
 
-  _diagTextEl.textContent = `Squad: ${squadName} · n=${totalEpics} Epics · ${activeStages} Etappen`;
+  _diagTextEl.textContent = '';
 }
 
 // ════════════════════════════════════════════════

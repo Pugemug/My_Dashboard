@@ -1,7 +1,7 @@
 # index.html – Spezifikation
 
-**Version:** 2.3  
-**Datum:** 2026-06-17  
+**Version:** 2.4  
+**Datum:** 2026-06-19  
 **Status:** Implementiert · wird bei Änderungen aktualisiert
 
 ---
@@ -24,6 +24,7 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
   #upload-screen            Drag&Drop + Datei-Picker + Hint-Box
   #app-screen
     #squad-dropdown         position:fixed – shared Squad-Dropdown (alle Pages)
+    #issuetype-dropdown     position:fixed – shared Issue-Type-Dropdown (alle Pages außer Blocker)
     .app-body               Sidebar + Main-Content (kein globaler Topbar)
       .sidebar              Persistente linke Navigation
         .sidebar-logo       FlowAnalytics
@@ -59,7 +60,7 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
           .page-filterbar   „Wo verbringen Tickets ihre Zeit?" · Squad · Issue-Typ · Zeitraum · Reset
           .page-detail-canvas  id="page-canvas-heatmap" — Card füllt inset:0
         #page-monte  (.page-flex)
-          .page-filterbar   „Wann sind wir fertig?" · Squad · Reset
+          .page-filterbar   „Wann sind wir fertig?" · Squad · Issue-Typ · Reset
           .page-detail-canvas  id="page-canvas-monte" — Card füllt inset:0
   <script type="module"> ES-Module-Bootstrap
 ```
@@ -188,23 +189,88 @@ Hat Klasse `.page-flex` → `showPage()` setzt `display:flex` (statt `block`) da
 pf-page-title  „Lieferfähigkeit"
 pf-sep
 #squad-dd-wrap
-  #btn-squad (.btn-squad-trigger)   Squad-Filter-Button — öffnet shared #squad-dropdown
-  (dropdown ist jetzt auf #app-screen-Ebene, position:fixed)
-.pf-filter-chip.pf-disabled   „ISSUE-TYP Alle ▽"   (Platzhalter, noch nicht implementiert)
-.pf-filter-chip.pf-disabled   „ZEITRAUM Gesamt ▽"  (Platzhalter, noch nicht implementiert)
+  #btn-squad (.btn-squad-trigger)       Squad-Filter-Button — öffnet shared #squad-dropdown
+.btn-issuetype-trigger (.pf-filter-chip)  Issue-Type-Filter-Button — öffnet shared #issuetype-dropdown
+.pf-filter-chip.pf-disabled              „ZEITRAUM Gesamt ▽"  (Platzhalter, noch nicht implementiert)
 pf-spacer
-#lf-filter-reset (.squad-filter-reset)   „↻ Filter zurücksetzen" — handled by core.js
+#lf-filter-reset (.squad-filter-reset)   „↻ Filter zurücksetzen" — setzt Squad + Issue-Type zurück (core.js)
 ```
 
-**Squad-Filter:** `#btn-squad` trägt Klasse `.pf-filter-chip` (statt `.btn-icon`). Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateSquadBtn()` in core.js: `„SQUADS Alle ▽"` / `„SQUADS N/M ▽"`.
+**Squad-Filter:** `#btn-squad` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateSquadBtn()` in core.js: `„SQUADS Alle ▽"` / `„SQUADS N/M ▽"`.
 
-**Filter-Reset** (`#lf-filter-reset`, Bootstrap-Script in index.html): setzt alle Squad-Checkboxen auf `checked=true` und feuert `sdd-all`-Click-Event.
+**Issue-Type-Filter:** `.btn-issuetype-trigger` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateIssueTypeBtn()` in core.js (Logik siehe § Issue-Type-Filter).
+
+**Filter-Reset** (`#lf-filter-reset`): setzt Squad-Checkboxen **und** Issue-Type-Checkboxen auf `checked=true`.
 
 ### Scrollbarer Inhalt (`.page-scroll`)
 
 ```
 #tile-canvas-lieferfahigkeit   Flexbox (flex-wrap:wrap, justify-content:center) — auto 3→2→1 Spalten
 ```
+
+---
+
+## Issue-Type-Filter
+
+Globaler Filter für die `Issue-Type`-Spalte des JiraStories-Sheets. Wirkt auf alle Visuals die `core.filteredRows()` verwenden. Nicht betroffen: Happiness, Akzeptanzkriterien, SayDoRatioEpics, Blockermanagement (andere Datenquellen).
+
+### State (core.js)
+
+| Feld | Typ | Default | Persistenz |
+|---|---|---|---|
+| `core.state.allIssueTypes` | `string[]` | `[]` | – (aus Daten befüllt) |
+| `core.state.issueTypeFilter` | `string[]` | `[]` (= alle) | `fhwa_global` |
+
+`fhwa_global` enthält: `{ squadFilter, issueTypeFilter, urlTemplate }`.
+
+### Dropdown (`#issuetype-dropdown`)
+
+`position:fixed` auf `#app-screen`-Ebene, geteilt über alle Pages. CSS-Klassen identisch mit Squad-Dropdown (`.squad-dropdown`, `.squad-dd-header`, `.sdd-btn`, `.squad-opt`).
+
+| Element | ID | Funktion |
+|---|---|---|
+| Container | `#issuetype-dropdown` | `position:fixed`, `display:none` → `.open` |
+| Header | `.squad-dd-header` | Flex-Zeile mit Alle/Keine |
+| Alle-Button | `#sdd-type-all` | setzt alle Checkboxen auf `checked=true` |
+| Keine-Button | `#sdd-type-none` | setzt alle Checkboxen auf `checked=false` |
+| Options-Container | `#issuetype-opts` | dynamisch von `_buildIssueTypeDD()` befüllt |
+| Trigger-Klasse | `.btn-issuetype-trigger` | auf allen Pages außer Blocker |
+
+**Gegenseitiges Schließen:** Öffnen des Issue-Type-Dropdowns schließt `#squad-dropdown` und umgekehrt.
+
+### Button-Text-Logik
+
+| Zustand | Anzeige |
+|---|---|
+| Alle ausgewählt / keine Restriction | `ISSUE-TYP Alle ▽` (kein `pf-active`) |
+| 1 Typ ausgewählt | `ISSUE-TYP {name} ▽` + `pf-active` |
+| 2 Typen ausgewählt | `ISSUE-TYP {name1}, {name2} ▽` + `pf-active` |
+| ≥3 Typen (nicht alle) | `ISSUE-TYP N/M ▽` + `pf-active` |
+
+### filteredRows() (core.js)
+
+```js
+filteredRows() {
+  let rows = core.state.rows;
+  if (core.state.squadFilter.length)
+    rows = rows.filter(r => core.state.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+  if (core.state.issueTypeFilter.length)
+    rows = rows.filter(r => core.state.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+  return rows;
+}
+```
+
+### Akzeptanzkriterien
+
+1. Filter zeigt alle Werte aus `Issue-Type`-Spalte des JiraStories-Sheets (alphabetisch)
+2. Default: alle ausgewählt, Button zeigt „ISSUE-TYP Alle ▽"
+3. „Alle"/„Keine"-Buttons funktionieren
+4. Button-Text: 1 Name / 2 Namen / N/M (mind. 2 Namen vor Umschaltung auf N/M)
+5. Seitenwechsel erhält Auswahl; alle Trigger-Buttons aktualisiert
+6. Browser-Reload stellt Auswahl wieder her (`fhwa_global`)
+7. „Filter zurücksetzen" setzt Squad UND Issue-Type auf Alle
+8. Fehlende `Issue-Type`-Spalte: Dropdown leer, Button zeigt „Alle" – kein Fehler
+9. Alle JiraStories-basierten Visuals rendern neu (via `'filter'`-Event)
 
 ---
 
@@ -351,7 +417,8 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 |---|---|
 | `.page-detail-canvas` | `flex:1; position:relative; overflow:hidden` — Canvas für wipage/scatter/heatmap |
 | `.btn-squad-trigger` | Squad-Filter-Button auf jeder Page — öffnet shared `#squad-dropdown` |
-| `.squad-filter-reset` | Filter-zurücksetzen-Button auf jeder Page — handled by core.js |
+| `.btn-issuetype-trigger` | Issue-Type-Filter-Button auf jeder Page (außer Blocker) — öffnet shared `#issuetype-dropdown` |
+| `.squad-filter-reset` | Filter-zurücksetzen-Button auf jeder Page — setzt Squad + Issue-Type zurück (core.js) |
 
 #### Sonstige
 
@@ -434,7 +501,6 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 
 | Feature | Aufwand | Beschreibung |
 |---|---|---|
-| **ISSUE-TYP Filter** | mittel | `.pf-filter-chip` in Lieferfähigkeit-Filterleiste aktivieren; `core.state.issueTypeFilter` |
 | **ZEITRAUM Filter** | mittel | Datumsbereich-Picker in Filterleiste; `core.state.dateRange` |
 | **Card-Titel editierbar** | klein | `contenteditable` auf `.card-title`; Änderung in `fhwa_layout2` persistieren |
 | **Card minimieren** | klein | `.card-content` auf `height:0` klappen; Button im Card-Header |
@@ -731,3 +797,4 @@ th.th-extra { color:var(--orange); opacity:.9 }
 | 2026-06-11 | 2.1 | `montecarlo.js` (MonteCarlo Simulation) ergänzt: `import { init as initMonteCarlo }` + `initMonteCarlo()` im Bootstrap-Block. Neue Deep-Dive-Page `monte` (`#page-monte`, `#page-canvas-monte`) mit Filterleiste (Squad + Reset). Sidebar-Link „Wann sind wir fertig?" (🎲🎲) ergänzt. `CARD_PAGE_MAP` in `core.js`: `'montecarlo': 'monte'`. |
 | 2026-06-15 | 2.2 | Bugfix: `#page-canvas-lieferfahigkeit` (Fallback-Div) aus HTML-Struktur und Spec entfernt — Migration zu `core.createTile()` war bereits vollständig. |
 | 2026-06-17 | 2.3 | Neue Sektion „Exaktes CSS – vollständige Klassen-Referenz" ergänzt: alle Klassen mit vollständigen CSS-Regeln (inkl. Hover-, Active-, State-Varianten) als Neubau-Referenz. Design-Tokens ausgelagert nach `docs/design/design-tokens.css`. |
+| 2026-06-19 | 2.4 | Issue-Type-Filter implementiert: `#issuetype-dropdown` (shared, `position:fixed`), `.btn-issuetype-trigger` auf 5 Pages aktiv. `core.state.issueTypeFilter` + `allIssueTypes`. `filteredRows()` filtert Squad + Issue-Type. `fhwa_global` um `issueTypeFilter` erweitert. Filter-Reset setzt beide Filter zurück. Neue Sektion „Issue-Type-Filter" + Backlog-Eintrag entfernt. |

@@ -1,7 +1,7 @@
 # Spec: Flow Efficiency (flowefficiency.js)
 
-**Version:** 1.1  
-**Datum:** 2026-06-09  
+**Version:** 1.4  
+**Datum:** 2026-06-20  
 **Status:** Bestätigt (Gate 1 freigegeben)  
 **localStorage-Key:** `fhwa_flowefficiency`
 
@@ -74,10 +74,10 @@
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ Flow Efficiency   [Linie|Violin]   N=42   [?]   [⚙]      │  ← Tile-Header
+│ Flow Efficiency   [Linie] [Violin]   [⚙]   [?]           │  ← Tile-Header
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
-│  100% ┤                                                  │
+│  100% ┤                                            N=42  │
 │   75% ┤                                                  │
 │   50% ┤    ●              ●                              │
 │       ┼──────────────────────────── (Ziellinie 40%)      │
@@ -94,6 +94,25 @@
 - **Links:** Fester Erklärungstext: *„Zeigt den Anteil echter aktiver Arbeit an der Gesamtdurchlaufzeit — je höher, desto weniger Wartezeit im Prozess."* (gedimmt, `font-size: 11px`, `overflow: hidden`, `text-overflow: ellipsis`, `white-space: nowrap`)
 - **Mitte:** Dynamische Zähler-Meldung (bisheriger `diagEl`-Inhalt): `„N Items · M Monate · K Datenfehler ausgeschlossen [· Sheet-Hinweis]"` (zentriert)
 - **Rechts:** Link-Button `„Flow analysieren →"` → navigiert zur Heatmap-Page (`core.showPage('heatmap')`)
+
+### Datenfehler-Link (Fußzeile Mitte)
+
+Der Text `„K Datenfehler ausgeschlossen"` in der mittleren Diag-Leiste ist ein blauer, klickbarer `<a>`-Link, wenn K > 0. Klick öffnet das **Fehler-Modal**. Bei K = 0 erscheint dieser Text nicht.
+
+**Fehler-Modal:**
+- Mittelgroßes Overlay: `width: min(640px, 92vw)`, `max-height: 80vh`, scrollbar
+- Backdrop (halbtransparent), Klick auf Backdrop schließt Modal
+- `✕`-Schließen-Button oben rechts
+- `Escape`-Taste schließt Modal
+
+**Tabelle mit drei Spalten:**
+| Spalte | Inhalt |
+|---|---|
+| Jira-ID | Jira-ID des Items; verlinkbar auf Jira wenn `core.state.urlTemplate` gesetzt (neuer Tab) |
+| Issue-Type | Wert aus `Issue-Type`-Spalte der JiraStories |
+| Fehlerkonstellation | `„Wartezeit Xd > LT Yd (Status1: Zd, Status2: Wd)"` — Breakdown nur für Status mit `> 0` |
+
+**Sortierung:** Klick auf Spaltenheader schaltet aufsteigend/absteigend um. Aktive Spalte mit `↑` oder `↓` markiert. Standard: Fehlerkonstellation absteigend (größte Abweichung zuerst).
 
 ### Hilfe-Modal (?-Button)
 
@@ -267,7 +286,7 @@ Persistenz: `core.save('fhwa_flowefficiency', cfg)` / `core.load('fhwa_floweffic
 | Check | Entscheidung |
 |---|---|
 | Tooltip | `position:fixed`, boundary-safe `_moveTT()` (vw/vh-Prüfung); kein Hover-Delay (keine Links im Tooltip) |
-| N-Anzeige | Tile-Header rechts (`nBadge`, `N=42`) **+** im Tooltip pro Monat (`N=8`) |
+| N-Anzeige | SVG oben rechts (`N = 42`, `font-size:11px`, Monospace) **+** im Tooltip pro Monat (`N=8`) |
 | Reihenfolge-Panel | Nicht benötigt |
 | Skalierung | Alle Maße relativ zu `contentEl.clientWidth / clientHeight` |
 | Diagnosemodus | `diagEl`: `„N Items · M Monate · K Datenfehler ausgeschlossen [· Sheet-Hinweis]"` |
@@ -304,6 +323,14 @@ Persistenz: `core.save('fhwa_flowefficiency', cfg)` / `core.load('fhwa_floweffic
 - [ ] Diag-Leiste ist 3-spaltig: Erklärungstext links — Zähler-Meldung mitte — „Flow analysieren →" Link rechts
 - [ ] „Flow analysieren →" navigiert zur Heatmap-Page (`core.showPage('heatmap')`)
 - [ ] Erklärungstext in der Diag-Leiste wird bei schmalen Tiles korrekt abgeschnitten (ellipsis), kein Umbruch
+- [ ] „K Datenfehler ausgeschlossen" erscheint blau + klickbar wenn K > 0; bei K = 0 kein Link
+- [ ] Klick auf den Link öffnet das Fehler-Modal mit allen ausgeschlossenen Items
+- [ ] Fehlerkonstellation-Spalte zeigt `„Wartezeit Xd > LT Yd (Status: Zd, …)"`
+- [ ] Spaltenheader sortieren auf-/absteigend; aktive Spalte mit Pfeil markiert
+- [ ] Standard-Sortierung: größte Abweichung (Wartezeit − LT) zuerst
+- [ ] Jira-ID ist verlinkbar wenn `urlTemplate` gesetzt, öffnet neuen Tab
+- [ ] Fehler-Modal schließt per ✕, Backdrop-Klick und Escape
+- [ ] Fehler-Modal passt sich dem Light/Dark-Theme an
 
 ---
 
@@ -314,3 +341,5 @@ Persistenz: `core.save('fhwa_flowefficiency', cfg)` / `core.load('fhwa_floweffic
 | 1.0 | 2026-06-09 | Initiale Spec nach SDD-Interview (Blöcke A–G) — Gate 1 bestätigt |
 | 1.1 | 2026-06-09 | Violin-Modus ergänzt (Block C: Mode-Toggle, Block D: KDE-Beschreibung, Block E: `mode`-Property, Block G: Violin-Akzeptanzkriterien) |
 | 1.2 | 2026-06-11 | Drei Erweiterungen (Block C): (1) ?-Button im Tile-Header → Hilfe-Modal mit vollständiger Erklärung inkl. SVG-Grafiken, Theme-adaptiv; (2) Diag-Leiste 3-spaltig (Erklärungstext · Zähler · „Flow analysieren →" Link zur Heatmap); (3) Akzeptanzkriterien Block G erweitert |
+| 1.3 | 2026-06-19 | Datenfehler-Link in der Fußzeile (Block C): „K Datenfehler ausgeschlossen" wird zu klickbarem Link → öffnet Fehler-Modal (640px, scrollbar) mit Tabelle: Jira-ID (verlinkbar), Issue-Type, Fehlerkonstellation inkl. Wartezeit-Breakdown; klickbare Spaltenheader zur Sortierung |
+| 1.4 | 2026-06-20 | Header-Angleichung an Lead Time (Block C, Block F): Modus-Buttons [Linie]\[Violin] als einzelne `btn-icon`-Buttons (statt Segmented-Control), aktiver Modus via `p-blue`-Klasse; N-Badge aus Header entfernt → N = X als SVG-Text oben rechts im Chart |

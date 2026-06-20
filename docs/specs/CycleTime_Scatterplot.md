@@ -1,7 +1,7 @@
 # CycleTime Scatterplot – Spezifikation (SDD)
 
-**Version:** 1.1  
-**Datum:** 2026-06-11  
+**Version:** 1.2  
+**Datum:** 2026-06-20  
 **Status:** [x] Entwurf → [ ] Bestätigt (Gate 1) → [x] Implementiert (`scatter.js` v2.1+)
 
 > Diese SDD wurde nachträglich aus dem implementierten Code (`scatter.js`) und dem
@@ -13,11 +13,18 @@
 ## A – Zweck & Abgrenzung
 
 ### Was das Visual macht
-Der CycleTime Scatterplot zeigt die Durchlaufzeit (CT) jedes einzelnen Work Items als
-Punkt über der Zeitachse (X = Fertigstellungsdatum, Y = CT in Tagen). Vier konfigurierbare
-Perzentil-Linien (P50, P70, P85, P95) machen Trends und Ausreißer auf einen Blick sichtbar.
-Drei Farb-Modi (einfarbig, Issue-Type, Heatmap) ermöglichen unterschiedliche Analyseebenen.
-Ein klickbarer Jira-Link im Tooltip führt direkt zum betroffenen Item.
+Der Scatterplot zeigt die Durchlaufzeit (CT) jedes einzelnen Work Items als Punkt über der Zeitachse (X = Fertigstellungsdatum, Y = CT in Tagen). Vier konfigurierbare Perzentil-Linien (P50, P70, P85, P95) machen Trends und Ausreißer auf einen Blick sichtbar. Drei Farb-Modi (einfarbig, Issue-Type, Heatmap) ermöglichen unterschiedliche Analyseebenen. Ein klickbarer Jira-Link im Tooltip führt direkt zum betroffenen Item.
+
+**Modus-Logik (Lead Time / Cycle Time / Cycle Time sonstige):**  
+Identische Logik wie im LeadTime BoxChart (Spec `LeadTime_BoxChart.md` Block A). Der Titel und die Header-Buttons wechseln je nach gewähltem ctStart/ctEnd:
+
+| Modus | ctStart | ctEnd | Titel | Buttons |
+|---|---|---|---|---|
+| Lead Time | `Ready4Progress_first` | `Resolved` | `Lead<span class="hl">Time</span>` | Lead Time hervorgehoben |
+| Cycle Time | `In Progress_first` | `Resolved` | `Cycle<span class="hl">Time</span>` | Cycle Time hervorgehoben |
+| Cycle Time sonstige | (beliebig) | (beliebig) | `Cycle Time <span class="hl">sonstige</span>` | keiner hervorgehoben |
+
+**Sync vom BoxChart:** Wenn der Nutzer im BoxChart auf „Verteilung ansehen →" klickt, werden `ctStart` und `ctEnd` in `fhwa_scatter` überschrieben. Der Scatterplot liest beim nächsten Render-Event seine Config neu aus localStorage und passt Titel, Buttons und Berechnung entsprechend an.
 
 ### Was es NICHT macht
 - Kein Cross-Filter zwischen Visuals (nur globaler Squad-Filter über `core`)
@@ -59,7 +66,8 @@ Nutzer wählt `ctStart` und `ctEnd` aus allen erkannten Datumsspalten (`core.sta
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Card-Header: Titel · [Einfarbig|Typ|Heatmap] · [Wo|Mo|Q]   │
+│  Card-Header: Titel · [Lead Time|Cycle Time] ·               │
+│               [Einfarbig|Typ|Heatmap] · [Wo|Mo|Q]            │
 │               [⚙ Einstellungen]                              │
 ├──────────────────────────────────────────────────────────────┤
 │  [⚙ Einstellungen-Panel – nur wenn offen]                    │
@@ -101,6 +109,9 @@ Default-Grid-Position: `{ col: 8, row: 0, w: 4, h: 12 }`.
 | Tooltip ausblenden | `mouseleave` Dot (130 ms Delay) | `display:none` — Delay erlaubt Mausbewegung zum Tooltip |
 | Tooltip halten | `mouseenter` auf Tooltip | Delay-Timer gestoppt (`clearTimeout`) |
 | Jira-Link öffnen | Click auf `↗ [Key] öffnen` im Tooltip | `window.open(url, '_blank')` |
+| Modus Lead Time wählen | Klick auf `Lead Time`-Button im Header | `cfg.ctStart = 'Ready4Progress_first'`, `cfg.ctEnd = 'Resolved'` setzen, speichern, Titel + Button-Hervorhebung aktualisieren, neu rendern |
+| Modus Cycle Time wählen | Klick auf `Cycle Time`-Button im Header | `cfg.ctStart = 'In Progress_first'`, `cfg.ctEnd = 'Resolved'` setzen, speichern, Titel + Button-Hervorhebung aktualisieren, neu rendern |
+| Spalten in ⚙ wählen | `<select>` für ctStart / ctEnd ändern | Modus-Erkennung neu prüfen, Titel + Buttons aktualisieren, neu rendern |
 | Farb-Modus wechseln | Toggle-Gruppe im Header | Neurender, Farbzuordnung aktualisiert |
 | Intervall wechseln | Toggle-Gruppe im Header | X-Achsen-Ticks neu berechnet |
 | Panel öffnen/schließen | `⚙ Einstellungen`-Button im Header | Panel `.open` toggled; Neurender nach 20 ms |
@@ -130,6 +141,22 @@ Default-Grid-Position: `{ col: 8, row: 0, w: 4, h: 12 }`.
 ---
 
 ## D – Berechnungslogik
+
+### Preset-Erkennung (Modus-Logik)
+Identische Logik wie im BoxChart — wird nach jedem Config-Load und nach jeder ctStart/ctEnd-Änderung aufgerufen:
+
+```javascript
+function _detectMode(ctStart, ctEnd) {
+  if (ctStart === 'Ready4Progress_first' && ctEnd === 'Resolved') return 'lt';
+  if (ctStart === 'In Progress_first'   && ctEnd === 'Resolved') return 'ct';
+  return 'custom';
+}
+```
+
+**Sync-Empfang vom BoxChart:**  
+Der Scatterplot liest seinen Config-State beim `data`-, `filter`- und `settings`-Event aus localStorage. Wenn BoxChart vor dem Page-Wechsel `fhwa_scatter.ctStart`/`ctEnd` überschrieben hat, liest der Scatterplot diese beim nächsten Render-Aufruf automatisch. Kein zusätzlicher Event-Mechanismus nötig — der Scatterplot muss jedoch sicherstellen, dass er `cfg` beim Render-Aufruf **aus localStorage** lädt (nicht gecacht aus dem Arbeitsspeicher der Initialisierungsphase).
+
+> **Implementierungshinweis:** Beim `settings`-Event `cfg` neu aus `core.load('fhwa_scatter', defaults)` einlesen, damit der BoxChart-Sync wirkt.
 
 ### Kern-Metriken
 
@@ -214,6 +241,13 @@ Geladen via `core.load('fhwa_scatter', defaults)`, gespeichert via `core.save('f
 
 ## G – Akzeptanzkriterien
 
+### Modus-Buttons (manuell)
+- [ ] Start nach BoxChart-Sync (LT-Modus): `Lead Time`-Button hervorgehoben, Titel „Lead Time"
+- [ ] Klick auf `Cycle Time` im Scatter → Titel wechselt auf „Cycle Time", Button-Hervorhebung wechselt, Config überlebt Browser-Reload
+- [ ] ctStart/ctEnd manuell im ⚙-Panel auf andere Werte setzen → Titel wechselt auf „Cycle Time sonstige", kein Button hervorgehoben
+- [ ] BoxChart: Lead-Time-Modus aktiv → „Verteilung ansehen →" klicken → Scatter öffnet sich mit `Lead Time`-Button hervorgehoben
+- [ ] BoxChart: Cycle-Time-Modus aktiv → „Verteilung ansehen →" klicken → Scatter öffnet sich mit `Cycle Time`-Button hervorgehoben
+
 ### Automatisch von Claude prüfbar
 
 - [ ] `scatter.js` lädt ohne JS-Fehler in der Browser-Console
@@ -244,6 +278,7 @@ Geladen via `core.load('fhwa_scatter', defaults)`, gespeichert via `core.save('f
 |---|---|---|---|
 | 2026-06-03 | 1.0 | Initiale Spec – retrograd aus `scatter.js` v2.0 rekonstruiert | – |
 | 2026-06-11 | 1.1 | CT Start Default: `Ready4Progress_first` → `In Progress_first`; ⚙ Spalten → ⚙ Berechnungslogik; drei Header-Buttons zu einheitlichem ⚙ Einstellungen-Panel zusammengefasst | Oliver |
+| 2026-06-20 | 1.2 | Lead-Time/Cycle-Time-Modus-Buttons im Header (links vor Farb-/Intervall-Toggles); Titel-Wechsel per Preset-Erkennung (3 Zustände: LT / CT / CT sonstige); Sync-Empfang von BoxChart via localStorage fhwa_scatter | Oliver |
 
 ---
 

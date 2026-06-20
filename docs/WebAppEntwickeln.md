@@ -862,10 +862,12 @@ core.state.sheetsRaw     // { [sheetName]: any[][] } — 2D-Array-Format (header
 core.state.dateCols      // string[] — alle Datumsspalten
 core.state.states        // { name, entryCol, exitCol }[] — erkannte Workflow-Zustände
 core.state.stateOrder    // string[] — aktuelle Reihenfolge der Zustände
-core.state.allSquads     // string[] — alle Squad-Namen
-core.state.hasSquad      // boolean
-core.state.hasIssueType  // boolean
-core.state.squadFilter   // string[] — aktiver globaler Filter ([] = alle)
+core.state.allSquads        // string[] — alle Squad-Namen
+core.state.allIssueTypes    // string[] — alle Issue-Typen aus JiraStories (sortiert)
+core.state.hasSquad         // boolean
+core.state.hasIssueType     // boolean
+core.state.squadFilter      // string[] — aktiver globaler Squad-Filter ([] = alle)
+core.state.issueTypeFilter  // string[] — aktiver globaler Issue-Type-Filter ([] = alle)
 core.state.fileName      // string
 core.state.sheetName     // string
 core.state.urlTemplate   // string — globales Jira URL-Template (⚙ Einstellungen-Panel)
@@ -877,7 +879,7 @@ core.state.activePage    // string — aktuell sichtbare Page-ID
 ```javascript
 core.on('data',        fn)    // Excel wurde geladen, state.rows gefüllt
 core.on('theme',       fn)    // Dark/Light gewechselt → neu rendern
-core.on('filter',      fn)    // Squad-Filter geändert → neu rendern
+core.on('filter',      fn)    // Squad- oder Issue-Type-Filter geändert → neu rendern
 core.on('resize',      fn)    // Card wurde gezogen/resized → SVG neu rendern
 core.on('settings',    fn)    // Globale Einstellung geändert (z.B. urlTemplate) → neu rendern
 core.on('statusOrder', fn)    // Globale Status-Reihenfolge geändert → neu rendern + Panel aktualisieren
@@ -924,7 +926,7 @@ Routing für beide Factories über `CARD_PAGE_MAP` in `core.js`. Lieferfähigkei
 ### Daten-Utilities
 
 ```javascript
-core.filteredRows()          // → Row[] nach activem squadFilter
+core.filteredRows()          // → Row[] nach activem squadFilter + issueTypeFilter
 core.toDate(v)               // Excel-Wert / String / Date → Date | null
 core.dur(entryVal, exitVal)  // → Tage (inklusiv) | null
 core.pct(sortedArr, p)       // → Perzentil p (0–100)
@@ -1034,14 +1036,14 @@ export function init() {
 |---|---|---|
 | `fhwa_layout2` | core.js | `{ [visualId]: { col, row, w, h } }` für alle Cards |
 | `fhwa_activePage` | core.js | zuletzt aktive Page-ID |
-| `fhwa_global` | core.js | squadFilter[], urlTemplate |
+| `fhwa_global` | core.js | squadFilter[], issueTypeFilter[], urlTemplate |
 | `fhwa_theme` | core.js | `'dark'` \| `'light'` |
 | `fhwa_status_order` | core.js | `string[]` — globale Status-Reihenfolge (Default: `DEFAULT_STATUS_ORDER`, 17 Einträge) |
 | `fhwa_tileHeight` | index.html | Kachelbreite in px (390–720, Default 550) · Höhe wird als 16:10 abgeleitet |
 | `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenGlobal[] (Default: `['Rejected','Resume']`) — **kein stateOrder mehr** |
 | `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
 | `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected, Resume'`) — **kein stateOrder mehr** |
-| `fhwa_boxchart` | boxchart.js | *(per SDD-Interview zu definieren)* |
+| `fhwa_boxchart` | boxchart.js | chartMode (`"box"`\|`"violin"`\|`"combo"`), periodMode (`"month"`\|`"quarter"`), showOutliers (bool), smoothing (bool), yStep (number, 0=auto), yLog (bool), ltStart (`"Ready4Progress_first"`), ltEnd (`"Resolved"`), includeBug (bool, Default false) — Spec: LeadTime_BoxChart.md |
 | `fhwa_saydoratio` | saydoratio.js | *(per SDD-Interview zu definieren)* |
 | `fhwa_saydoratioepics` | saydoratioepics.js | colorResolved, colorRejected, colorUncalled, colorOpen (alle hex-Strings, Defaults: `#4ade80`, `#fb923c`, `#c084fc`, `#8ba8c8`) |
 | `fhwa_wipkpi` | wipkpi.js | *(per SDD-Interview zu definieren)* |

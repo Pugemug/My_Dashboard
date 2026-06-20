@@ -1,7 +1,7 @@
 # WIP – Work In Progress pro Person
 
-**Version:** 1.0  
-**Datum:** 2026-06-09  
+**Version:** 1.3  
+**Datum:** 2026-06-19  
 **Status:** [ ] Entwurf → [x] Bestätigt (Gate 1) → [x] Implementiert
 
 ---
@@ -81,7 +81,9 @@ parseToYYYYMM(val):
 ### Hauptbereiche (ASCII-Sketch)
 ```
 ┌──────────────────────────────────────────────┐
-│  WIP pro Person          n=47 Stories  [⚙]  │
+│  WIP pro Person          [N = 47] [sep] [⚙] │
+├──────────────────────────────────────────────┤
+│  (Erklärungs-Panel, ausklappbar)             │
 ├──────────────────────────────────────────────┤
 │  Y │                                         │
 │    │    •                                    │
@@ -90,9 +92,11 @@ parseToYYYYMM(val):
 │    │ •     \/                                │
 │    └────────────────────────── X (Monate)   │
 ├──────────────────────────────────────────────┤
-│  [Diag-Bar]                                  │
+│  [Was zeigt diese Ansicht?]   [Fehlertext]   │
 └──────────────────────────────────────────────┘
 ```
+
+**Titel:** `WIP <span class="hl">pro Person</span>` – weißer Text, blau gefärbtes Suffix.
 
 Visual ist ein Tile (`core.createTile()`), eingebettet im `tile-canvas-lieferfahigkeit`.
 
@@ -110,6 +114,7 @@ im Filter ausgewählt ist. Bei 0 oder ≥ 2 Squads: Placeholder-Text
 | Tooltip anzeigen | `mouseover` auf Punkt | Tooltip erscheint (boundary-safe) |
 | Tooltip verschieben | `mousemove` auf Punkt | Tooltip folgt Maus |
 | Tooltip ausblenden | `mouseout` | Tooltip `display:none` |
+| Erklärungs-Panel öffnen/schließen | Klick auf „Was zeigt diese Ansicht?" | max-height-Transition, Panel klappt auf/zu |
 | Einstellungen öffnen | Klick auf ⚙ | Panel erscheint in-visual |
 | Filter ändert sich | `filter`-Event | Visual neu rendern |
 | Theme wechselt | `theme`-Event | Farben aktualisieren, neu rendern |
@@ -124,7 +129,7 @@ Teamgröße: 7
 ```
 
 ### N-Anzeige
-`n=X Stories` im headerExtraEl (oben rechts im Tile-Header, links vom ⚙-Button).
+`N = X` im headerExtraEl (oben rechts im Tile-Header, links vom ⚙-Button).
 N = Anzahl einzigartiger Stories die in mind. einem dargestellten Monat als WIP zählen.
 
 ### Leerzustand
@@ -227,10 +232,11 @@ localStorage-Key: `fhwa_wip`
 |---|---|---|
 | Tooltip boundary-safe | ✅ Pflicht | `positionTooltip()` mit Overflow-Prüfung (§9.3) |
 | Tooltip mit Links | Nein | Kein Hover-Delay nötig |
-| N-Anzeige | ✅ Pflicht | `n=X Stories` im headerExtraEl (links vom ⚙-Button) |
+| N-Anzeige | ✅ Pflicht | `N = X Stories` im headerExtraEl (links vom ⚙-Button) |
+| Erklärungs-Panel | ✅ | Ausklappbar via „Was zeigt diese Ansicht?" im linken Footer |
 | Reihenfolge-Panel | Nicht benötigt | Zeitachse ist fix (chronologisch) |
 | Skalierung | ✅ Pflicht | `r = Math.max(4, Math.min(7, pW/80))` |
-| Diagnosemodus | ✅ Pflicht, immer sichtbar | `n=X · Y Monate · Squad: Z` |
+| Diagnosemodus | ✅ 3-spaltig | Links: „Was zeigt diese Ansicht?", Mitte: Fehler/Statustext |
 | Link-Feature | Nicht benötigt | – |
 | Theme | ✅ Pflicht | `core.scatterColors()` für Achsen; konfigurierte Farben für Punkte/Linien |
 | Single-Squad-Guard | ✅ Pflicht | `filter.length !== 1` → Placeholder |
@@ -267,3 +273,4 @@ localStorage-Key: `fhwa_wip`
 | 2026-06-09 | 1.0 | Initiale Spec nach SDD-Interview + Implementierung | Oliver |
 | 2026-06-09 | 1.1 | Bugfix: Header-Suche auf `row.some()` umgestellt (war `row[1]`); Squad-Fallback liefert jetzt Monate aus Header-Zeile mit Teamgröße=1 | Oliver |
 | 2026-06-11 | 1.2 | Zeitraum fest auf letzte 12 Monate (inkl. aktueller Monat) begrenzt; SquadDaten-Sheet nicht mehr für Monatsgenerierung benötigt; Fallback Teamgröße=1 für nicht abgedeckte Monate | Oliver |
+| 2026-06-19 | 1.3 | Titel mit hl-Span; Erklärungs-Panel; 3-spaltiger Footer mit „Was zeigt diese Ansicht?" links; N-Format auf `N = X` vereinheitlicht | Oliver |

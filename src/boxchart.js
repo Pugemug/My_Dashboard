@@ -1,7 +1,7 @@
-// ════════════════════════════════════════════════
+﻿// ════════════════════════════════════════════════
 // boxchart.js – LeadTime BoxChart (Kachel-Format)
-// Flow Analytics Dashboard v2.4
-// Spec: LeadTime_BoxChart.md v1.4
+// Flow Analytics Dashboard v2.5
+// Spec: LeadTime_BoxChart.md v1.8
 // Änderungen v2.4:
 //   - Bug: Panel konnte nicht geschlossen werden → Panel in contentEl (chart area)
 //   - Panel: × Schließen-Button + Klick-außen schließt Panel
@@ -16,6 +16,10 @@ const KDE_POINTS = 80;
 const BW_ON      = 4;    // Violin-Glättung: An
 const BW_OFF     = 1.2;  // Violin-Glättung: Aus (minimal, zeigt Rohdaten-Form)
 
+const LT_START = 'Ready4Progress_first';
+const CT_START = 'In Progress_first';
+const LT_END   = 'Resolved';
+
 const DEFAULT_CFG = {
   chartMode:    'box',               // 'box' | 'violin' | 'combo'
   periodMode:   'month',             // 'month' | 'quarter'
@@ -25,6 +29,7 @@ const DEFAULT_CFG = {
   ltEnd:        'Resolved',
   yStep:        0,           // 0 = automatisch; > 0 = feste Schrittweite in Tagen
   yLog:         false,       // Logarithmische Y-Skala
+  includeBug:   false,       // Bug (Issue-Type exakt "bug") per Default ausgeschlossen
 };
 
 // ── Modul-State ──
@@ -33,6 +38,40 @@ let _contentEl, _diagEl, _headerExtraEl;
 let _tooltip = null;
 let _ttTimer = null;
 let _cfgOpen = false;
+let _explanationOpen = false;
+let _explanationEl = null;
+let _titleEl       = null;
+
+// ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ──────────────────────
+function _detectMode() {
+  if (cfg.ltStart === LT_START && cfg.ltEnd === LT_END) return 'lt';
+  if (cfg.ltStart === CT_START && cfg.ltEnd === LT_END) return 'ct';
+  return 'custom';
+}
+
+function _getModeTitle() {
+  const m = _detectMode();
+  if (m === 'lt') return 'Lead<span class="hl">Time</span>';
+  if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
+  return 'Cycle Time <span class="hl">sonstige</span>';
+}
+
+function _getModeExplanation() {
+  const m = _detectMode();
+  if (m === 'lt') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket vom Moment der Bereitschaft zur Bearbeitung (Ready4Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert entspricht der Wartezeit aus Kundensicht – inklusive Liegezeiten im Prozess. Ziel: P85 dauerhaft unter dem vereinbarten SLA halten.</div>';
+  if (m === 'ct') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket ab dem ersten aktiven Bearbeitungsmoment (In Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert spiegelt die reine Teamleistung wider, ohne vorgelagerte Wartezeiten in der Queue.</div>';
+  return '<div style="padding:8px 14px">Die Durchlaufzeit wird mit benutzerdefinierten Start- und Endspalten berechnet (⚙). Wähle „Ready4Progress_first → Resolved“ für Lead Time oder „In Progress_first → Resolved“ für Cycle Time.</div>';
+}
+
+function _updateModeUI() {
+  const mode = _detectMode();
+  if (_titleEl) _titleEl.innerHTML = _getModeTitle();
+  if (_explanationEl) _explanationEl.innerHTML = _getModeExplanation();
+  const ltBtn = document.getElementById('bc-mode-lt');
+  const ctBtn = document.getElementById('bc-mode-ct');
+  if (ltBtn) ltBtn.classList.toggle('p-blue', mode === 'lt');
+  if (ctBtn) ctBtn.classList.toggle('p-blue', mode === 'ct');
+}
 
 // ════════════════════════════════════════════════
 // Public: init
@@ -45,11 +84,12 @@ export function init() {
     delete saved.bandwidth;
   }
   // Migration: yStep/yLog Defaults sicherstellen
-  if (!('yStep' in saved)) saved.yStep = 0;
-  if (!('yLog'  in saved)) saved.yLog  = false;
+  if (!('yStep'      in saved)) saved.yStep      = 0;
+  if (!('yLog'       in saved)) saved.yLog        = false;
+  if (!('includeBug' in saved)) saved.includeBug  = false;
   cfg = { ...DEFAULT_CFG, ...saved };
 
-  const { contentEl, headerExtraEl, diagEl } = core.createTile({
+  const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
     id:    'boxchart',
     title: 'Lead<span class="hl">Time</span>',
   });
@@ -57,9 +97,12 @@ export function init() {
   _contentEl     = contentEl;
   _diagEl        = diagEl;
   _headerExtraEl = headerExtraEl;
+  _titleEl       = tileEl.querySelector('.tile-title');
 
   _buildHeader();
   _buildKpiArea();
+  _buildExplanation();
+  _updateModeUI();
   _buildFooter();
   _createTooltip();
 
@@ -74,6 +117,41 @@ export function init() {
 // Header: Mode-Buttons + Ausreißer-Toggle + Badge + ⚙
 // ════════════════════════════════════════════════
 function _buildHeader() {
+  // ── Preset-Buttons: Lead Time / Cycle Time ─────────────────────────────
+  [['lt', 'Lead Time'], ['ct', 'Cycle Time']].forEach(([preset, lbl]) => {
+    const btn = document.createElement('button');
+    btn.className     = 'btn-icon';
+    btn.id            = 'bc-mode-' + preset;
+    btn.textContent   = lbl;
+    btn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+    btn.addEventListener('click', () => {
+      if (preset === 'lt') { cfg.ltStart = LT_START; cfg.ltEnd = LT_END; }
+      else                 { cfg.ltStart = CT_START;  cfg.ltEnd = LT_END; }
+      const ltsEl = document.getElementById('bc-ltstart');
+      const lteEl = document.getElementById('bc-ltend');
+      if (ltsEl) ltsEl.value = cfg.ltStart;
+      if (lteEl) lteEl.value = cfg.ltEnd;
+      _updateModeUI();
+      _saveAndRender();
+    });
+    _headerExtraEl.appendChild(btn);
+  });
+
+  // ── Bug-Toggle: inkl. Bug ───────────────────────────────────────────────
+  const bugBtn = document.createElement('button');
+  bugBtn.className   = 'btn-icon';
+  bugBtn.id          = 'bc-bug-toggle';
+  bugBtn.title       = 'Bug-Issues einschließen';
+  bugBtn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
+  bugBtn.classList.toggle('p-blue', cfg.includeBug);
+  bugBtn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+  bugBtn.addEventListener('click', () => {
+    cfg.includeBug = !cfg.includeBug;
+    _syncBugToggle();
+    _saveAndRender();
+  });
+  _headerExtraEl.appendChild(bugBtn);
+
   // ── Mode-Buttons: Box / Violin / Kombi ──────────────────────────────────
   const modes = [['box','Box'], ['violin','Violin'], ['combo','Kombi']];
   modes.forEach(([val, lbl]) => {
@@ -98,7 +176,7 @@ function _buildHeader() {
   outBtn.className   = 'btn-icon';
   outBtn.id          = 'bc-hdr-out';
   outBtn.title       = 'Ausreißer ein/aus';
-  outBtn.textContent = cfg.showOutliers ? 'Ausr.\u00a0●' : 'Ausr.\u00a0○';
+  outBtn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
   outBtn.classList.toggle('p-blue', cfg.showOutliers);
   outBtn.addEventListener('click', () => {
     cfg.showOutliers = !cfg.showOutliers;
@@ -106,16 +184,6 @@ function _buildHeader() {
     _saveAndRender();
   });
   _headerExtraEl.appendChild(outBtn);
-
-  // ── Datenquelle-Badge "● AUS JIRA" ─────────────────────────────────────
-  const badge = document.createElement('span');
-  badge.style.cssText = [
-    'font-family:var(--mono)', 'font-size:.57rem', 'font-weight:600',
-    'color:var(--blue)', 'background:rgba(56,189,248,.1)',
-    'border:1px solid rgba(56,189,248,.25)', 'border-radius:4px',
-    'padding:.12rem .42rem', 'white-space:nowrap', 'letter-spacing:.02em',
-  ].join(';');
-  badge.innerHTML = '&#9679; AUS JIRA';
 
   // ── Config-Button ⚙ ─────────────────────────────────────────────────────
   const cfgBtn = document.createElement('button');
@@ -129,7 +197,6 @@ function _buildHeader() {
     _togglePanel();
   });
 
-  _headerExtraEl.appendChild(badge);
   _headerExtraEl.appendChild(cfgBtn);
 
   // ── Config-Panel (Overlay in contentEl, niemals über Header/KPI) ─────────
@@ -257,10 +324,12 @@ function _buildHeader() {
 
   document.getElementById('bc-ltstart').addEventListener('change', e => {
     cfg.ltStart = e.target.value;
+    _updateModeUI();
     _saveAndRender();
   });
   document.getElementById('bc-ltend').addEventListener('change', e => {
     cfg.ltEnd = e.target.value;
+    _updateModeUI();
     _saveAndRender();
   });
 }
@@ -308,13 +377,31 @@ function _updateYTickInfo() {
   }
 }
 
-// ── Ausreißer-Controls synchronisieren (Header-Button ↔ Panel-Checkbox, falls vorhanden) ──
+// ── Ausreißer-Controls synchronisieren ───────────────────────────────────
 function _syncOutlierControls() {
   const btn = document.getElementById('bc-hdr-out');
   if (btn) {
-    btn.textContent = cfg.showOutliers ? 'Ausr.\u00a0●' : 'Ausr.\u00a0○';
+    btn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
     btn.classList.toggle('p-blue', cfg.showOutliers);
   }
+}
+
+// ── Bug-Toggle synchronisieren ────────────────────────────────────────────
+function _syncBugToggle() {
+  const btn = document.getElementById('bc-bug-toggle');
+  if (btn) {
+    btn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
+    btn.classList.toggle('p-blue', cfg.includeBug);
+  }
+}
+
+// ── Bug-Filterung (lokaler Button hat Vorrang über globalen Issue-Type-Filter) ──
+function _applyBugFilter(rows) {
+  if (cfg.includeBug) return rows;
+  return rows.filter(r => {
+    const t = (r['Issue-Type'] || r['Issue Type'] || r['IssueType'] || r['Type'] || r['issue_type'] || '').trim().toLowerCase();
+    return t !== 'bug';
+  });
 }
 
 // ════════════════════════════════════════════════
@@ -330,15 +417,22 @@ function _buildKpiArea() {
   ].join(';');
 
   kpi.innerHTML = `
-    <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:2px">
-      <span id="bc-kpi-val"
-            style="font-size:1.55rem;font-weight:700;line-height:1;color:var(--text)">–</span>
-      <span id="bc-kpi-trend"
-            style="display:none;font-size:.6rem;font-weight:600;
-                   padding:.12rem .35rem;border-radius:4px;white-space:nowrap"></span>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div>
+        <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:2px">
+          <span id="bc-kpi-val"
+                style="font-size:1.55rem;font-weight:700;line-height:1;color:var(--text)">–</span>
+          <span id="bc-kpi-trend"
+                style="display:none;font-size:.6rem;font-weight:600;
+                       padding:.12rem .35rem;border-radius:4px;white-space:nowrap"></span>
+        </div>
+        <div id="bc-kpi-sub"
+             style="font-size:.62rem;color:var(--dim);font-family:var(--mono)">–</div>
+      </div>
+      <span id="bc-kpi-n"
+            style="font-family:var(--mono);font-size:.65rem;color:var(--dim);
+                   align-self:center;white-space:nowrap">N = –</span>
     </div>
-    <div id="bc-kpi-sub"
-         style="font-size:.62rem;color:var(--dim);font-family:var(--mono)">–</div>
   `;
 
   const tileEl = document.getElementById('tile-boxchart');
@@ -392,14 +486,15 @@ function _buildFooter() {
     'flex-shrink:0',
     'gap:.4rem',
     'font-family:var(--mono)',
-    'font-size:.6rem',
+    'font-size:11px',
     'white-space:nowrap',
     'overflow:hidden',
   ].join(';');
 
-  const hint = document.createElement('span');
-  hint.textContent = '» Was zeigt diese Ansicht?';
-  hint.style.color = 'var(--dimmer)';
+  const hint = document.createElement('a');
+  hint.textContent = 'Was zeigt diese Ansicht?';
+  hint.style.cssText = 'color:var(--blue);cursor:pointer;text-decoration:none';
+  hint.addEventListener('click', _toggleExplanation);
 
   const spacer = document.createElement('span');
   spacer.style.flex = '1';
@@ -412,6 +507,10 @@ function _buildFooter() {
   ].join(';');
   link.addEventListener('click', e => {
     e.preventDefault();
+    const sc = core.load('fhwa_scatter', {});
+    sc.ctStart = cfg.ltStart;
+    sc.ctEnd   = cfg.ltEnd;
+    core.save('fhwa_scatter', sc);
     core.showPage('scatter');
   });
 
@@ -419,6 +518,35 @@ function _buildFooter() {
   _diagEl.appendChild(hint);
   _diagEl.appendChild(spacer);
   _diagEl.appendChild(link);
+}
+
+// ════════════════════════════════════════════════
+// Erklärungs-Panel (aufklappbar, wie Flow Efficiency)
+// ════════════════════════════════════════════════
+function _buildExplanation() {
+  _explanationEl = document.createElement('div');
+  _explanationEl.id = 'bc-explanation';
+  _explanationEl.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:.63rem', 'color:var(--dim)', 'line-height:1.6',
+    'font-family:var(--mono)',
+  ].join(';');
+  _explanationEl.innerHTML = _getModeExplanation();
+  _contentEl.insertBefore(_explanationEl, _contentEl.firstChild);
+}
+
+function _toggleExplanation() {
+  _explanationOpen = !_explanationOpen;
+  if (_explanationEl) {
+    _explanationEl.style.maxHeight = _explanationOpen
+      ? _explanationEl.scrollHeight + 'px'
+      : '0';
+  }
+  const hintEl = _diagEl.querySelector('a');
+  if (hintEl) hintEl.style.opacity = _explanationOpen ? '0.7' : '1';
+  setTimeout(_render, 240);
 }
 
 // ════════════════════════════════════════════════
@@ -574,21 +702,28 @@ function _saveAndRender() {
 // ════════════════════════════════════════════════
 function _showEmpty(msg) {
   const panel = document.getElementById('bc-cfg-panel');
+  const exp   = document.getElementById('bc-explanation');
   _contentEl.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;
                 height:100%;font-family:var(--mono);font-size:.63rem;
                 color:var(--dimmer);padding:.5rem;text-align:center">
       ${msg}
     </div>`;
+  if (exp) {
+    _contentEl.insertBefore(exp, _contentEl.firstChild);
+    exp.style.maxHeight = _explanationOpen ? exp.scrollHeight + 'px' : '0';
+  }
   if (panel) _contentEl.appendChild(panel);
   _updateKpiArea(null, null);
+  const nEl = document.getElementById('bc-kpi-n');
+  if (nEl) nEl.textContent = 'N = –';
 }
 
 // ════════════════════════════════════════════════
 // Haupt-Render
 // ════════════════════════════════════════════════
 function _render() {
-  const rows = core.filteredRows();
+  const rows = _applyBugFilter(core.filteredRows());
   const ltS  = cfg.ltStart;
   const ltE  = cfg.ltEnd;
 
@@ -616,7 +751,7 @@ function _render() {
 
     // Issue Type: gängige Spaltennamen abdecken
     const issueType = String(
-      row['Issue Type'] || row['IssueType'] || row['Type'] || row['issue_type'] || ''
+      row['Issue-Type'] || row['Issue Type'] || row['IssueType'] || row['Type'] || row['issue_type'] || ''
     );
 
     periodItems.get(key).push({
@@ -643,6 +778,11 @@ function _render() {
     statsMap.get(latestKey),
     prevKey ? statsMap.get(prevKey) : null
   );
+
+  // ── N gesamt ─────────────────────────────────────────────────────────────
+  const totalN = [...periodItems.values()].reduce((s, a) => s + a.length, 0);
+  const nEl = document.getElementById('bc-kpi-n');
+  if (nEl) nEl.textContent = 'N = ' + totalN;
 
   // ── SVG-Dimensionen ───────────────────────────────────────────────────────
   const W = _contentEl.clientWidth  || 600;
@@ -830,7 +970,12 @@ function _render() {
 
   parts.push('</svg>');
   const _savedPanel = document.getElementById('bc-cfg-panel');
+  const _savedExp   = document.getElementById('bc-explanation');
   _contentEl.innerHTML = parts.join('');
+  if (_savedExp) {
+    _contentEl.insertBefore(_savedExp, _contentEl.firstChild);
+    _savedExp.style.maxHeight = _explanationOpen ? _savedExp.scrollHeight + 'px' : '0';
+  }
   if (_savedPanel) _contentEl.appendChild(_savedPanel);
 
   // ── Tooltip-Delegation ────────────────────────────────────────────────────
@@ -854,7 +999,8 @@ function _render() {
       if (issType) {
         html += `<div class="tt-row"><span class="tt-lbl">Typ</span><span class="tt-val">${issType}</span></div>`;
       }
-      html += `<div class="tt-row"><span class="tt-lbl">Lead Time</span><span class="tt-val">${core.fmt(ltVal)}</span></div>`;
+      const _modeLbl = _detectMode() === 'ct' ? 'Cycle Time' : 'Lead Time';
+      html += `<div class="tt-row"><span class="tt-lbl">${_modeLbl}</span><span class="tt-val">${core.fmt(ltVal)}</span></div>`;
       if (url) {
         const urlEsc = url.replace(/'/g, "\\'");
         html += `<a class="tt-link" href="#" onclick="window.open('${urlEsc}','_blank');return false;">🔗 In Jira öffnen</a>`;

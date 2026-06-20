@@ -100,10 +100,12 @@ export const core = {
     dateCols:     [],
     states:       [],     // { name, entryCol, exitCol }[]
     stateOrder:   [],     // ordered names as detected from data
-    allSquads:    [],
-    hasSquad:     false,
-    hasIssueType: false,
-    squadFilter:  [],     // [] = alle aktiv
+    allSquads:       [],
+    allIssueTypes:   [],
+    hasSquad:        false,
+    hasIssueType:    false,
+    squadFilter:     [],  // [] = alle aktiv
+    issueTypeFilter: [],  // [] = alle aktiv
     fileName:     '',
     sheetName:    '',
     urlTemplate:  '',     // global Jira URL-Template
@@ -172,11 +174,13 @@ export const core = {
   },
 
   // ── Data utilities ─────────────────────────────
-  /** Returns rows after applying active squadFilter. */
+  /** Returns rows after applying active squadFilter and issueTypeFilter. */
   filteredRows() {
     const s = core.state;
-    if (!s.squadFilter.length) return s.rows;
-    return s.rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+    let rows = s.rows;
+    if (s.squadFilter.length)     rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+    if (s.issueTypeFilter.length) rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    return rows;
   },
 
   toDate(v)       { return _toDate(v); },
@@ -405,8 +409,9 @@ export const core = {
 
     // Load saved global state
     const g = core.load('fhwa_global', null);
-    if (g && Array.isArray(g.squadFilter))      core.state.squadFilter  = g.squadFilter;
-    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate  = g.urlTemplate;
+    if (g && Array.isArray(g.squadFilter))      core.state.squadFilter      = g.squadFilter;
+    if (g && Array.isArray(g.issueTypeFilter))  core.state.issueTypeFilter  = g.issueTypeFilter;
+    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate      = g.urlTemplate;
 
     _initFileUpload();
     _initSidebarButtons();
@@ -633,8 +638,9 @@ function _initFileUpload() {
 
 function _saveGlobal() {
   core.save('fhwa_global', {
-    squadFilter: core.state.squadFilter,
-    urlTemplate: core.state.urlTemplate,
+    squadFilter:     core.state.squadFilter,
+    issueTypeFilter: core.state.issueTypeFilter,
+    urlTemplate:     core.state.urlTemplate,
   });
 }
 
@@ -670,6 +676,9 @@ function _initSidebarButtons() {
       const dd   = document.getElementById('squad-dropdown');
       const open = dd.classList.toggle('open');
       if (open) {
+        document.getElementById('issuetype-dropdown')?.classList.remove('open');
+        document.querySelectorAll('.btn-issuetype-trigger').forEach(b => b.classList.remove('p-blue'));
+        _updateIssueTypeBtn();
         const rect = btn.getBoundingClientRect();
         dd.style.top  = (rect.bottom + 4) + 'px';
         dd.style.left = rect.left + 'px';
@@ -691,6 +700,37 @@ function _initSidebarButtons() {
     _onSquadFilterChange();
   });
 
+  // Issue-Type dropdown toggle – shared across all pages via .btn-issuetype-trigger
+  document.querySelectorAll('.btn-issuetype-trigger').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const dd   = document.getElementById('issuetype-dropdown');
+      const open = dd.classList.toggle('open');
+      if (open) {
+        document.getElementById('squad-dropdown')?.classList.remove('open');
+        document.querySelectorAll('.btn-squad-trigger').forEach(b => b.classList.remove('p-blue'));
+        _updateSquadBtn();
+        const rect = btn.getBoundingClientRect();
+        dd.style.top  = (rect.bottom + 4) + 'px';
+        dd.style.left = rect.left + 'px';
+      }
+      document.querySelectorAll('.btn-issuetype-trigger').forEach(b => {
+        b.classList.toggle('p-blue',    open);
+        b.classList.toggle('pf-active', open || (core.state.issueTypeFilter.length > 0 && core.state.issueTypeFilter.length < core.state.allIssueTypes.length));
+      });
+    });
+  });
+
+  // Issue-Type select all / none
+  document.getElementById('sdd-type-all')?.addEventListener('click', () => {
+    document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = true);
+    _onIssueTypeFilterChange();
+  });
+  document.getElementById('sdd-type-none')?.addEventListener('click', () => {
+    document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = false);
+    _onIssueTypeFilterChange();
+  });
+
   // Settings panel – URL-Template verdrahten (Open/Close wird in index.html verwaltet)
   const urlInput = document.getElementById('settings-url-input');
   if (urlInput) urlInput.value = core.state.urlTemplate;
@@ -703,19 +743,25 @@ function _initSidebarButtons() {
     });
   }
 
-  // Filter zurücksetzen – alle Seiten
+  // Filter zurücksetzen – beide Filter (Squad + Issue-Type)
   document.querySelectorAll('.squad-filter-reset').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#squad-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onSquadFilterChange();
+      document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = true);
+      _onIssueTypeFilterChange();
     });
   });
 
-  // Close squad dropdown on outside click
+  // Close dropdowns on outside click
   document.addEventListener('click', e => {
     if (!e.target.closest('.btn-squad-trigger') && !e.target.closest('#squad-dropdown')) {
       document.getElementById('squad-dropdown')?.classList.remove('open');
       _updateSquadBtn();
+    }
+    if (!e.target.closest('.btn-issuetype-trigger') && !e.target.closest('#issuetype-dropdown')) {
+      document.getElementById('issuetype-dropdown')?.classList.remove('open');
+      _updateIssueTypeBtn();
     }
   });
 }
@@ -803,6 +849,15 @@ function _processData(rows) {
   }
   s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.includes(sq));
 
+  // Issue Types (global filter list)
+  if (s.hasIssueType) {
+    const types = new Set(rows.map(r => r['Issue-Type']).filter(v => v != null).map(String));
+    s.allIssueTypes = [...types].sort((a, b) => a.localeCompare(b, 'de'));
+  } else {
+    s.allIssueTypes = [];
+  }
+  s.issueTypeFilter = (s.issueTypeFilter || []).filter(t => s.allIssueTypes.includes(t));
+
   // Date columns (used by visuals for LT/CT column selects)
   s.dateCols = cols.filter(c =>
     (!META_COLS.has(c) && !c.endsWith('_Count')) || c === 'Created (Status New)'
@@ -813,6 +868,7 @@ function _processData(rows) {
   if (badge) badge.textContent = s.fileName + ' · ' + s.sheetName;
 
   _buildSquadDD();
+  _buildIssueTypeDD();
   core.emit('data');
 }
 
@@ -1024,6 +1080,63 @@ function _updateSquadBtn() {
     btn.textContent = text;
     btn.classList.toggle('pf-active', a > 0);
     btn.classList.remove('p-blue'); // nur blau wenn Dropdown offen
+  });
+}
+
+// ════════════════════════════════════════════════
+// Private: Issue-Type dropdown
+// ════════════════════════════════════════════════
+function _buildIssueTypeDD() {
+  const opts = document.getElementById('issuetype-opts');
+  if (!opts) return;
+  opts.innerHTML = '';
+
+  core.state.allIssueTypes.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'squad-opt';
+    const cb  = document.createElement('input');
+    cb.type   = 'checkbox';
+    cb.id     = 'itcb_' + t;
+    cb.checked = core.state.issueTypeFilter.length === 0 || core.state.issueTypeFilter.includes(t);
+    cb.addEventListener('change', _onIssueTypeFilterChange);
+    const lbl      = document.createElement('label');
+    lbl.htmlFor    = 'itcb_' + t;
+    lbl.textContent = t;
+    div.appendChild(cb); div.appendChild(lbl);
+    opts.appendChild(div);
+  });
+  _updateIssueTypeBtn();
+}
+
+function _onIssueTypeFilterChange() {
+  const checked = [];
+  document.querySelectorAll('#issuetype-opts input[type=checkbox]')
+    .forEach(cb => { if (cb.checked) checked.push(cb.id.replace('itcb_', '')); });
+  core.state.issueTypeFilter = checked.length === core.state.allIssueTypes.length ? [] : checked;
+  _updateIssueTypeBtn();
+  _saveGlobal();
+  core.emit('filter');
+}
+
+function _updateIssueTypeBtn() {
+  const f = core.state.issueTypeFilter;
+  const m = core.state.allIssueTypes.length;
+  const a = f.length;
+  let text;
+  if (!a || a === m) {
+    text = 'ISSUE-TYP Alle ▽';
+  } else if (a === 1) {
+    text = `ISSUE-TYP ${f[0]} ▽`;
+  } else if (a === 2) {
+    text = `ISSUE-TYP ${f[0]}, ${f[1]} ▽`;
+  } else {
+    text = `ISSUE-TYP ${a}/${m} ▽`;
+  }
+  const isActive = a > 0 && a < m;
+  document.querySelectorAll('.btn-issuetype-trigger').forEach(btn => {
+    btn.textContent = text;
+    btn.classList.toggle('pf-active', isActive);
+    btn.classList.remove('p-blue');
   });
 }
 

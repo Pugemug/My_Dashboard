@@ -108,6 +108,10 @@ export function init() {
   _buildPanel();
 
   // ── Header-Controls ──────────────────────────────────────────────────────────
+  const nBadge = document.createElement('span');
+  nBadge.style.cssText = 'font-size:11px;color:var(--dim);font-family:var(--mono);white-space:nowrap;';
+  headerExtraEl.appendChild(nBadge);
+
   const settingsBtn = document.createElement('button');
   settingsBtn.className = 'btn-icon';
   settingsBtn.textContent = '⚙';
@@ -136,7 +140,7 @@ export function init() {
     expEl.style.maxHeight = showExp ? '60px' : '0';
   };
   const diagStats = document.createElement('span');
-  diagStats.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;';
+  diagStats.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;';
   diagEl.appendChild(diagLink);
   diagEl.appendChild(diagStats);
 
@@ -204,11 +208,13 @@ export function init() {
     const etappen = (core.state.sheets && core.state.sheets['BRP Etappen']) ?? [];
 
     if (!epics.length) {
+      nBadge.textContent = '';
       diagStats.textContent = 'JiraEpics-Sheet nicht gefunden';
       currentData = [];
       return;
     }
     if (!etappen.length) {
+      nBadge.textContent = '';
       diagStats.textContent = 'BRP Etappen-Sheet nicht gefunden';
       currentData = [];
       return;
@@ -227,6 +233,7 @@ export function init() {
       .sort((a, b) => core.toDate(a['Startdatum']) - core.toDate(b['Startdatum']));
 
     if (!allEtappen.length) {
+      nBadge.textContent = '';
       diagStats.textContent = 'BRP Etappen: keine gültigen Einträge (Datum fehlt)';
       currentData = [];
       return;
@@ -272,8 +279,8 @@ export function init() {
     currentData = data;
 
     const totalEpics = data.reduce((s, d) => s + d.total, 0);
-    const squadLabel = activeSquads.length ? activeSquads.join(', ') : 'alle';
-    diagStats.textContent = `n=${totalEpics} · ${visibleEtappen.length} Etappen · Squad: ${squadLabel}`;
+    nBadge.textContent = `N = ${totalEpics}`;
+    diagStats.textContent = '';
 
     // ── SVG-Aufbau ───────────────────────────────────────────────────────────
     const W = svgWrap.clientWidth  || 500;

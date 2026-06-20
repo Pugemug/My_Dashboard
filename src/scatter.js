@@ -7,6 +7,7 @@
 import { core, LT_END_DEFAULT, _mkBtn, _mkPanel, _mkTglGrp, _mkSelect, _mkLtField, _mkTTRow, _posTooltip } from './core.js';
 import { calcCT } from './calc/scatter.calc.js';
 
+const LT_START_DEFAULT = 'Ready4Progress_first';
 const CT_START_DEFAULT = 'In Progress_first';
 
 export function init() {
@@ -39,6 +40,28 @@ export function init() {
     defaultGrid: { col: 0, row: 0, w: 12, h: 12 },
   });
 
+  const titleEl = cardEl.querySelector('.card-title');
+  let ltModeBtn, ctModeBtn;
+
+  // ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ───────────────────
+  function _detectMode() {
+    if (cfg.ctStart === LT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'lt';
+    if (cfg.ctStart === CT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'ct';
+    return 'custom';
+  }
+  function _getModeTitle() {
+    const m = _detectMode();
+    if (m === 'lt') return 'Lead<span class="hl">Time</span>';
+    if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
+    return 'Cycle Time <span class="hl">sonstige</span>';
+  }
+  function _updateModeUI() {
+    const mode = _detectMode();
+    if (titleEl) titleEl.innerHTML = _getModeTitle();
+    if (ltModeBtn) ltModeBtn.classList.toggle('p-blue', mode === 'lt');
+    if (ctModeBtn) ctModeBtn.classList.toggle('p-blue', mode === 'ct');
+  }
+
   // ── 3. Header-Controls ───────────────────────
   const colorToggle = _mkTglGrp([
     { val: 'single',    label: 'Einfarbig' },
@@ -55,8 +78,20 @@ export function init() {
   const sep2        = document.createElement('div'); sep2.className = 'tb-sep';
   const btnSettings = _mkBtn('⚙ Einstellungen', () => _toggleSettings());
 
-  [colorToggle, intervalToggle, sep2, btnSettings]
+  ltModeBtn = _mkBtn('Lead Time', () => {
+    cfg.ctStart = LT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
+    ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
+    saveConfig(); _updateModeUI(); render();
+  });
+  ctModeBtn = _mkBtn('Cycle Time', () => {
+    cfg.ctStart = CT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
+    ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
+    saveConfig(); _updateModeUI(); render();
+  });
+
+  [ltModeBtn, ctModeBtn, colorToggle, intervalToggle, sep2, btnSettings]
     .forEach(el => headerExtraEl.appendChild(el));
+  _updateModeUI();
 
   // ── 4. Settings-Panel (einheitlich) ──────────
 
@@ -68,8 +103,8 @@ export function init() {
   const colsRow = document.createElement('div'); colsRow.className = 'sc-row';
   colsRow.appendChild(_mkLtField('CT Start',           ctStartSel));
   colsRow.appendChild(_mkLtField('CT Ende (X-Achse)',  ctEndSel));
-  ctStartSel.addEventListener('change', () => { cfg.ctStart = ctStartSel.value; saveConfig(); render(); });
-  ctEndSel.addEventListener('change',   () => { cfg.ctEnd   = ctEndSel.value;   saveConfig(); render(); });
+  ctStartSel.addEventListener('change', () => { cfg.ctStart = ctStartSel.value; saveConfig(); _updateModeUI(); render(); });
+  ctEndSel.addEventListener('change',   () => { cfg.ctEnd   = ctEndSel.value;   saveConfig(); _updateModeUI(); render(); });
 
   const dotRow   = document.createElement('div'); dotRow.className = 'sc-row'; dotRow.style.cssText = 'margin-top:.3rem;align-items:center;gap:.4rem';
   const dotLabel = document.createElement('span'); dotLabel.className = 'lt-label'; dotLabel.textContent = 'Dot-Größe';
@@ -448,13 +483,26 @@ export function init() {
     _updateIntervalToggle();
     _updatePctPanel();
     _updateClrPanel();
+    _updateModeUI();
     render();
   });
 
   core.on('theme',    () => { _updateClrPanel(); render(); });
   core.on('filter',   () => render());
-  core.on('resize',   () => render());
-  core.on('settings', () => render());
+  core.on('resize', () => {
+    // Re-read ctStart/ctEnd to pick up BoxChart→Scatter sync via localStorage
+    const saved = core.load('fhwa_scatter', {});
+    let changed = false;
+    if (saved.ctStart !== undefined && saved.ctStart !== cfg.ctStart) {
+      cfg.ctStart = saved.ctStart; changed = true;
+    }
+    if (saved.ctEnd !== undefined && saved.ctEnd !== cfg.ctEnd) {
+      cfg.ctEnd = saved.ctEnd; changed = true;
+    }
+    if (changed) { _populateCtSelects(); _updateModeUI(); }
+    render();
+  });
+  core.on('settings', () => { _updateModeUI(); render(); });
 }
 
 // DOM helpers werden von core.js importiert (P3.7)

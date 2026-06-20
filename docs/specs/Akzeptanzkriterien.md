@@ -1,7 +1,7 @@
 # Akzeptanzkriterien – Spezifikation
 
-**Version:** 1.0  
-**Datum:** 2026-06-18  
+**Version:** 1.1  
+**Datum:** 2026-06-19  
 **Status:** [x] Entwurf → [x] Bestätigt (Gate 1) → [x] Implementiert  
 **Datei:** `src/akzeptanz.js`
 
@@ -93,7 +93,7 @@ Globaler Filter via `core.state.squadFilter`.
 ### Hauptbereiche (ASCII-Sketch)
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Tile-Header: [Akzeptanzkriterien] [···sep···] [⚙]       │
+│  Akzeptanzkriterien         [N = 42] [sep] [⚙]          │
 ├──────────────────────────────────────────────────────────┤
 │  SVG-Chart                                               │
 │  100% ──────────────────────────────────────────────     │
@@ -103,9 +103,11 @@ Globaler Filter via `core.state.squadFilter`.
 │    0% ──────────────────────────────────────────         │
 │         Eta 1  Eta 2  Eta 3  Eta 4  Eta 5                │
 ├──────────────────────────────────────────────────────────┤
-│  Diag-Bar: Squad: Alpha · n=42 Epics · 5 Etappen        │
+│  [Was zeigt diese Ansicht?]   [Fehlertext]               │
 └──────────────────────────────────────────────────────────┘
 ```
+
+**Titel:** `Akzeptanz<span class="hl">kriterien</span>` – weißer Text, blau gefärbtes Suffix.
 
 ### Farben
 Eine einzelne Linie für den aktiven Squad. Linienfarbe: `core.palette()[0]` (erster Farbwert der aktuellen Palette – konsistent mit anderen Ein-Linien-Visuals). Punkte in derselben Farbe mit Stroke-Halo (`core.scatterColors().dotStroke`).
@@ -197,10 +199,10 @@ finalOrder = [...knownStages, ...unknownStages]
 |---|---|---|
 | Tooltip boundary-safe | ✅ Pflicht | `position:fixed` (Tile hat `overflow:hidden`), Boundary-Check gegen `window.innerWidth/Height` |
 | Tooltip mit Links | ✗ nicht benötigt | Kein Link-Feature (aggregiertes Visual) |
-| N-Anzeige | ✅ Diag-Bar | `Squad: {name} · n=X Epics · Y Etappen` |
+| N-Anzeige | ✅ Im Header | `N = X` (Anzahl Epics) als Badge vor dem ⚙-Button (headerExtraEl) |
 | Reihenfolge-Panel | ✗ nicht benötigt | Etappen immer chronologisch |
 | Skalierung | ✅ Pflicht | Alle Größen relativ zu Container-Breite/-Höhe |
-| Diagnosemodus | ✅ Pflicht, immer sichtbar | Diag-Bar: Anzahl Epics, Etappen, Squads |
+| Diagnosemodus | ✅ 3-spaltig | Links: – (kein Erklärungs-Link), Mitte: Fehlertext, Rechts: – |
 | Link-Feature | ✗ nicht benötigt | – |
 | Y-Achse | Fix 0–100 % | Ticks via `core.intTicks(100, 5)` → 0, 25, 50, 75, 100 |
 | X-Achsen-Label | Stage-Name als „Etappe N" | Label aus `BRP Etappen.Etappe`, kein Datum |
@@ -245,3 +247,4 @@ finalOrder = [...knownStages, ...unknownStages]
 |---|---|---|---|
 | 2026-06-18 | 1.0 | Initiale Spec nach SDD-Interview | Oliver |
 | 2026-06-18 | 1.0 | Implementiert: akzeptanz.js, calc/akzeptanz.calc.js, 16 Unit-Tests | Oliver |
+| 2026-06-19 | 1.1 | Titel mit hl-Span; N-Badge in headerExtraEl statt Diag-Bar; Footer auf 3-Spalten-Pattern | Oliver |

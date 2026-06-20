@@ -24,8 +24,10 @@ export function init() {
 
   // ── State ──────────────────────────────────────
   let cfg       = Object.assign({}, DEF, core.load(KEY, {}));
-  let _monthData = [];   // [{ key, label, fe, items, n, ltAvg, breakdown }]
-  let _errors    = 0;
+  let _monthData  = [];   // [{ key, label, fe, items, n, ltAvg, breakdown }]
+  let _errors     = 0;
+  let _errorItems = [];  // [{ jiraId, issueType, totalWait, lt, breakdown }]
+  let _errSort    = { col: 'diff', dir: -1 };
 
   // ── Tile ───────────────────────────────────────
   const { contentEl, headerExtraEl, diagEl } = core.createTile({
@@ -33,28 +35,23 @@ export function init() {
     title: 'Flow <span class="hl">Efficiency</span>',
   });
 
-  // ── Header extras: mode toggle · N-badge · settings ──
-  const modeWrap = document.createElement('div');
-  modeWrap.style.cssText = 'display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden;flex-shrink:0';
-
+  // ── Header extras: mode toggle · settings · help ──
   ['Linie', 'Violin'].forEach((label, i) => {
     const m   = i === 0 ? 'line' : 'violin';
     const btn = document.createElement('button');
+    btn.className    = 'btn-icon';
     btn.textContent  = label;
     btn.dataset.mode = m;
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:11px;padding:3px 9px;font-weight:500;white-space:nowrap;font-family:var(--sans);transition:background .12s,color .12s';
+    btn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+    btn.classList.toggle('p-blue', cfg.mode === m);
     btn.addEventListener('click', () => {
       cfg.mode = m;
       core.save(KEY, cfg);
       _updateModeToggle();
       _renderChart();
     });
-    modeWrap.appendChild(btn);
+    headerExtraEl.appendChild(btn);
   });
-
-  const nBadge = document.createElement('span');
-  nBadge.style.cssText = 'font-size:11px;color:var(--dim);background:var(--bg3);border:1px solid var(--border);padding:2px 7px;border-radius:10px;white-space:nowrap;font-family:var(--mono)';
-  nBadge.textContent = 'N=–';
 
   const helpBtn = document.createElement('button');
   helpBtn.className     = 'btn-icon';
@@ -69,8 +66,6 @@ export function init() {
   settingsBtn.title       = 'Flow Efficiency – Einstellungen';
   settingsBtn.addEventListener('click', _openSettings);
 
-  headerExtraEl.appendChild(modeWrap);
-  headerExtraEl.appendChild(nBadge);
   headerExtraEl.appendChild(settingsBtn);
   headerExtraEl.appendChild(helpBtn);
 
@@ -419,7 +414,25 @@ export function init() {
   `;
 
   feHelpPanel.querySelector('#fe-help-close').addEventListener('click', _closeHelp);
-  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') _closeHelp(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { _closeHelp(); _closeErrModal(); } });
+
+  // ── Error-items modal ──────────────────────────
+  const feErrBackdrop = document.createElement('div');
+  feErrBackdrop.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400';
+  feErrBackdrop.addEventListener('click', _closeErrModal);
+  document.body.appendChild(feErrBackdrop);
+
+  const feErrPanel = document.createElement('div');
+  feErrPanel.style.cssText = [
+    'display:none', 'position:fixed', 'top:50%', 'left:50%',
+    'transform:translate(-50%,-50%)',
+    'width:min(640px,92vw)', 'max-height:80vh',
+    'background:var(--bg2)', 'border:1px solid var(--border)', 'border-radius:8px',
+    'z-index:401', 'box-shadow:0 12px 50px rgba(0,0,0,.55)',
+    'flex-direction:column', 'font-family:var(--sans)', 'color:var(--text)',
+    'overflow:hidden',
+  ].join(';');
+  document.body.appendChild(feErrPanel);
 
   // Wire settings controls
   const slM   = fePanel.querySelector('#fe-sl-months');
@@ -476,6 +489,93 @@ export function init() {
     feHelpPanel.style.display    = 'none';
   }
 
+  function _renderErrTable() {
+    var sorted = _errorItems.slice().sort(function(a, b) {
+      if (_errSort.col === 'jiraId')    return _errSort.dir * a.jiraId.localeCompare(b.jiraId);
+      if (_errSort.col === 'issueType') return _errSort.dir * a.issueType.localeCompare(b.issueType);
+      return _errSort.dir * ((a.totalWait - a.lt) - (b.totalWait - b.lt));
+    });
+
+    var urlTpl = core.state.urlTemplate || '';
+
+    var rowsHtml = sorted.map(function(item) {
+      var jiraCell;
+      if (urlTpl && item.jiraId !== '–') {
+        var safeId = item.jiraId.replace(/[^A-Za-z0-9\-_]/g, '');
+        var url    = urlTpl.replace('{id}', safeId);
+        jiraCell   = '<a href="' + url + '" target="_blank" rel="noopener noreferrer"' +
+          ' style="color:var(--blue);text-decoration:none;font-family:var(--mono)">' + item.jiraId + '</a>';
+      } else {
+        jiraCell = '<span style="font-family:var(--mono)">' + item.jiraId + '</span>';
+      }
+
+      var bdParts = Object.keys(item.breakdown)
+        .filter(function(k) { return item.breakdown[k] > 0; })
+        .sort(function(a, b) { return item.breakdown[b] - item.breakdown[a]; })
+        .map(function(k) { return k + ': ' + item.breakdown[k].toFixed(1) + 'd'; });
+      var fk = 'Wartezeit ' + item.totalWait.toFixed(1) + 'd > LT ' + item.lt.toFixed(1) + 'd';
+      if (bdParts.length) fk += ' (' + bdParts.join(', ') + ')';
+
+      return '<tr>' +
+        '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + jiraCell + '</td>' +
+        '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--dim)">' + item.issueType + '</td>' +
+        '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--dim);font-size:11px">' + fk + '</td>' +
+        '</tr>';
+    }).join('');
+
+    function si(col) {
+      if (_errSort.col !== col) return '<span style="opacity:.3;font-size:9px"> ↕</span>';
+      return _errSort.dir === -1
+        ? '<span style="font-size:9px"> ↓</span>'
+        : '<span style="font-size:9px"> ↑</span>';
+    }
+    var thBase = 'text-align:left;padding:8px 10px;background:var(--bg4);font-weight:500;border-bottom:1px solid var(--border);' +
+      'cursor:pointer;user-select:none;white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.06em;';
+
+    feErrPanel.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;' +
+        'padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0">' +
+        '<div style="font-size:14px;font-weight:700">⚠ Ausgeschlossene Items (' + _errorItems.length + ')</div>' +
+        '<button id="fe-err-close" style="background:none;border:none;cursor:pointer;font-size:18px;' +
+          'color:var(--dim);line-height:1;padding:0 4px;font-family:var(--sans)">✕</button>' +
+      '</div>' +
+      '<div style="overflow-y:auto;flex:1">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text)">' +
+          '<thead><tr>' +
+            '<th data-sort="jiraId" style="' + thBase + (_errSort.col === 'jiraId' ? 'color:var(--text)' : 'color:var(--dim)') + '">Jira-ID' + si('jiraId') + '</th>' +
+            '<th data-sort="issueType" style="' + thBase + (_errSort.col === 'issueType' ? 'color:var(--text)' : 'color:var(--dim)') + '">Issue-Type' + si('issueType') + '</th>' +
+            '<th data-sort="diff" style="' + thBase + (_errSort.col === 'diff' ? 'color:var(--text)' : 'color:var(--dim)') + '">Fehlerkonstellation' + si('diff') + '</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>' +
+      '</div>';
+
+    feErrPanel.querySelector('#fe-err-close').addEventListener('click', _closeErrModal);
+    feErrPanel.querySelectorAll('th[data-sort]').forEach(function(th) {
+      th.addEventListener('click', function() {
+        var col = th.dataset.sort;
+        if (_errSort.col === col) {
+          _errSort.dir *= -1;
+        } else {
+          _errSort.col = col;
+          _errSort.dir = (col === 'diff') ? -1 : 1;
+        }
+        _renderErrTable();
+      });
+    });
+  }
+
+  function _openErrModal() {
+    _renderErrTable();
+    feErrBackdrop.style.display = 'block';
+    feErrPanel.style.display    = 'flex';
+  }
+
+  function _closeErrModal() {
+    feErrBackdrop.style.display = 'none';
+    feErrPanel.style.display    = 'none';
+  }
+
   function _toggleExplanation() {
     showExplanation = !showExplanation;
     explanationEl.style.maxHeight = showExplanation ? explanationEl.scrollHeight + 'px' : '0';
@@ -485,10 +585,8 @@ export function init() {
   }
 
   function _updateModeToggle() {
-    modeWrap.querySelectorAll('button').forEach(btn => {
-      const active = btn.dataset.mode === cfg.mode;
-      btn.style.background = active ? 'var(--blue)'   : 'transparent';
-      btn.style.color      = active ? '#fff'           : 'var(--dim)';
+    headerExtraEl.querySelectorAll('[data-mode]').forEach(btn => {
+      btn.classList.toggle('p-blue', btn.dataset.mode === cfg.mode);
     });
   }
   _updateModeToggle();
@@ -541,6 +639,7 @@ export function init() {
 
     var monthly = {};
     var errors  = 0;
+    _errorItems = [];
 
     rows.forEach(function(row) {
       // Resolved only (XOR Rejected)
@@ -585,7 +684,17 @@ export function init() {
       var totalWait = waiteJS + waiteZ;
 
       // Edge case: waiting > LT → data error
-      if (totalWait > lt) { errors++; return; }
+      if (totalWait > lt) {
+        errors++;
+        _errorItems.push({
+          jiraId:    jid || '–',
+          issueType: String(row['Issue-Type'] || '–').trim(),
+          totalWait: Math.round(totalWait * 10) / 10,
+          lt:        Math.round(lt * 10) / 10,
+          breakdown: Object.assign({}, breakdown),
+        });
+        return;
+      }
 
       var fe = ((lt - totalWait) / lt) * 100;
 
@@ -628,7 +737,6 @@ export function init() {
     });
 
     _errors = errors;
-    nBadge.textContent = 'N=' + _monthData.reduce(function(s, d) { return s + d.n; }, 0);
   }
 
   // ── KDE helpers ────────────────────────────────
@@ -701,6 +809,11 @@ export function init() {
       parts.push('<text x="' + (P.l + cW + 5) + '" y="' + (ty + 4) + '"' +
         ' font-size="10" fill="' + tgtCol + '" opacity=".9" font-family="var(--sans)">Ziel ' + cfg.targetFE + '%</text>');
     }
+
+    // N label (top-right, wie Lead Time)
+    var totalN = data.reduce(function(s, d) { return s + d.n; }, 0);
+    parts.push('<text x="' + (P.l + cW) + '" y="' + (P.t - 4) + '"' +
+      ' text-anchor="end" font-size="11" fill="' + axisCol + '" font-family="var(--mono)">N = ' + totalN + '</text>');
 
     // X-axis ticks + labels
     var step = Math.ceil(data.length / 12);
@@ -790,10 +903,18 @@ export function init() {
 
     // Diag
     var hasBM = (core.state.sheets['JiraBlockermanagement'] || []).length > 0;
-    var parts2 = [];
-    if (_errors > 0) parts2.push(_errors + ' Datenfehler ausgeschlossen');
-    if (!hasBM)      parts2.push('JiraBlockermanagement fehlt');
-    diagMid.textContent = parts2.join(' · ');
+    while (diagMid.firstChild) diagMid.removeChild(diagMid.firstChild);
+    if (_errors > 0) {
+      var errA = document.createElement('a');
+      errA.textContent = _errors + ' Datenfehler ausgeschlossen';
+      errA.style.cssText = 'color:var(--blue);cursor:pointer;text-decoration:none';
+      errA.addEventListener('click', _openErrModal);
+      diagMid.appendChild(errA);
+    }
+    if (!hasBM) {
+      if (_errors > 0) diagMid.appendChild(document.createTextNode(' · '));
+      diagMid.appendChild(document.createTextNode('JiraBlockermanagement fehlt'));
+    }
   }
 
   // ── Tooltip ────────────────────────────────────

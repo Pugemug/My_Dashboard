@@ -1,8 +1,8 @@
 # HappinessFaktor – Spezifikation
 
-**Version:** 1.0  
-**Datum:** 2026-06-07  
-**Status:** [x] Entwurf → [x] Bestätigt (Gate 1) → [ ] Implementiert  
+**Version:** 1.1  
+**Datum:** 2026-06-19  
+**Status:** [x] Entwurf → [x] Bestätigt (Gate 1) → [x] Implementiert  
 **Datei:** `src/happiness.js`
 
 ---
@@ -100,7 +100,9 @@ initHappiness();
 ### Hauptbereiche (ASCII-Sketch)
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Tile-Header: [Titel] [···sep···] [Von ▾] [Bis ▾] [⚙]  │
+│  Happiness Faktor              [N = 10] [sep] [⚙]       │
+├──────────────────────────────────────────────────────────┤
+│  (Erklärungs-Panel, ausklappbar, max-height:0 by default)│
 ├──────────────────────────────────────────────────────────┤
 │  SVG-Chart                                               │
 │  5 ─────────────────────────────────────────────────    │
@@ -111,9 +113,11 @@ initHappiness();
 │  0  ○ nv (grau, Linie unterbrochen)                      │
 │     Jun'25  Jul'25  Aug'25  Sep'25  …                    │
 ├──────────────────────────────────────────────────────────┤
-│  Diag-Bar: Squad: Alpha · 12 Monate · 10 Werte · 2 nv   │
+│  [Was zeigt diese Ansicht?]   [2 ohne Wert]              │
 └──────────────────────────────────────────────────────────┘
 ```
+
+**Titel:** `Happiness <span class="hl">Faktor</span>` – weißer Text, blau gefärbtes Suffix.
 
 ### Farbskala Datenpunkte (semantisch, theme-unabhängig)
 | Wert | Farbe | RGB |
@@ -134,8 +138,8 @@ nv-Punkt: grau, 70% des normalen Radius, liegt auf Y=0.
 |---|---|---|
 | Tooltip anzeigen | mouseover auf Datenpunkt | Tooltip mit Monat + Wert (farbig), position:fixed, boundary-safe |
 | Tooltip ausblenden | mouseout | display:none |
-| Zeitraum ändern | Von/Bis-Select im Header | Chart neu rendern, Auswahl in localStorage |
-| Format-Panel öffnen | ⚙-Button im Header | Panel mit Titel + Punkt-Radius erscheint |
+| Erklärungs-Panel öffnen/schließen | Klick auf „Was zeigt diese Ansicht?" | max-height-Transition, `_expOpen` toggelt |
+| Format-Panel öffnen | ⚙-Button im Header | Panel mit Punkt-Radius erscheint |
 | Squad wählen | Seiten-Filter | Chart neu rendern |
 
 ### Leerzustände
@@ -161,9 +165,8 @@ Chronologisch: ältester Monat links → neuester rechts. Fix, kein Reihenfolge-
 ### Kern-Metrik
 Roher Happiness-Wert (1–5) direkt aus dem Sheet. Keine weiteren Berechnungen.
 
-### Zeitraum-Filter
-Von/Bis-Select im Tile-Header. Zeigt den gewählten Ausschnitt der sortierten `_rawMonths`.
-Auswahl wird per Label-String in localStorage gespeichert (stabil über Datei-Reloads).
+### Zeitraum
+Alle geladenen Monate werden immer vollständig angezeigt (kein Filter). Reihenfolge: chronologisch aufsteigend (ältester Monat links).
 
 ### Edge Cases
 | Situation | Verhalten |
@@ -184,15 +187,7 @@ Auswahl wird per Label-String in localStorage gespeichert (stabil über Datei-Re
 
 | Property | Typ | Default | Min | Max | Effekt |
 |---|---|---|---|---|---|
-| `title` | String | `Happiness Faktor` | – | – | Tile-Header-Titel |
 | `dotRadius` | Number | 6 | 3 | 12 | Basis-Radius der Datenpunkte (px bei Referenzgröße) |
-
-**Zeitraum (eigene Keys, per Label-String):**
-
-| Key | Typ | Default | Effekt |
-|---|---|---|---|
-| `fhwa_happinessfaktor_from` | String (Label) | null → Index 0 | Von-Monat |
-| `fhwa_happinessfaktor_to`   | String (Label) | null → letzter  | Bis-Monat |
 
 ---
 
@@ -202,40 +197,44 @@ Auswahl wird per Label-String in localStorage gespeichert (stabil über Datei-Re
 |---|---|---|
 | Tooltip boundary-safe | ✅ Pflicht | `position:fixed` (Tile hat `overflow:hidden`), boundary-check gegen `window.innerWidth/Height` |
 | Tooltip mit Links | ✗ nicht benötigt | Kein Link-Feature |
-| N-Anzeige | ✗ explizit ausgeschlossen | – |
+| N-Anzeige | ✅ Im Header | `N = X` (Anzahl gültiger Monate) als Badge vor dem ⚙-Button (headerExtraEl) |
+| Erklärungs-Panel | ✅ | Ausklappbar via „Was zeigt diese Ansicht?" im linken Footer. Flex-Panel über SVG. |
 | Reihenfolge-Panel | ✗ nicht benötigt | Monate immer chronologisch |
 | Skalierung | ✅ Pflicht | `r = baseR × √(min(W,H) / 200)` |
-| Diagnosemodus | ✅ Pflicht, immer sichtbar | Diag-Bar: Squad · Monate · Werte · nv-Anzahl |
+| Diagnosemodus | ✅ 3-spaltig | Links: „Was zeigt diese Ansicht?", Mitte: nv-Hinweis oder Fehler, Rechts: – |
 | Link-Feature | ✗ nicht benötigt | – |
 | Theme | ✅ Pflicht | `core.scatterColors()` für Grid, Achsen, Dot-Stroke. Farbskala rot/gelb/grün hardcoded (semantisch) |
 | Y-Achse | Fix 0–5 | Unabhängig von Datenwerten. Gridlinien bei jedem Integer. |
-| Format-Panel | ✅ Position:fixed | Wegen `overflow:hidden` auf `.tile`. Schließt bei Klick außerhalb. |
+| Format-Panel | ✅ Position:fixed | Wegen `overflow:hidden` auf `.tile`. Nur Punkt-Radius-Slider. Schließt bei Klick außerhalb. |
 
 ---
 
 ## G – Akzeptanzkriterien
 
 ### Automatisch von Claude prüfbar
-- [ ] localStorage-Key = `fhwa_happinessfaktor`
-- [ ] Events abonniert: `data`, `filter`, `theme`, `resize`
-- [ ] Keine hardcodierten Theme-Farben außer der semantischen Farbskala (rot/gelb/grün)
-- [ ] nv-Punkte haben Y=0 und Farbe `#9e9e9e`
-- [ ] Linie wird bei nv unterbrochen (kein Segment zu/von nv)
-- [ ] `core.state.sheetsRaw` über `(core.state.sheetsRaw || {})` zugreifen
+- [x] localStorage-Key = `fhwa_happinessfaktor`
+- [x] Events abonniert: `data`, `filter`, `theme`, `resize`
+- [x] Keine hardcodierten Theme-Farben außer der semantischen Farbskala (rot/gelb/grün)
+- [x] nv-Punkte haben Y=0 und Farbe `#9e9e9e`
+- [x] Linie wird bei nv unterbrochen (kein Segment zu/von nv)
+- [x] `core.state.sheetsRaw` über `(core.state.sheetsRaw || {})` zugreifen
+- [x] N-Badge im headerExtraEl (`N = X`, Anzahl gültiger Monate)
+- [x] Kein Von/Bis-Filter im Header
+- [x] 3-spaltiger Footer: Links „Was zeigt diese Ansicht?", Mitte Fehler/nv-Hinweis
+- [x] Erklärungs-Panel (max-height:0 → scrollHeight bei Toggle)
 
 ### Manuell durch Oliver zu testen
 - [ ] Tooltip bleibt vollständig sichtbar an allen 4 Ecken der Tile
-- [ ] Config-State (Titel, dotRadius) überlebt Browser-Reload
-- [ ] Zeitraum-Auswahl (Von/Bis) überlebt Browser-Reload
+- [ ] Config-State (dotRadius) überlebt Browser-Reload
 - [ ] Kein Squad gewählt → „Kein Squad ausgewählt", kein JS-Error in Console
 - [ ] 2+ Squads gewählt → „Bitte nur 1 Squad wählen"
 - [ ] Sheet fehlt in Excel → Fehlermeldung in Tile, kein JS-Error
 - [ ] nv-Monate: grauer kleinerer Punkt auf Y=0, Linie unterbrochen
 - [ ] Gültige Punkte: korrekte Farbe nach Skala (1=rot, 3=gelb, 5=grün)
-- [ ] Zeitraum-Filter → X-Achse zeigt nur gefilterte Monate
+- [ ] Erklärungs-Panel klappt auf/zu bei Klick auf „Was zeigt diese Ansicht?"
 - [ ] Tile auf kleines Format: Punkte und X-Labels skalieren proportional, kein Überlappen
 - [ ] Theme-Toggle → Chart neu gerendert ohne Artefakte
-- [ ] Format-Panel öffnet / schließt korrekt; Titel + Radius werden gespeichert
+- [ ] Format-Panel öffnet / schließt korrekt; Radius wird gespeichert
 
 ---
 
@@ -244,3 +243,4 @@ Auswahl wird per Label-String in localStorage gespeichert (stabil über Datei-Re
 | Datum | Version | Änderung | Bestätigt von |
 |---|---|---|---|
 | 2026-06-07 | 1.0 | Initiale Spec nach SDD-Interview + Implementierung | Oliver |
+| 2026-06-19 | 1.1 | Von/Bis-Filter entfernt; N-Badge in Header; Titel mit hl-Span; Erklärungs-Panel + 3-spaltiger Footer; Format-Panel ohne Titel-Feld | Oliver |

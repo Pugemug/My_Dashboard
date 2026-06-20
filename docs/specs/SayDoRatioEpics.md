@@ -1,8 +1,8 @@
 # SayDoRatioEpics – Spezifikation
 
-**Version:** 1.0  
-**Datum:** 2026-06-18  
-**Status:** [x] Entwurf → [x] Bestätigt (Gate 1) → [ ] Implementiert
+**Version:** 1.2  
+**Datum:** 2026-06-19  
+**Status:** [x] Entwurf → [x] Bestätigt (Gate 1) → [x] Implementiert
 
 ---
 
@@ -88,7 +88,7 @@ Ein Epic gilt als **committet** wenn sein `Stage`-Wert mit einem `Etappe`-Wert i
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│  Say Do Ratio Epics                                                │
+│  Say Do Ratio Epics              [N = 42] [sep] [⚙]               │
 ├────────────────────────────────────────────────────────────────────┤
 │                                                                    │
 │        n=8           n=5           n=3                             │
@@ -105,9 +105,13 @@ Ein Epic gilt als **committet** wenn sein `Stage`-Wert mit einem `Etappe`-Wert i
 │                                                                    │
 │  ■ Resolved   ■ Rejected   ■ UNCALLED   □ Offen                    │
 ├────────────────────────────────────────────────────────────────────┤
-│  n=42 Epics · 8 Etappen · Squad: alle                              │
+│                              [Fehlertext]                          │
 └────────────────────────────────────────────────────────────────────┘
 ```
+
+**Titel:** `Say Do Ratio <span class="hl">Epics</span>` – weißer Text, blau gefärbtes Suffix.  
+**N-Anzeige:** `N = X` (Gesamtzahl Epics nach Squad-Filter) als Badge vor dem ⚙-Button im headerExtraEl.  
+**Footer:** Nur mittleres Textelement für Fehlermeldungen. Kein „Was zeigt diese Ansicht?"-Link (kein Erklärungs-Panel in diesem Visual).
 
 **Legende:** Unterhalb der X-Achse, horizontal, mit farbigen Quadraten.
 
@@ -238,10 +242,11 @@ Der globale Squad-Filter (`core.state.squadFilter`) ist kein Visual-eigener Conf
 |---|---|---|
 | Tooltip boundary-safe | ✅ Pflicht | `positionTooltip()` mit Overflow-Prüfung (§9.3) |
 | Tooltip mit Links | ✗ nicht benötigt | Kein Jira-Link, kein Hover-Delay, `pointerEvents: 'none'` |
-| N-Anzeige | ✅ Pflicht | Über jedem Balken: `n=X` + `SDR: Y%` |
+| N-Anzeige im Header | ✅ Pflicht | `N = X` als Badge im headerExtraEl (links vom ⚙-Button) |
+| N-Anzeige über Balken | ✅ Pflicht | `n=X` + `SDR: Y%` über jedem Balken (bleibt unverändert) |
 | Reihenfolge-Panel | ✗ nicht benötigt | Reihenfolge = Startdatum aufsteigend (fix) |
 | Skalierung | ✅ Pflicht | Balkenbreite relativ zur Container-Breite, SVG 100% |
-| Diagnosemodus | ✅ Pflicht, immer sichtbar | `n=X Epics · Y Etappen · Squad: [alle / Filtername]` |
+| Diagnosemodus | ✅ Footer-Mitte | Fehlertext zentriert; kein Squad/Etappen-Info mehr im Footer |
 | Link-Feature | ✗ nicht benötigt | Kein `urlTemplate`, kein `settings`-Event |
 | Theme | ✅ Pflicht | `var(--green)`, `var(--orange)`, `var(--purple)`, `var(--dim)` für Offen-Transparenz; `var(--blue)` für aktuelle Etappe; nie hardcoden |
 | Y-Achsen-Ticks | ✅ Pflicht | `core.intTicks(yMax, 5)` → nur ganze Zahlen (§9.7) |
@@ -290,3 +295,4 @@ Der globale Squad-Filter (`core.state.squadFilter`) ist kein Visual-eigener Conf
 |---|---|---|---|
 | 2026-06-18 | 1.0 | Initiale Spec nach SDD-Interview | Oliver |
 | 2026-06-18 | 1.1 | Legende nach oben; n=X + SDR% immer über Balken (konsistent); offener Bereich mit leichter Füllung; nur aktuelle + 3 letzte Etappen; Einstellungsmenü (Farben); „Was zeigt diese Ansicht?" in Diag-Bar | Oliver |
+| 2026-06-19 | 1.2 | N-Badge (`N = X`) in headerExtraEl; Footer-Mitte nur für Fehlertext; Squad/Etappen-Info aus Footer entfernt; Status auf Implementiert gesetzt | Oliver |

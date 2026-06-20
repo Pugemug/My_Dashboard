@@ -398,6 +398,15 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <div id="squad-opts"></div>
   </div>
 
+  <!-- Shared issue-type dropdown – position:fixed, geöffnet von jeder .btn-issuetype-trigger -->
+  <div class="squad-dropdown" id="issuetype-dropdown">
+    <div class="squad-dd-header">
+      <button class="sdd-btn" id="sdd-type-all">Alle</button>
+      <button class="sdd-btn" id="sdd-type-none">Keine</button>
+    </div>
+    <div id="issuetype-opts"></div>
+  </div>
+
   <!-- App-Body: Sidebar + Main-Content (kein globaler Topbar mehr) -->
   <div class="app-body">
 
@@ -521,7 +530,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
             <button class="pf-filter-chip btn-squad-trigger" id="btn-squad">SQUADS Alle &#9661;</button>
             <!-- #squad-dropdown wurde auf #app-screen-Ebene verschoben (position:fixed, shared) -->
           </div>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
           <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset" id="lf-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
@@ -553,7 +562,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <span class="pf-page-title">Was liegt gerade rum?</span>
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-wipage">SQUADS Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
           <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
@@ -567,7 +576,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <span class="pf-page-title">Wie lange dauert ein Ticket?</span>
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-scatter">SQUADS Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
           <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
@@ -581,7 +590,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <span class="pf-page-title">Wo verbringen Tickets ihre Zeit?</span>
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-heatmap">SQUADS Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
           <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
@@ -595,7 +604,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <span class="pf-page-title">Wann sind wir fertig?</span>
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-monte">SQUADS Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -964,10 +973,12 @@ const core = {
     dateCols:     [],
     states:       [],     // { name, entryCol, exitCol }[]
     stateOrder:   [],     // ordered names as detected from data
-    allSquads:    [],
-    hasSquad:     false,
-    hasIssueType: false,
-    squadFilter:  [],     // [] = alle aktiv
+    allSquads:       [],
+    allIssueTypes:   [],
+    hasSquad:        false,
+    hasIssueType:    false,
+    squadFilter:     [],  // [] = alle aktiv
+    issueTypeFilter: [],  // [] = alle aktiv
     fileName:     '',
     sheetName:    '',
     urlTemplate:  '',     // global Jira URL-Template
@@ -1036,11 +1047,13 @@ const core = {
   },
 
   // ── Data utilities ─────────────────────────────
-  /** Returns rows after applying active squadFilter. */
+  /** Returns rows after applying active squadFilter and issueTypeFilter. */
   filteredRows() {
     const s = core.state;
-    if (!s.squadFilter.length) return s.rows;
-    return s.rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+    let rows = s.rows;
+    if (s.squadFilter.length)     rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+    if (s.issueTypeFilter.length) rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    return rows;
   },
 
   toDate(v)       { return _toDate(v); },
@@ -1269,8 +1282,9 @@ const core = {
 
     // Load saved global state
     const g = core.load('fhwa_global', null);
-    if (g && Array.isArray(g.squadFilter))      core.state.squadFilter  = g.squadFilter;
-    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate  = g.urlTemplate;
+    if (g && Array.isArray(g.squadFilter))      core.state.squadFilter      = g.squadFilter;
+    if (g && Array.isArray(g.issueTypeFilter))  core.state.issueTypeFilter  = g.issueTypeFilter;
+    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate      = g.urlTemplate;
 
     _initFileUpload();
     _initSidebarButtons();
@@ -1497,8 +1511,9 @@ function _initFileUpload() {
 
 function _saveGlobal() {
   core.save('fhwa_global', {
-    squadFilter: core.state.squadFilter,
-    urlTemplate: core.state.urlTemplate,
+    squadFilter:     core.state.squadFilter,
+    issueTypeFilter: core.state.issueTypeFilter,
+    urlTemplate:     core.state.urlTemplate,
   });
 }
 
@@ -1534,6 +1549,9 @@ function _initSidebarButtons() {
       const dd   = document.getElementById('squad-dropdown');
       const open = dd.classList.toggle('open');
       if (open) {
+        document.getElementById('issuetype-dropdown')?.classList.remove('open');
+        document.querySelectorAll('.btn-issuetype-trigger').forEach(b => b.classList.remove('p-blue'));
+        _updateIssueTypeBtn();
         const rect = btn.getBoundingClientRect();
         dd.style.top  = (rect.bottom + 4) + 'px';
         dd.style.left = rect.left + 'px';
@@ -1555,6 +1573,37 @@ function _initSidebarButtons() {
     _onSquadFilterChange();
   });
 
+  // Issue-Type dropdown toggle – shared across all pages via .btn-issuetype-trigger
+  document.querySelectorAll('.btn-issuetype-trigger').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const dd   = document.getElementById('issuetype-dropdown');
+      const open = dd.classList.toggle('open');
+      if (open) {
+        document.getElementById('squad-dropdown')?.classList.remove('open');
+        document.querySelectorAll('.btn-squad-trigger').forEach(b => b.classList.remove('p-blue'));
+        _updateSquadBtn();
+        const rect = btn.getBoundingClientRect();
+        dd.style.top  = (rect.bottom + 4) + 'px';
+        dd.style.left = rect.left + 'px';
+      }
+      document.querySelectorAll('.btn-issuetype-trigger').forEach(b => {
+        b.classList.toggle('p-blue',    open);
+        b.classList.toggle('pf-active', open || (core.state.issueTypeFilter.length > 0 && core.state.issueTypeFilter.length < core.state.allIssueTypes.length));
+      });
+    });
+  });
+
+  // Issue-Type select all / none
+  document.getElementById('sdd-type-all')?.addEventListener('click', () => {
+    document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = true);
+    _onIssueTypeFilterChange();
+  });
+  document.getElementById('sdd-type-none')?.addEventListener('click', () => {
+    document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = false);
+    _onIssueTypeFilterChange();
+  });
+
   // Settings panel – URL-Template verdrahten (Open/Close wird in index.html verwaltet)
   const urlInput = document.getElementById('settings-url-input');
   if (urlInput) urlInput.value = core.state.urlTemplate;
@@ -1567,19 +1616,25 @@ function _initSidebarButtons() {
     });
   }
 
-  // Filter zurücksetzen – alle Seiten
+  // Filter zurücksetzen – beide Filter (Squad + Issue-Type)
   document.querySelectorAll('.squad-filter-reset').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#squad-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onSquadFilterChange();
+      document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = true);
+      _onIssueTypeFilterChange();
     });
   });
 
-  // Close squad dropdown on outside click
+  // Close dropdowns on outside click
   document.addEventListener('click', e => {
     if (!e.target.closest('.btn-squad-trigger') && !e.target.closest('#squad-dropdown')) {
       document.getElementById('squad-dropdown')?.classList.remove('open');
       _updateSquadBtn();
+    }
+    if (!e.target.closest('.btn-issuetype-trigger') && !e.target.closest('#issuetype-dropdown')) {
+      document.getElementById('issuetype-dropdown')?.classList.remove('open');
+      _updateIssueTypeBtn();
     }
   });
 }
@@ -1667,6 +1722,15 @@ function _processData(rows) {
   }
   s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.includes(sq));
 
+  // Issue Types (global filter list)
+  if (s.hasIssueType) {
+    const types = new Set(rows.map(r => r['Issue-Type']).filter(v => v != null).map(String));
+    s.allIssueTypes = [...types].sort((a, b) => a.localeCompare(b, 'de'));
+  } else {
+    s.allIssueTypes = [];
+  }
+  s.issueTypeFilter = (s.issueTypeFilter || []).filter(t => s.allIssueTypes.includes(t));
+
   // Date columns (used by visuals for LT/CT column selects)
   s.dateCols = cols.filter(c =>
     (!META_COLS.has(c) && !c.endsWith('_Count')) || c === 'Created (Status New)'
@@ -1677,6 +1741,7 @@ function _processData(rows) {
   if (badge) badge.textContent = s.fileName + ' · ' + s.sheetName;
 
   _buildSquadDD();
+  _buildIssueTypeDD();
   core.emit('data');
 }
 
@@ -1888,6 +1953,63 @@ function _updateSquadBtn() {
     btn.textContent = text;
     btn.classList.toggle('pf-active', a > 0);
     btn.classList.remove('p-blue'); // nur blau wenn Dropdown offen
+  });
+}
+
+// ════════════════════════════════════════════════
+// Private: Issue-Type dropdown
+// ════════════════════════════════════════════════
+function _buildIssueTypeDD() {
+  const opts = document.getElementById('issuetype-opts');
+  if (!opts) return;
+  opts.innerHTML = '';
+
+  core.state.allIssueTypes.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'squad-opt';
+    const cb  = document.createElement('input');
+    cb.type   = 'checkbox';
+    cb.id     = 'itcb_' + t;
+    cb.checked = core.state.issueTypeFilter.length === 0 || core.state.issueTypeFilter.includes(t);
+    cb.addEventListener('change', _onIssueTypeFilterChange);
+    const lbl      = document.createElement('label');
+    lbl.htmlFor    = 'itcb_' + t;
+    lbl.textContent = t;
+    div.appendChild(cb); div.appendChild(lbl);
+    opts.appendChild(div);
+  });
+  _updateIssueTypeBtn();
+}
+
+function _onIssueTypeFilterChange() {
+  const checked = [];
+  document.querySelectorAll('#issuetype-opts input[type=checkbox]')
+    .forEach(cb => { if (cb.checked) checked.push(cb.id.replace('itcb_', '')); });
+  core.state.issueTypeFilter = checked.length === core.state.allIssueTypes.length ? [] : checked;
+  _updateIssueTypeBtn();
+  _saveGlobal();
+  core.emit('filter');
+}
+
+function _updateIssueTypeBtn() {
+  const f = core.state.issueTypeFilter;
+  const m = core.state.allIssueTypes.length;
+  const a = f.length;
+  let text;
+  if (!a || a === m) {
+    text = 'ISSUE-TYP Alle ▽';
+  } else if (a === 1) {
+    text = `ISSUE-TYP ${f[0]} ▽`;
+  } else if (a === 2) {
+    text = `ISSUE-TYP ${f[0]}, ${f[1]} ▽`;
+  } else {
+    text = `ISSUE-TYP ${a}/${m} ▽`;
+  }
+  const isActive = a > 0 && a < m;
+  document.querySelectorAll('.btn-issuetype-trigger').forEach(btn => {
+    btn.textContent = text;
+    btn.classList.toggle('pf-active', isActive);
+    btn.classList.remove('p-blue');
   });
 }
 
@@ -3306,6 +3428,7 @@ window.init_heatmap = init_heatmap;
 
 
 
+const LT_START_DEFAULT = 'Ready4Progress_first';
 const CT_START_DEFAULT = 'In Progress_first';
 
 function init_scatter() {
@@ -3338,6 +3461,28 @@ function init_scatter() {
     defaultGrid: { col: 0, row: 0, w: 12, h: 12 },
   });
 
+  const titleEl = cardEl.querySelector('.card-title');
+  let ltModeBtn, ctModeBtn;
+
+  // ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ───────────────────
+  function _detectMode() {
+    if (cfg.ctStart === LT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'lt';
+    if (cfg.ctStart === CT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'ct';
+    return 'custom';
+  }
+  function _getModeTitle() {
+    const m = _detectMode();
+    if (m === 'lt') return 'Lead<span class="hl">Time</span>';
+    if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
+    return 'Cycle Time <span class="hl">sonstige</span>';
+  }
+  function _updateModeUI() {
+    const mode = _detectMode();
+    if (titleEl) titleEl.innerHTML = _getModeTitle();
+    if (ltModeBtn) ltModeBtn.classList.toggle('p-blue', mode === 'lt');
+    if (ctModeBtn) ctModeBtn.classList.toggle('p-blue', mode === 'ct');
+  }
+
   // ── 3. Header-Controls ───────────────────────
   const colorToggle = _mkTglGrp([
     { val: 'single',    label: 'Einfarbig' },
@@ -3354,8 +3499,20 @@ function init_scatter() {
   const sep2        = document.createElement('div'); sep2.className = 'tb-sep';
   const btnSettings = _mkBtn('⚙ Einstellungen', () => _toggleSettings());
 
-  [colorToggle, intervalToggle, sep2, btnSettings]
+  ltModeBtn = _mkBtn('Lead Time', () => {
+    cfg.ctStart = LT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
+    ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
+    saveConfig(); _updateModeUI(); render();
+  });
+  ctModeBtn = _mkBtn('Cycle Time', () => {
+    cfg.ctStart = CT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
+    ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
+    saveConfig(); _updateModeUI(); render();
+  });
+
+  [ltModeBtn, ctModeBtn, colorToggle, intervalToggle, sep2, btnSettings]
     .forEach(el => headerExtraEl.appendChild(el));
+  _updateModeUI();
 
   // ── 4. Settings-Panel (einheitlich) ──────────
 
@@ -3367,8 +3524,8 @@ function init_scatter() {
   const colsRow = document.createElement('div'); colsRow.className = 'sc-row';
   colsRow.appendChild(_mkLtField('CT Start',           ctStartSel));
   colsRow.appendChild(_mkLtField('CT Ende (X-Achse)',  ctEndSel));
-  ctStartSel.addEventListener('change', () => { cfg.ctStart = ctStartSel.value; saveConfig(); render(); });
-  ctEndSel.addEventListener('change',   () => { cfg.ctEnd   = ctEndSel.value;   saveConfig(); render(); });
+  ctStartSel.addEventListener('change', () => { cfg.ctStart = ctStartSel.value; saveConfig(); _updateModeUI(); render(); });
+  ctEndSel.addEventListener('change',   () => { cfg.ctEnd   = ctEndSel.value;   saveConfig(); _updateModeUI(); render(); });
 
   const dotRow   = document.createElement('div'); dotRow.className = 'sc-row'; dotRow.style.cssText = 'margin-top:.3rem;align-items:center;gap:.4rem';
   const dotLabel = document.createElement('span'); dotLabel.className = 'lt-label'; dotLabel.textContent = 'Dot-Größe';
@@ -3747,13 +3904,26 @@ function init_scatter() {
     _updateIntervalToggle();
     _updatePctPanel();
     _updateClrPanel();
+    _updateModeUI();
     render();
   });
 
   core.on('theme',    () => { _updateClrPanel(); render(); });
   core.on('filter',   () => render());
-  core.on('resize',   () => render());
-  core.on('settings', () => render());
+  core.on('resize', () => {
+    // Re-read ctStart/ctEnd to pick up BoxChart→Scatter sync via localStorage
+    const saved = core.load('fhwa_scatter', {});
+    let changed = false;
+    if (saved.ctStart !== undefined && saved.ctStart !== cfg.ctStart) {
+      cfg.ctStart = saved.ctStart; changed = true;
+    }
+    if (saved.ctEnd !== undefined && saved.ctEnd !== cfg.ctEnd) {
+      cfg.ctEnd = saved.ctEnd; changed = true;
+    }
+    if (changed) { _populateCtSelects(); _updateModeUI(); }
+    render();
+  });
+  core.on('settings', () => { _updateModeUI(); render(); });
 }
 
 // DOM helpers werden von core.js importiert (P3.7)
@@ -4452,10 +4622,10 @@ window.init_wipage = init_wipage;
 
 // ── boxchart.js ──
 (function() {
-// ════════════════════════════════════════════════
+﻿// ════════════════════════════════════════════════
 // boxchart.js – LeadTime BoxChart (Kachel-Format)
-// Flow Analytics Dashboard v2.4
-// Spec: LeadTime_BoxChart.md v1.4
+// Flow Analytics Dashboard v2.5
+// Spec: LeadTime_BoxChart.md v1.8
 // Änderungen v2.4:
 //   - Bug: Panel konnte nicht geschlossen werden → Panel in contentEl (chart area)
 //   - Panel: × Schließen-Button + Klick-außen schließt Panel
@@ -4469,6 +4639,10 @@ const KDE_POINTS = 80;
 const BW_ON      = 4;    // Violin-Glättung: An
 const BW_OFF     = 1.2;  // Violin-Glättung: Aus (minimal, zeigt Rohdaten-Form)
 
+const LT_START = 'Ready4Progress_first';
+const CT_START = 'In Progress_first';
+const LT_END   = 'Resolved';
+
 const DEFAULT_CFG = {
   chartMode:    'box',               // 'box' | 'violin' | 'combo'
   periodMode:   'month',             // 'month' | 'quarter'
@@ -4478,6 +4652,7 @@ const DEFAULT_CFG = {
   ltEnd:        'Resolved',
   yStep:        0,           // 0 = automatisch; > 0 = feste Schrittweite in Tagen
   yLog:         false,       // Logarithmische Y-Skala
+  includeBug:   false,       // Bug (Issue-Type exakt "bug") per Default ausgeschlossen
 };
 
 // ── Modul-State ──
@@ -4486,6 +4661,40 @@ let _contentEl, _diagEl, _headerExtraEl;
 let _tooltip = null;
 let _ttTimer = null;
 let _cfgOpen = false;
+let _explanationOpen = false;
+let _explanationEl = null;
+let _titleEl       = null;
+
+// ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ──────────────────────
+function _detectMode() {
+  if (cfg.ltStart === LT_START && cfg.ltEnd === LT_END) return 'lt';
+  if (cfg.ltStart === CT_START && cfg.ltEnd === LT_END) return 'ct';
+  return 'custom';
+}
+
+function _getModeTitle() {
+  const m = _detectMode();
+  if (m === 'lt') return 'Lead<span class="hl">Time</span>';
+  if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
+  return 'Cycle Time <span class="hl">sonstige</span>';
+}
+
+function _getModeExplanation() {
+  const m = _detectMode();
+  if (m === 'lt') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket vom Moment der Bereitschaft zur Bearbeitung (Ready4Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert entspricht der Wartezeit aus Kundensicht – inklusive Liegezeiten im Prozess. Ziel: P85 dauerhaft unter dem vereinbarten SLA halten.</div>';
+  if (m === 'ct') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket ab dem ersten aktiven Bearbeitungsmoment (In Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert spiegelt die reine Teamleistung wider, ohne vorgelagerte Wartezeiten in der Queue.</div>';
+  return '<div style="padding:8px 14px">Die Durchlaufzeit wird mit benutzerdefinierten Start- und Endspalten berechnet (⚙). Wähle „Ready4Progress_first → Resolved“ für Lead Time oder „In Progress_first → Resolved“ für Cycle Time.</div>';
+}
+
+function _updateModeUI() {
+  const mode = _detectMode();
+  if (_titleEl) _titleEl.innerHTML = _getModeTitle();
+  if (_explanationEl) _explanationEl.innerHTML = _getModeExplanation();
+  const ltBtn = document.getElementById('bc-mode-lt');
+  const ctBtn = document.getElementById('bc-mode-ct');
+  if (ltBtn) ltBtn.classList.toggle('p-blue', mode === 'lt');
+  if (ctBtn) ctBtn.classList.toggle('p-blue', mode === 'ct');
+}
 
 // ════════════════════════════════════════════════
 // Public: init
@@ -4498,11 +4707,12 @@ function init_boxchart() {
     delete saved.bandwidth;
   }
   // Migration: yStep/yLog Defaults sicherstellen
-  if (!('yStep' in saved)) saved.yStep = 0;
-  if (!('yLog'  in saved)) saved.yLog  = false;
+  if (!('yStep'      in saved)) saved.yStep      = 0;
+  if (!('yLog'       in saved)) saved.yLog        = false;
+  if (!('includeBug' in saved)) saved.includeBug  = false;
   cfg = { ...DEFAULT_CFG, ...saved };
 
-  const { contentEl, headerExtraEl, diagEl } = core.createTile({
+  const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
     id:    'boxchart',
     title: 'Lead<span class="hl">Time</span>',
   });
@@ -4510,9 +4720,12 @@ function init_boxchart() {
   _contentEl     = contentEl;
   _diagEl        = diagEl;
   _headerExtraEl = headerExtraEl;
+  _titleEl       = tileEl.querySelector('.tile-title');
 
   _buildHeader();
   _buildKpiArea();
+  _buildExplanation();
+  _updateModeUI();
   _buildFooter();
   _createTooltip();
 
@@ -4527,6 +4740,41 @@ function init_boxchart() {
 // Header: Mode-Buttons + Ausreißer-Toggle + Badge + ⚙
 // ════════════════════════════════════════════════
 function _buildHeader() {
+  // ── Preset-Buttons: Lead Time / Cycle Time ─────────────────────────────
+  [['lt', 'Lead Time'], ['ct', 'Cycle Time']].forEach(([preset, lbl]) => {
+    const btn = document.createElement('button');
+    btn.className     = 'btn-icon';
+    btn.id            = 'bc-mode-' + preset;
+    btn.textContent   = lbl;
+    btn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+    btn.addEventListener('click', () => {
+      if (preset === 'lt') { cfg.ltStart = LT_START; cfg.ltEnd = LT_END; }
+      else                 { cfg.ltStart = CT_START;  cfg.ltEnd = LT_END; }
+      const ltsEl = document.getElementById('bc-ltstart');
+      const lteEl = document.getElementById('bc-ltend');
+      if (ltsEl) ltsEl.value = cfg.ltStart;
+      if (lteEl) lteEl.value = cfg.ltEnd;
+      _updateModeUI();
+      _saveAndRender();
+    });
+    _headerExtraEl.appendChild(btn);
+  });
+
+  // ── Bug-Toggle: inkl. Bug ───────────────────────────────────────────────
+  const bugBtn = document.createElement('button');
+  bugBtn.className   = 'btn-icon';
+  bugBtn.id          = 'bc-bug-toggle';
+  bugBtn.title       = 'Bug-Issues einschließen';
+  bugBtn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
+  bugBtn.classList.toggle('p-blue', cfg.includeBug);
+  bugBtn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+  bugBtn.addEventListener('click', () => {
+    cfg.includeBug = !cfg.includeBug;
+    _syncBugToggle();
+    _saveAndRender();
+  });
+  _headerExtraEl.appendChild(bugBtn);
+
   // ── Mode-Buttons: Box / Violin / Kombi ──────────────────────────────────
   const modes = [['box','Box'], ['violin','Violin'], ['combo','Kombi']];
   modes.forEach(([val, lbl]) => {
@@ -4551,7 +4799,7 @@ function _buildHeader() {
   outBtn.className   = 'btn-icon';
   outBtn.id          = 'bc-hdr-out';
   outBtn.title       = 'Ausreißer ein/aus';
-  outBtn.textContent = cfg.showOutliers ? 'Ausr.\u00a0●' : 'Ausr.\u00a0○';
+  outBtn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
   outBtn.classList.toggle('p-blue', cfg.showOutliers);
   outBtn.addEventListener('click', () => {
     cfg.showOutliers = !cfg.showOutliers;
@@ -4559,16 +4807,6 @@ function _buildHeader() {
     _saveAndRender();
   });
   _headerExtraEl.appendChild(outBtn);
-
-  // ── Datenquelle-Badge "● AUS JIRA" ─────────────────────────────────────
-  const badge = document.createElement('span');
-  badge.style.cssText = [
-    'font-family:var(--mono)', 'font-size:.57rem', 'font-weight:600',
-    'color:var(--blue)', 'background:rgba(56,189,248,.1)',
-    'border:1px solid rgba(56,189,248,.25)', 'border-radius:4px',
-    'padding:.12rem .42rem', 'white-space:nowrap', 'letter-spacing:.02em',
-  ].join(';');
-  badge.innerHTML = '&#9679; AUS JIRA';
 
   // ── Config-Button ⚙ ─────────────────────────────────────────────────────
   const cfgBtn = document.createElement('button');
@@ -4582,7 +4820,6 @@ function _buildHeader() {
     _togglePanel();
   });
 
-  _headerExtraEl.appendChild(badge);
   _headerExtraEl.appendChild(cfgBtn);
 
   // ── Config-Panel (Overlay in contentEl, niemals über Header/KPI) ─────────
@@ -4710,10 +4947,12 @@ function _buildHeader() {
 
   document.getElementById('bc-ltstart').addEventListener('change', e => {
     cfg.ltStart = e.target.value;
+    _updateModeUI();
     _saveAndRender();
   });
   document.getElementById('bc-ltend').addEventListener('change', e => {
     cfg.ltEnd = e.target.value;
+    _updateModeUI();
     _saveAndRender();
   });
 }
@@ -4761,13 +5000,31 @@ function _updateYTickInfo() {
   }
 }
 
-// ── Ausreißer-Controls synchronisieren (Header-Button ↔ Panel-Checkbox, falls vorhanden) ──
+// ── Ausreißer-Controls synchronisieren ───────────────────────────────────
 function _syncOutlierControls() {
   const btn = document.getElementById('bc-hdr-out');
   if (btn) {
-    btn.textContent = cfg.showOutliers ? 'Ausr.\u00a0●' : 'Ausr.\u00a0○';
+    btn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
     btn.classList.toggle('p-blue', cfg.showOutliers);
   }
+}
+
+// ── Bug-Toggle synchronisieren ────────────────────────────────────────────
+function _syncBugToggle() {
+  const btn = document.getElementById('bc-bug-toggle');
+  if (btn) {
+    btn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
+    btn.classList.toggle('p-blue', cfg.includeBug);
+  }
+}
+
+// ── Bug-Filterung (lokaler Button hat Vorrang über globalen Issue-Type-Filter) ──
+function _applyBugFilter(rows) {
+  if (cfg.includeBug) return rows;
+  return rows.filter(r => {
+    const t = (r['Issue-Type'] || r['Issue Type'] || r['IssueType'] || r['Type'] || r['issue_type'] || '').trim().toLowerCase();
+    return t !== 'bug';
+  });
 }
 
 // ════════════════════════════════════════════════
@@ -4783,15 +5040,22 @@ function _buildKpiArea() {
   ].join(';');
 
   kpi.innerHTML = `
-    <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:2px">
-      <span id="bc-kpi-val"
-            style="font-size:1.55rem;font-weight:700;line-height:1;color:var(--text)">–</span>
-      <span id="bc-kpi-trend"
-            style="display:none;font-size:.6rem;font-weight:600;
-                   padding:.12rem .35rem;border-radius:4px;white-space:nowrap"></span>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div>
+        <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:2px">
+          <span id="bc-kpi-val"
+                style="font-size:1.55rem;font-weight:700;line-height:1;color:var(--text)">–</span>
+          <span id="bc-kpi-trend"
+                style="display:none;font-size:.6rem;font-weight:600;
+                       padding:.12rem .35rem;border-radius:4px;white-space:nowrap"></span>
+        </div>
+        <div id="bc-kpi-sub"
+             style="font-size:.62rem;color:var(--dim);font-family:var(--mono)">–</div>
+      </div>
+      <span id="bc-kpi-n"
+            style="font-family:var(--mono);font-size:.65rem;color:var(--dim);
+                   align-self:center;white-space:nowrap">N = –</span>
     </div>
-    <div id="bc-kpi-sub"
-         style="font-size:.62rem;color:var(--dim);font-family:var(--mono)">–</div>
   `;
 
   const tileEl = document.getElementById('tile-boxchart');
@@ -4845,14 +5109,15 @@ function _buildFooter() {
     'flex-shrink:0',
     'gap:.4rem',
     'font-family:var(--mono)',
-    'font-size:.6rem',
+    'font-size:11px',
     'white-space:nowrap',
     'overflow:hidden',
   ].join(';');
 
-  const hint = document.createElement('span');
-  hint.textContent = '» Was zeigt diese Ansicht?';
-  hint.style.color = 'var(--dimmer)';
+  const hint = document.createElement('a');
+  hint.textContent = 'Was zeigt diese Ansicht?';
+  hint.style.cssText = 'color:var(--blue);cursor:pointer;text-decoration:none';
+  hint.addEventListener('click', _toggleExplanation);
 
   const spacer = document.createElement('span');
   spacer.style.flex = '1';
@@ -4865,6 +5130,10 @@ function _buildFooter() {
   ].join(';');
   link.addEventListener('click', e => {
     e.preventDefault();
+    const sc = core.load('fhwa_scatter', {});
+    sc.ctStart = cfg.ltStart;
+    sc.ctEnd   = cfg.ltEnd;
+    core.save('fhwa_scatter', sc);
     core.showPage('scatter');
   });
 
@@ -4872,6 +5141,35 @@ function _buildFooter() {
   _diagEl.appendChild(hint);
   _diagEl.appendChild(spacer);
   _diagEl.appendChild(link);
+}
+
+// ════════════════════════════════════════════════
+// Erklärungs-Panel (aufklappbar, wie Flow Efficiency)
+// ════════════════════════════════════════════════
+function _buildExplanation() {
+  _explanationEl = document.createElement('div');
+  _explanationEl.id = 'bc-explanation';
+  _explanationEl.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:.63rem', 'color:var(--dim)', 'line-height:1.6',
+    'font-family:var(--mono)',
+  ].join(';');
+  _explanationEl.innerHTML = _getModeExplanation();
+  _contentEl.insertBefore(_explanationEl, _contentEl.firstChild);
+}
+
+function _toggleExplanation() {
+  _explanationOpen = !_explanationOpen;
+  if (_explanationEl) {
+    _explanationEl.style.maxHeight = _explanationOpen
+      ? _explanationEl.scrollHeight + 'px'
+      : '0';
+  }
+  const hintEl = _diagEl.querySelector('a');
+  if (hintEl) hintEl.style.opacity = _explanationOpen ? '0.7' : '1';
+  setTimeout(_render, 240);
 }
 
 // ════════════════════════════════════════════════
@@ -5027,21 +5325,28 @@ function _saveAndRender() {
 // ════════════════════════════════════════════════
 function _showEmpty(msg) {
   const panel = document.getElementById('bc-cfg-panel');
+  const exp   = document.getElementById('bc-explanation');
   _contentEl.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;
                 height:100%;font-family:var(--mono);font-size:.63rem;
                 color:var(--dimmer);padding:.5rem;text-align:center">
       ${msg}
     </div>`;
+  if (exp) {
+    _contentEl.insertBefore(exp, _contentEl.firstChild);
+    exp.style.maxHeight = _explanationOpen ? exp.scrollHeight + 'px' : '0';
+  }
   if (panel) _contentEl.appendChild(panel);
   _updateKpiArea(null, null);
+  const nEl = document.getElementById('bc-kpi-n');
+  if (nEl) nEl.textContent = 'N = –';
 }
 
 // ════════════════════════════════════════════════
 // Haupt-Render
 // ════════════════════════════════════════════════
 function _render() {
-  const rows = core.filteredRows();
+  const rows = _applyBugFilter(core.filteredRows());
   const ltS  = cfg.ltStart;
   const ltE  = cfg.ltEnd;
 
@@ -5069,7 +5374,7 @@ function _render() {
 
     // Issue Type: gängige Spaltennamen abdecken
     const issueType = String(
-      row['Issue Type'] || row['IssueType'] || row['Type'] || row['issue_type'] || ''
+      row['Issue-Type'] || row['Issue Type'] || row['IssueType'] || row['Type'] || row['issue_type'] || ''
     );
 
     periodItems.get(key).push({
@@ -5096,6 +5401,11 @@ function _render() {
     statsMap.get(latestKey),
     prevKey ? statsMap.get(prevKey) : null
   );
+
+  // ── N gesamt ─────────────────────────────────────────────────────────────
+  const totalN = [...periodItems.values()].reduce((s, a) => s + a.length, 0);
+  const nEl = document.getElementById('bc-kpi-n');
+  if (nEl) nEl.textContent = 'N = ' + totalN;
 
   // ── SVG-Dimensionen ───────────────────────────────────────────────────────
   const W = _contentEl.clientWidth  || 600;
@@ -5283,7 +5593,12 @@ function _render() {
 
   parts.push('</svg>');
   const _savedPanel = document.getElementById('bc-cfg-panel');
+  const _savedExp   = document.getElementById('bc-explanation');
   _contentEl.innerHTML = parts.join('');
+  if (_savedExp) {
+    _contentEl.insertBefore(_savedExp, _contentEl.firstChild);
+    _savedExp.style.maxHeight = _explanationOpen ? _savedExp.scrollHeight + 'px' : '0';
+  }
   if (_savedPanel) _contentEl.appendChild(_savedPanel);
 
   // ── Tooltip-Delegation ────────────────────────────────────────────────────
@@ -5307,7 +5622,8 @@ function _render() {
       if (issType) {
         html += `<div class="tt-row"><span class="tt-lbl">Typ</span><span class="tt-val">${issType}</span></div>`;
       }
-      html += `<div class="tt-row"><span class="tt-lbl">Lead Time</span><span class="tt-val">${core.fmt(ltVal)}</span></div>`;
+      const _modeLbl = _detectMode() === 'ct' ? 'Cycle Time' : 'Lead Time';
+      html += `<div class="tt-row"><span class="tt-lbl">${_modeLbl}</span><span class="tt-val">${core.fmt(ltVal)}</span></div>`;
       if (url) {
         const urlEsc = url.replace(/'/g, "\\'");
         html += `<a class="tt-link" href="#" onclick="window.open('${urlEsc}','_blank');return false;">🔗 In Jira öffnen</a>`;
@@ -5398,8 +5714,8 @@ function _mlbl(d) {
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
 let _cfg, _contentEl, _diagEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
+let _nBadgeEl, _diagMid, _explanationEl, _expOpen = false;
 let _rawMonths = []; // [{ date:Date, label:string, values:{[squad]:number|null} }]
-let _fmSel, _toSel;
 
 // ════════════════════════════════════════════════
 // Public – Einstiegspunkt
@@ -5409,12 +5725,38 @@ function init_happiness() {
 
   const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
     id: VID,
-    title: _cfg.title,
+    title: 'Happiness <span class="hl">Faktor</span>',
   });
   _tileEl        = tileEl;
   _contentEl     = contentEl;
   _headerExtraEl = headerExtraEl;
   _diagEl        = diagEl;
+
+  // contentEl als Flex-Spalte (damit das Erklärungs-Panel den Chart nach unten drückt)
+  contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
+
+  // Erklärungs-Panel (ausklappbar)
+  _explanationEl = document.createElement('div');
+  _explanationEl.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
+  ].join(';');
+  _explanationEl.innerHTML =
+    '<div style="padding:8px 14px">' +
+    'Monatlicher Verlauf des <b style="color:var(--text)">Happiness-Faktors</b> (Skala 1–5) für den gewählten Squad. ' +
+    '<b style="color:var(--green)">Grün</b> = gut (≥4), <b style="color:var(--yellow)">Gelb</b> = mittel, ' +
+    '<b style="color:var(--red)">Rot</b> = niedrig (≤2). Grau = kein Wert erhoben.' +
+    '</div>';
+  contentEl.appendChild(_explanationEl);
+
+  // SVG-Bereich nimmt den verbleibenden Platz (flex:1)
+  const svgWrapEl = document.createElement('div');
+  svgWrapEl.style.cssText = 'flex:1;min-height:0;overflow:hidden;position:relative';
+  contentEl.appendChild(svgWrapEl);
+  // contentEl-Referenz für _drawChart auf den SVG-Wrapper umleiten
+  _contentEl = svgWrapEl;
 
   // Tooltip: position:fixed weil .tile overflow:hidden hat
   _ttEl = document.createElement('div');
@@ -5435,6 +5777,22 @@ function init_happiness() {
   });
   document.body.appendChild(_ttEl);
 
+  // 3-spaltiger Footer (diagEl)
+  _diagEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;overflow:hidden';
+  const diagLeft = document.createElement('a');
+  diagLeft.textContent = 'Was zeigt diese Ansicht?';
+  diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
+  diagLeft.addEventListener('click', () => {
+    _expOpen = !_expOpen;
+    _explanationEl.style.maxHeight = _expOpen ? _explanationEl.scrollHeight + 'px' : '0';
+    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
+    setTimeout(_render, 240);
+  });
+  _diagMid = document.createElement('span');
+  _diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
+  _diagEl.appendChild(diagLeft);
+  _diagEl.appendChild(_diagMid);
+
   _buildHeaderControls();
 
   core.on('data',   _onData);
@@ -5444,43 +5802,16 @@ function init_happiness() {
 }
 
 // ════════════════════════════════════════════════
-// Header-Controls: Von/Bis-Selects · Format-Button
+// Header-Controls: N-Badge · Format-Button
 // ════════════════════════════════════════════════
 function _buildHeaderControls() {
-  function sep() {
-    const d = document.createElement('div');
-    d.style.cssText = 'width:1px;height:14px;background:var(--border);flex-shrink:0;margin:0 .1rem';
-    return d;
-  }
-  function lbl(txt) {
-    const s = document.createElement('span');
-    s.textContent = txt;
-    s.style.cssText = 'font-size:.6rem;color:var(--dimmer);font-family:var(--mono);margin-left:.3rem;flex-shrink:0';
-    return s;
-  }
-  function mkSel() {
-    const s = document.createElement('select');
-    s.style.cssText = [
-      'background:var(--bg3)', 'border:1px solid var(--border)', 'border-radius:4px',
-      'color:var(--text)',      'font-family:var(--mono)',         'font-size:.6rem',
-      'padding:.1rem .25rem',   'outline:none',                    'cursor:pointer',
-      'margin-left:.2rem',      'flex-shrink:0',                   'max-width:80px',
-    ].join(';');
-    return s;
-  }
+  _nBadgeEl = document.createElement('span');
+  _nBadgeEl.style.cssText = 'font-size:11px;color:var(--dim);font-family:var(--mono);white-space:nowrap;margin-right:.15rem;';
+  _headerExtraEl.appendChild(_nBadgeEl);
 
-  _headerExtraEl.appendChild(sep());
-  _headerExtraEl.appendChild(lbl('Von'));
-  _fmSel = mkSel();
-  _fmSel.addEventListener('change', () => { _saveCfg(); _render(); });
-  _headerExtraEl.appendChild(_fmSel);
-
-  _headerExtraEl.appendChild(lbl('Bis'));
-  _toSel = mkSel();
-  _toSel.addEventListener('change', () => { _saveCfg(); _render(); });
-  _headerExtraEl.appendChild(_toSel);
-
-  _headerExtraEl.appendChild(sep());
+  const sep = document.createElement('div');
+  sep.style.cssText = 'width:1px;height:14px;background:var(--border);flex-shrink:0;margin:0 .1rem';
+  _headerExtraEl.appendChild(sep);
 
   const fmtBtn = document.createElement('button');
   fmtBtn.innerHTML = '&#9881;';
@@ -5514,18 +5845,10 @@ function _buildHeaderControls() {
 }
 
 function _rebuildFmtPanel() {
-  const title = _esc(_cfg.title || CFG_DEF.title);
   _fmtPanelEl.innerHTML = `
     <div style="font-weight:600;font-size:.62rem;color:var(--blue);
                 text-transform:uppercase;letter-spacing:.08em;margin-bottom:.55rem">Format</div>
     <div style="display:flex;flex-direction:column;gap:.48rem">
-      <div style="display:flex;flex-direction:column;gap:.15rem">
-        <span style="font-size:.65rem;color:var(--dim)">Titel</span>
-        <input id="${VID}-t" type="text" value="${title}"
-          style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;
-                 color:var(--text);font-family:var(--mono);font-size:.65rem;
-                 padding:.2rem .42rem;outline:none;width:100%;box-sizing:border-box"/>
-      </div>
       <div style="display:flex;flex-direction:column;gap:.15rem">
         <span style="font-size:.65rem;color:var(--dim)">
           Punkt-Radius&thinsp;
@@ -5536,16 +5859,9 @@ function _rebuildFmtPanel() {
       </div>
     </div>`;
 
-  const ti = _fmtPanelEl.querySelector(`#${VID}-t`);
   const ri = _fmtPanelEl.querySelector(`#${VID}-r`);
   const rd = _fmtPanelEl.querySelector(`#${VID}-rd`);
 
-  ti.addEventListener('input', () => {
-    _cfg.title = ti.value.trim() || CFG_DEF.title;
-    const tel = _tileEl.querySelector('.tile-title');
-    if (tel) tel.textContent = _cfg.title;
-    _saveCfg();
-  });
   ri.addEventListener('input', () => {
     _cfg.dotRadius = Math.max(3, Math.min(12, parseInt(ri.value, 10) || CFG_DEF.dotRadius));
     if (rd) rd.textContent = _cfg.dotRadius;
@@ -5619,34 +5935,7 @@ function _onData() {
   // Älteste nach links (chronologisch)
   _rawMonths.sort((a, b) => a.date - b.date);
 
-  _populateDateSelects();
   _render();
-}
-
-function _populateDateSelects() {
-  if (!_fmSel || !_toSel || !_rawMonths.length) return;
-
-  const savedFrom = core.load(LS_KEY + '_from', null);
-  const savedTo   = core.load(LS_KEY + '_to',   null);
-  const last       = _rawMonths.length - 1;
-
-  const opts = _rawMonths.map((m, i) => `<option value="${i}">${m.label}</option>`).join('');
-  _fmSel.innerHTML = opts;
-  _toSel.innerHTML = opts;
-
-  // Gespeicherten Monat per Label-String wiederherstellen
-  if (savedFrom) {
-    const fi = _rawMonths.findIndex(m => m.label === savedFrom);
-    _fmSel.value = String(fi >= 0 ? fi : 0);
-  } else {
-    _fmSel.value = '0';
-  }
-  if (savedTo) {
-    const ti = _rawMonths.findIndex(m => m.label === savedTo);
-    _toSel.value = String(ti >= 0 ? ti : last);
-  } else {
-    _toSel.value = String(last);
-  }
 }
 
 // ════════════════════════════════════════════════
@@ -5657,17 +5946,19 @@ function _render() {
   if (_contentEl.clientWidth < 20) return;
   if (_ttEl) _ttEl.style.display = 'none';
 
+  function _clrBadge() { if (_nBadgeEl) _nBadgeEl.textContent = ''; }
+
   // ── Noch keine Datei geladen ──
   if (!core.state.rows.length && !_rawMonths.length) {
     _showMsg('Noch keine Datei geladen');
-    _diagEl.textContent = '–';
+    _clrBadge(); _diagMid.textContent = '–';
     return;
   }
 
   // ── Sheet fehlt ──
   if (!_rawMonths.length) {
     _showMsg(`Sheet „${SHEET}" nicht in der Excel gefunden`);
-    _diagEl.textContent = 'Sheet fehlt';
+    _clrBadge(); _diagMid.textContent = 'Sheet fehlt';
     return;
   }
 
@@ -5676,12 +5967,12 @@ function _render() {
 
   if (!sf || !sf.length) {
     _showMsg('Kein Squad ausgewählt');
-    _diagEl.textContent = 'Kein Squad';
+    _clrBadge(); _diagMid.textContent = 'Kein Squad';
     return;
   }
   if (sf.length > 1) {
     _showMsg('Bitte nur 1 Squad wählen');
-    _diagEl.textContent = `${sf.length} Squads gewählt`;
+    _clrBadge(); _diagMid.textContent = `${sf.length} Squads gewählt`;
     return;
   }
 
@@ -5691,29 +5982,18 @@ function _render() {
   const happinessSquads = Object.keys(_rawMonths[0].values);
   if (!happinessSquads.includes(squadName)) {
     _showMsg(`Squad „${squadName}" nicht in Happiness-Daten`);
-    _diagEl.textContent = 'Squad fehlt';
+    _clrBadge(); _diagMid.textContent = 'Squad fehlt';
     return;
   }
 
-  // ── Zeitraum-Filter ──
-  const fIdx   = Math.min(parseInt(_fmSel?.value ?? '0',  10) || 0, _rawMonths.length - 1);
-  const tIdx   = Math.min(parseInt(_toSel?.value  ?? String(_rawMonths.length - 1), 10), _rawMonths.length - 1);
-  const fi     = Math.min(fIdx, tIdx);
-  const ti     = Math.max(fIdx, tIdx);
-  const months = _rawMonths.slice(fi, ti + 1);
-
-  if (!months.length) {
-    _showMsg('Keine Monate im gewählten Zeitraum');
-    _diagEl.textContent = '0 Monate';
-    return;
-  }
+  const months = _rawMonths;
 
   _drawChart(squadName, months);
 
   const nvCnt    = months.filter(m => m.values[squadName] == null).length;
   const validCnt = months.length - nvCnt;
-  _diagEl.textContent =
-    `Squad: ${squadName} · ${months.length} Monate · ${validCnt} Werte · ${nvCnt} nv`;
+  if (_nBadgeEl) _nBadgeEl.textContent = `N = ${validCnt}`;
+  _diagMid.textContent = nvCnt ? `${nvCnt} ohne Wert` : '';
 }
 
 // ════════════════════════════════════════════════
@@ -5848,13 +6128,6 @@ function _showMsg(text) {
 
 function _saveCfg() {
   core.save(LS_KEY, _cfg);
-  // Zeitraum per Label-String (stabil über Datei-Reloads hinaus)
-  if (_fmSel && _rawMonths.length) {
-    const fi = Math.min(parseInt(_fmSel.value, 10) || 0, _rawMonths.length - 1);
-    const ti = Math.min(parseInt(_toSel.value,  10) || 0, _rawMonths.length - 1);
-    core.save(LS_KEY + '_from', _rawMonths[fi]?.label ?? null);
-    core.save(LS_KEY + '_to',   _rawMonths[ti]?.label ?? null);
-  }
 }
 window.init_happiness = init_happiness;
 })();
@@ -5880,13 +6153,35 @@ function init_wip() {
     title: 'WIP <span class="hl">pro Person</span>',
   });
 
-  contentEl.style.position = 'relative';
-  contentEl.style.overflow = 'hidden';
+  contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
+
+  // Erklärungs-Panel (ausklappbar)
+  let _expOpen = false;
+  const explanationEl = document.createElement('div');
+  explanationEl.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
+  ].join(';');
+  explanationEl.innerHTML =
+    '<div style="padding:8px 14px">' +
+    'Monatlicher Verlauf des <b style="color:var(--text)">WIP pro Person</b> für den gewählten Squad. ' +
+    'Berechnet als aktive Stories ÷ Teamgröße pro Monat. ' +
+    'Die Linienpunkte werden <b style="color:var(--green)">grün</b>, <b style="color:var(--yellow)">gelb</b> oder ' +
+    '<b style="color:var(--red)">rot</b> gefärbt – Schwellwerte im ⚙-Panel konfigurierbar.' +
+    '</div>';
+  contentEl.appendChild(explanationEl);
+
+  // Draw-Wrapper (nimmt den verbleibenden Platz, hält SVG + Tooltip + Settings)
+  const drawWrap = document.createElement('div');
+  drawWrap.style.cssText = 'flex:1;position:relative;overflow:hidden;min-height:0';
+  contentEl.appendChild(drawWrap);
 
   // Draw area (SVG or placeholder) – sits below tooltip and panel in DOM order
   const drawEl = document.createElement('div');
   drawEl.style.cssText = 'position:absolute;inset:0;';
-  contentEl.appendChild(drawEl);
+  drawWrap.appendChild(drawEl);
 
   // Tooltip
   const tooltip = document.createElement('div');
@@ -5896,7 +6191,7 @@ function init_wip() {
     'padding:8px 12px', 'font-size:12px', 'color:var(--text)',
     'pointer-events:none', 'z-index:100', 'white-space:nowrap',
   ].join(';');
-  contentEl.appendChild(tooltip);
+  drawWrap.appendChild(tooltip);
 
   // Settings panel
   const panel = document.createElement('div');
@@ -5906,7 +6201,7 @@ function init_wip() {
     'border-radius:8px', 'padding:14px', 'z-index:50',
     'min-width:240px', 'font-size:13px', 'color:var(--text)',
   ].join(';');
-  contentEl.appendChild(panel);
+  drawWrap.appendChild(panel);
 
   // ── Header controls ─────────────────────────────────────────────────────────
   const nBadge = document.createElement('span');
@@ -5924,6 +6219,22 @@ function init_wip() {
     panel.style.display = visible ? 'none' : 'block';
     if (!visible) buildPanel();
   };
+
+  // ── 3-spaltiger Footer (diagEl) ──────────────────────────────────────────────
+  diagEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;overflow:hidden';
+  const diagLeft = document.createElement('a');
+  diagLeft.textContent = 'Was zeigt diese Ansicht?';
+  diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
+  diagLeft.addEventListener('click', () => {
+    _expOpen = !_expOpen;
+    explanationEl.style.maxHeight = _expOpen ? explanationEl.scrollHeight + 'px' : '0';
+    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
+    setTimeout(render, 240);
+  });
+  const diagMid = document.createElement('span');
+  diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
+  diagEl.appendChild(diagLeft);
+  diagEl.appendChild(diagMid);
 
   // ── Settings panel builder ───────────────────────────────────────────────────
   function buildPanel() {
@@ -6020,8 +6331,8 @@ function init_wip() {
   function positionTooltip(mx, my) {
     const ttW = tooltip.offsetWidth  || 180;
     const ttH = tooltip.offsetHeight || 90;
-    const cW  = contentEl.clientWidth;
-    const cH  = contentEl.clientHeight;
+    const cW  = drawWrap.clientWidth;
+    const cH  = drawWrap.clientHeight;
     let left = mx + 14;
     if (left + ttW > cW) left = mx - ttW - 14;
     if (left < 0) left = 0;
@@ -6037,13 +6348,13 @@ function init_wip() {
       `<div style="display:flex;align-items:center;justify-content:center;` +
       `height:100%;color:var(--dim);font-size:13px;">${msg}</div>`;
     nBadge.textContent = '';
-    diagEl.textContent  = msg;
+    diagMid.textContent = msg;
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   function render() {
     tooltip.style.display = 'none';
-    if (contentEl.clientWidth < 20) return;
+    if (drawWrap.clientWidth < 20) return;
 
     const filter = core.state.squadFilter || [];
     if (filter.length !== 1) {
@@ -6154,13 +6465,13 @@ function init_wip() {
     });
     const nStories = wipIds.size;
 
-    nBadge.textContent  = `n=${nStories} Stories`;
-    const squadHint     = !squadFoundInSheet ? ` · Squad nicht in SquadDaten (Teamgr. = 1)` : '';
-    diagEl.textContent  = `n=${nStories} · ${monthLabel(allMonths[0])}–${monthLabel(allMonths[allMonths.length - 1])} · Squad: ${squadName}${squadHint}`;
+    nBadge.textContent  = `N = ${nStories}`;
+    const squadHint     = !squadFoundInSheet ? 'Squad nicht in SquadDaten (Teamgr. = 1)' : '';
+    diagMid.textContent = squadHint;
 
     // ── SVG aufbauen ────────────────────────────────────────────────────────────
-    const pW = contentEl.clientWidth  || 500;
-    const pH = contentEl.clientHeight || 290;
+    const pW = drawWrap.clientWidth  || 500;
+    const pH = drawWrap.clientHeight || 290;
     const mL = 46, mR = 14, mT = 16, mB = 44;
     const cW = pW - mL - mR;
     const cH = pH - mT - mB;
@@ -6226,11 +6537,11 @@ function init_wip() {
           `<div>Teamgröße: <b>${dp.teamSize}</b></div>`,
         ].join('');
         tooltip.style.display = 'block';
-        const rect = contentEl.getBoundingClientRect();
+        const rect = drawWrap.getBoundingClientRect();
         positionTooltip(e.clientX - rect.left, e.clientY - rect.top);
       });
       dot.addEventListener('mousemove', e => {
-        const rect = contentEl.getBoundingClientRect();
+        const rect = drawWrap.getBoundingClientRect();
         positionTooltip(e.clientX - rect.left, e.clientY - rect.top);
       });
       dot.addEventListener('mouseout', () => { tooltip.style.display = 'none'; });
@@ -6273,8 +6584,10 @@ function init_flowefficiency() {
 
   // ── State ──────────────────────────────────────
   let cfg       = Object.assign({}, DEF, core.load(KEY, {}));
-  let _monthData = [];   // [{ key, label, fe, items, n, ltAvg, breakdown }]
-  let _errors    = 0;
+  let _monthData  = [];   // [{ key, label, fe, items, n, ltAvg, breakdown }]
+  let _errors     = 0;
+  let _errorItems = [];  // [{ jiraId, issueType, totalWait, lt, breakdown }]
+  let _errSort    = { col: 'diff', dir: -1 };
 
   // ── Tile ───────────────────────────────────────
   const { contentEl, headerExtraEl, diagEl } = core.createTile({
@@ -6282,28 +6595,23 @@ function init_flowefficiency() {
     title: 'Flow <span class="hl">Efficiency</span>',
   });
 
-  // ── Header extras: mode toggle · N-badge · settings ──
-  const modeWrap = document.createElement('div');
-  modeWrap.style.cssText = 'display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:4px;overflow:hidden;flex-shrink:0';
-
+  // ── Header extras: mode toggle · settings · help ──
   ['Linie', 'Violin'].forEach((label, i) => {
     const m   = i === 0 ? 'line' : 'violin';
     const btn = document.createElement('button');
+    btn.className    = 'btn-icon';
     btn.textContent  = label;
     btn.dataset.mode = m;
-    btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:11px;padding:3px 9px;font-weight:500;white-space:nowrap;font-family:var(--sans);transition:background .12s,color .12s';
+    btn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+    btn.classList.toggle('p-blue', cfg.mode === m);
     btn.addEventListener('click', () => {
       cfg.mode = m;
       core.save(KEY, cfg);
       _updateModeToggle();
       _renderChart();
     });
-    modeWrap.appendChild(btn);
+    headerExtraEl.appendChild(btn);
   });
-
-  const nBadge = document.createElement('span');
-  nBadge.style.cssText = 'font-size:11px;color:var(--dim);background:var(--bg3);border:1px solid var(--border);padding:2px 7px;border-radius:10px;white-space:nowrap;font-family:var(--mono)';
-  nBadge.textContent = 'N=–';
 
   const helpBtn = document.createElement('button');
   helpBtn.className     = 'btn-icon';
@@ -6318,8 +6626,6 @@ function init_flowefficiency() {
   settingsBtn.title       = 'Flow Efficiency – Einstellungen';
   settingsBtn.addEventListener('click', _openSettings);
 
-  headerExtraEl.appendChild(modeWrap);
-  headerExtraEl.appendChild(nBadge);
   headerExtraEl.appendChild(settingsBtn);
   headerExtraEl.appendChild(helpBtn);
 
@@ -6668,7 +6974,25 @@ function init_flowefficiency() {
   `;
 
   feHelpPanel.querySelector('#fe-help-close').addEventListener('click', _closeHelp);
-  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') _closeHelp(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { _closeHelp(); _closeErrModal(); } });
+
+  // ── Error-items modal ──────────────────────────
+  const feErrBackdrop = document.createElement('div');
+  feErrBackdrop.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400';
+  feErrBackdrop.addEventListener('click', _closeErrModal);
+  document.body.appendChild(feErrBackdrop);
+
+  const feErrPanel = document.createElement('div');
+  feErrPanel.style.cssText = [
+    'display:none', 'position:fixed', 'top:50%', 'left:50%',
+    'transform:translate(-50%,-50%)',
+    'width:min(640px,92vw)', 'max-height:80vh',
+    'background:var(--bg2)', 'border:1px solid var(--border)', 'border-radius:8px',
+    'z-index:401', 'box-shadow:0 12px 50px rgba(0,0,0,.55)',
+    'flex-direction:column', 'font-family:var(--sans)', 'color:var(--text)',
+    'overflow:hidden',
+  ].join(';');
+  document.body.appendChild(feErrPanel);
 
   // Wire settings controls
   const slM   = fePanel.querySelector('#fe-sl-months');
@@ -6725,6 +7049,93 @@ function init_flowefficiency() {
     feHelpPanel.style.display    = 'none';
   }
 
+  function _renderErrTable() {
+    var sorted = _errorItems.slice().sort(function(a, b) {
+      if (_errSort.col === 'jiraId')    return _errSort.dir * a.jiraId.localeCompare(b.jiraId);
+      if (_errSort.col === 'issueType') return _errSort.dir * a.issueType.localeCompare(b.issueType);
+      return _errSort.dir * ((a.totalWait - a.lt) - (b.totalWait - b.lt));
+    });
+
+    var urlTpl = core.state.urlTemplate || '';
+
+    var rowsHtml = sorted.map(function(item) {
+      var jiraCell;
+      if (urlTpl && item.jiraId !== '–') {
+        var safeId = item.jiraId.replace(/[^A-Za-z0-9\-_]/g, '');
+        var url    = urlTpl.replace('{id}', safeId);
+        jiraCell   = '<a href="' + url + '" target="_blank" rel="noopener noreferrer"' +
+          ' style="color:var(--blue);text-decoration:none;font-family:var(--mono)">' + item.jiraId + '</a>';
+      } else {
+        jiraCell = '<span style="font-family:var(--mono)">' + item.jiraId + '</span>';
+      }
+
+      var bdParts = Object.keys(item.breakdown)
+        .filter(function(k) { return item.breakdown[k] > 0; })
+        .sort(function(a, b) { return item.breakdown[b] - item.breakdown[a]; })
+        .map(function(k) { return k + ': ' + item.breakdown[k].toFixed(1) + 'd'; });
+      var fk = 'Wartezeit ' + item.totalWait.toFixed(1) + 'd > LT ' + item.lt.toFixed(1) + 'd';
+      if (bdParts.length) fk += ' (' + bdParts.join(', ') + ')';
+
+      return '<tr>' +
+        '<td style="padding:7px 10px;border-bottom:1px solid var(--border)">' + jiraCell + '</td>' +
+        '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--dim)">' + item.issueType + '</td>' +
+        '<td style="padding:7px 10px;border-bottom:1px solid var(--border);color:var(--dim);font-size:11px">' + fk + '</td>' +
+        '</tr>';
+    }).join('');
+
+    function si(col) {
+      if (_errSort.col !== col) return '<span style="opacity:.3;font-size:9px"> ↕</span>';
+      return _errSort.dir === -1
+        ? '<span style="font-size:9px"> ↓</span>'
+        : '<span style="font-size:9px"> ↑</span>';
+    }
+    var thBase = 'text-align:left;padding:8px 10px;background:var(--bg4);font-weight:500;border-bottom:1px solid var(--border);' +
+      'cursor:pointer;user-select:none;white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.06em;';
+
+    feErrPanel.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;' +
+        'padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0">' +
+        '<div style="font-size:14px;font-weight:700">⚠ Ausgeschlossene Items (' + _errorItems.length + ')</div>' +
+        '<button id="fe-err-close" style="background:none;border:none;cursor:pointer;font-size:18px;' +
+          'color:var(--dim);line-height:1;padding:0 4px;font-family:var(--sans)">✕</button>' +
+      '</div>' +
+      '<div style="overflow-y:auto;flex:1">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text)">' +
+          '<thead><tr>' +
+            '<th data-sort="jiraId" style="' + thBase + (_errSort.col === 'jiraId' ? 'color:var(--text)' : 'color:var(--dim)') + '">Jira-ID' + si('jiraId') + '</th>' +
+            '<th data-sort="issueType" style="' + thBase + (_errSort.col === 'issueType' ? 'color:var(--text)' : 'color:var(--dim)') + '">Issue-Type' + si('issueType') + '</th>' +
+            '<th data-sort="diff" style="' + thBase + (_errSort.col === 'diff' ? 'color:var(--text)' : 'color:var(--dim)') + '">Fehlerkonstellation' + si('diff') + '</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>' +
+      '</div>';
+
+    feErrPanel.querySelector('#fe-err-close').addEventListener('click', _closeErrModal);
+    feErrPanel.querySelectorAll('th[data-sort]').forEach(function(th) {
+      th.addEventListener('click', function() {
+        var col = th.dataset.sort;
+        if (_errSort.col === col) {
+          _errSort.dir *= -1;
+        } else {
+          _errSort.col = col;
+          _errSort.dir = (col === 'diff') ? -1 : 1;
+        }
+        _renderErrTable();
+      });
+    });
+  }
+
+  function _openErrModal() {
+    _renderErrTable();
+    feErrBackdrop.style.display = 'block';
+    feErrPanel.style.display    = 'flex';
+  }
+
+  function _closeErrModal() {
+    feErrBackdrop.style.display = 'none';
+    feErrPanel.style.display    = 'none';
+  }
+
   function _toggleExplanation() {
     showExplanation = !showExplanation;
     explanationEl.style.maxHeight = showExplanation ? explanationEl.scrollHeight + 'px' : '0';
@@ -6734,10 +7145,8 @@ function init_flowefficiency() {
   }
 
   function _updateModeToggle() {
-    modeWrap.querySelectorAll('button').forEach(btn => {
-      const active = btn.dataset.mode === cfg.mode;
-      btn.style.background = active ? 'var(--blue)'   : 'transparent';
-      btn.style.color      = active ? '#fff'           : 'var(--dim)';
+    headerExtraEl.querySelectorAll('[data-mode]').forEach(btn => {
+      btn.classList.toggle('p-blue', btn.dataset.mode === cfg.mode);
     });
   }
   _updateModeToggle();
@@ -6790,6 +7199,7 @@ function init_flowefficiency() {
 
     var monthly = {};
     var errors  = 0;
+    _errorItems = [];
 
     rows.forEach(function(row) {
       // Resolved only (XOR Rejected)
@@ -6834,7 +7244,17 @@ function init_flowefficiency() {
       var totalWait = waiteJS + waiteZ;
 
       // Edge case: waiting > LT → data error
-      if (totalWait > lt) { errors++; return; }
+      if (totalWait > lt) {
+        errors++;
+        _errorItems.push({
+          jiraId:    jid || '–',
+          issueType: String(row['Issue-Type'] || '–').trim(),
+          totalWait: Math.round(totalWait * 10) / 10,
+          lt:        Math.round(lt * 10) / 10,
+          breakdown: Object.assign({}, breakdown),
+        });
+        return;
+      }
 
       var fe = ((lt - totalWait) / lt) * 100;
 
@@ -6877,7 +7297,6 @@ function init_flowefficiency() {
     });
 
     _errors = errors;
-    nBadge.textContent = 'N=' + _monthData.reduce(function(s, d) { return s + d.n; }, 0);
   }
 
   // ── KDE helpers ────────────────────────────────
@@ -6950,6 +7369,11 @@ function init_flowefficiency() {
       parts.push('<text x="' + (P.l + cW + 5) + '" y="' + (ty + 4) + '"' +
         ' font-size="10" fill="' + tgtCol + '" opacity=".9" font-family="var(--sans)">Ziel ' + cfg.targetFE + '%</text>');
     }
+
+    // N label (top-right, wie Lead Time)
+    var totalN = data.reduce(function(s, d) { return s + d.n; }, 0);
+    parts.push('<text x="' + (P.l + cW) + '" y="' + (P.t - 4) + '"' +
+      ' text-anchor="end" font-size="11" fill="' + axisCol + '" font-family="var(--mono)">N = ' + totalN + '</text>');
 
     // X-axis ticks + labels
     var step = Math.ceil(data.length / 12);
@@ -7039,10 +7463,18 @@ function init_flowefficiency() {
 
     // Diag
     var hasBM = (core.state.sheets['JiraBlockermanagement'] || []).length > 0;
-    var parts2 = [];
-    if (_errors > 0) parts2.push(_errors + ' Datenfehler ausgeschlossen');
-    if (!hasBM)      parts2.push('JiraBlockermanagement fehlt');
-    diagMid.textContent = parts2.join(' · ');
+    while (diagMid.firstChild) diagMid.removeChild(diagMid.firstChild);
+    if (_errors > 0) {
+      var errA = document.createElement('a');
+      errA.textContent = _errors + ' Datenfehler ausgeschlossen';
+      errA.style.cssText = 'color:var(--blue);cursor:pointer;text-decoration:none';
+      errA.addEventListener('click', _openErrModal);
+      diagMid.appendChild(errA);
+    }
+    if (!hasBM) {
+      if (_errors > 0) diagMid.appendChild(document.createTextNode(' · '));
+      diagMid.appendChild(document.createTextNode('JiraBlockermanagement fehlt'));
+    }
   }
 
   // ── Tooltip ────────────────────────────────────
@@ -7248,6 +7680,10 @@ function init_saydoratioepics() {
   _buildPanel();
 
   // ── Header-Controls ──────────────────────────────────────────────────────────
+  const nBadge = document.createElement('span');
+  nBadge.style.cssText = 'font-size:11px;color:var(--dim);font-family:var(--mono);white-space:nowrap;';
+  headerExtraEl.appendChild(nBadge);
+
   const settingsBtn = document.createElement('button');
   settingsBtn.className = 'btn-icon';
   settingsBtn.textContent = '⚙';
@@ -7276,7 +7712,7 @@ function init_saydoratioepics() {
     expEl.style.maxHeight = showExp ? '60px' : '0';
   };
   const diagStats = document.createElement('span');
-  diagStats.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;';
+  diagStats.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;';
   diagEl.appendChild(diagLink);
   diagEl.appendChild(diagStats);
 
@@ -7344,11 +7780,13 @@ function init_saydoratioepics() {
     const etappen = (core.state.sheets && core.state.sheets['BRP Etappen']) ?? [];
 
     if (!epics.length) {
+      nBadge.textContent = '';
       diagStats.textContent = 'JiraEpics-Sheet nicht gefunden';
       currentData = [];
       return;
     }
     if (!etappen.length) {
+      nBadge.textContent = '';
       diagStats.textContent = 'BRP Etappen-Sheet nicht gefunden';
       currentData = [];
       return;
@@ -7367,6 +7805,7 @@ function init_saydoratioepics() {
       .sort((a, b) => core.toDate(a['Startdatum']) - core.toDate(b['Startdatum']));
 
     if (!allEtappen.length) {
+      nBadge.textContent = '';
       diagStats.textContent = 'BRP Etappen: keine gültigen Einträge (Datum fehlt)';
       currentData = [];
       return;
@@ -7412,8 +7851,8 @@ function init_saydoratioepics() {
     currentData = data;
 
     const totalEpics = data.reduce((s, d) => s + d.total, 0);
-    const squadLabel = activeSquads.length ? activeSquads.join(', ') : 'alle';
-    diagStats.textContent = `n=${totalEpics} · ${visibleEtappen.length} Etappen · Squad: ${squadLabel}`;
+    nBadge.textContent = `N = ${totalEpics}`;
+    diagStats.textContent = '';
 
     // ── SVG-Aufbau ───────────────────────────────────────────────────────────
     const W = svgWrap.clientWidth  || 500;
@@ -8326,7 +8765,7 @@ function _esc(s) {
 const CFG_DEF = { dotRadius: 5 };
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
-let _cfg, _contentEl, _svgWrapEl, _diagEl, _diagTextEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
+let _cfg, _contentEl, _svgWrapEl, _diagEl, _diagTextEl, _nBadgeEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
 let _explanationEl, _showExplanation = false;
 let _stages   = []; // geordnete Stage-Namen (aus _onData)
 let _epicRows = []; // JiraEpics-Zeilen
@@ -8340,7 +8779,7 @@ function init_akzeptanz() {
 
   const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
     id:    VID,
-    title: 'Akzeptanzkriterien',
+    title: 'Akzeptanz<span class="hl">kriterien</span>',
   });
   _tileEl        = tileEl;
   _contentEl     = contentEl;
@@ -8427,6 +8866,10 @@ function _toggleExplanation() {
 // Header-Controls: ⚙-Button + Format-Panel
 // ════════════════════════════════════════════════
 function _buildHeaderControls() {
+  _nBadgeEl = document.createElement('span');
+  _nBadgeEl.style.cssText = 'font-size:11px;color:var(--dim);font-family:var(--mono);white-space:nowrap;margin-right:.15rem;';
+  _headerExtraEl.appendChild(_nBadgeEl);
+
   const sep = document.createElement('div');
   sep.style.cssText = 'width:1px;height:14px;background:var(--border);flex-shrink:0;margin:0 .1rem';
   _headerExtraEl.appendChild(sep);
@@ -8527,6 +8970,7 @@ function _render() {
   // ── Noch keine Datei geladen ──
   if (!core.state.rows || !core.state.rows.length) {
     _showMsg('Noch keine Datei geladen');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = '–';
     return;
   }
@@ -8534,6 +8978,7 @@ function _render() {
   // ── JiraEpics fehlt oder leer ──
   if (!_epicRows.length) {
     _showMsg('JiraEpics-Sheet nicht gefunden');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'JiraEpics fehlt';
     return;
   }
@@ -8541,6 +8986,7 @@ function _render() {
   // ── Keine Stage-Daten ──
   if (!_stages.length) {
     _showMsg('Keine Epics mit Stage-Daten');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Keine Stage-Daten';
     return;
   }
@@ -8549,11 +8995,13 @@ function _render() {
   const sf = core.state.squadFilter;
   if (!sf || !sf.length) {
     _showMsg('Kein Squad ausgewählt');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Kein Squad';
     return;
   }
   if (sf.length > 1) {
     _showMsg('Bitte nur 1 Squad wählen');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = `${sf.length} Squads gewählt`;
     return;
   }
@@ -8568,17 +9016,18 @@ function _render() {
 
   // ── Squad hat keine Epics in JiraEpics ──
   if (!qualities.some(d => d.q !== null)) {
-    _showMsg(`Keine Daten für Squad „${_esc(squadName)}“`);
+    _showMsg(`Keine Daten für Squad „${_esc(squadName)}”`);
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Squad fehlt';
     return;
   }
 
   const totalEpics   = _epicRows.filter(r => r['Squad'] === squadName && r['Stage'] != null && String(r['Stage']).trim() !== '').length;
-  const activeStages = qualities.filter(d => d.q !== null).length;
 
+  if (_nBadgeEl) _nBadgeEl.textContent = `N = ${totalEpics}`;
   _drawChart(squadName, qualities);
 
-  _diagTextEl.textContent = `Squad: ${squadName} · n=${totalEpics} Epics · ${activeStages} Etappen`;
+  _diagTextEl.textContent = '';
 }
 
 // ════════════════════════════════════════════════

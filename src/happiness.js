@@ -43,8 +43,8 @@ function _mlbl(d) {
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
 let _cfg, _contentEl, _diagEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
+let _nBadgeEl, _diagMid, _explanationEl, _expOpen = false;
 let _rawMonths = []; // [{ date:Date, label:string, values:{[squad]:number|null} }]
-let _fmSel, _toSel;
 
 // ════════════════════════════════════════════════
 // Public – Einstiegspunkt
@@ -54,12 +54,38 @@ export function init() {
 
   const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
     id: VID,
-    title: _cfg.title,
+    title: 'Happiness <span class="hl">Faktor</span>',
   });
   _tileEl        = tileEl;
   _contentEl     = contentEl;
   _headerExtraEl = headerExtraEl;
   _diagEl        = diagEl;
+
+  // contentEl als Flex-Spalte (damit das Erklärungs-Panel den Chart nach unten drückt)
+  contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
+
+  // Erklärungs-Panel (ausklappbar)
+  _explanationEl = document.createElement('div');
+  _explanationEl.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
+  ].join(';');
+  _explanationEl.innerHTML =
+    '<div style="padding:8px 14px">' +
+    'Monatlicher Verlauf des <b style="color:var(--text)">Happiness-Faktors</b> (Skala 1–5) für den gewählten Squad. ' +
+    '<b style="color:var(--green)">Grün</b> = gut (≥4), <b style="color:var(--yellow)">Gelb</b> = mittel, ' +
+    '<b style="color:var(--red)">Rot</b> = niedrig (≤2). Grau = kein Wert erhoben.' +
+    '</div>';
+  contentEl.appendChild(_explanationEl);
+
+  // SVG-Bereich nimmt den verbleibenden Platz (flex:1)
+  const svgWrapEl = document.createElement('div');
+  svgWrapEl.style.cssText = 'flex:1;min-height:0;overflow:hidden;position:relative';
+  contentEl.appendChild(svgWrapEl);
+  // contentEl-Referenz für _drawChart auf den SVG-Wrapper umleiten
+  _contentEl = svgWrapEl;
 
   // Tooltip: position:fixed weil .tile overflow:hidden hat
   _ttEl = document.createElement('div');
@@ -80,6 +106,22 @@ export function init() {
   });
   document.body.appendChild(_ttEl);
 
+  // 3-spaltiger Footer (diagEl)
+  _diagEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;overflow:hidden';
+  const diagLeft = document.createElement('a');
+  diagLeft.textContent = 'Was zeigt diese Ansicht?';
+  diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
+  diagLeft.addEventListener('click', () => {
+    _expOpen = !_expOpen;
+    _explanationEl.style.maxHeight = _expOpen ? _explanationEl.scrollHeight + 'px' : '0';
+    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
+    setTimeout(_render, 240);
+  });
+  _diagMid = document.createElement('span');
+  _diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
+  _diagEl.appendChild(diagLeft);
+  _diagEl.appendChild(_diagMid);
+
   _buildHeaderControls();
 
   core.on('data',   _onData);
@@ -89,43 +131,16 @@ export function init() {
 }
 
 // ════════════════════════════════════════════════
-// Header-Controls: Von/Bis-Selects · Format-Button
+// Header-Controls: N-Badge · Format-Button
 // ════════════════════════════════════════════════
 function _buildHeaderControls() {
-  function sep() {
-    const d = document.createElement('div');
-    d.style.cssText = 'width:1px;height:14px;background:var(--border);flex-shrink:0;margin:0 .1rem';
-    return d;
-  }
-  function lbl(txt) {
-    const s = document.createElement('span');
-    s.textContent = txt;
-    s.style.cssText = 'font-size:.6rem;color:var(--dimmer);font-family:var(--mono);margin-left:.3rem;flex-shrink:0';
-    return s;
-  }
-  function mkSel() {
-    const s = document.createElement('select');
-    s.style.cssText = [
-      'background:var(--bg3)', 'border:1px solid var(--border)', 'border-radius:4px',
-      'color:var(--text)',      'font-family:var(--mono)',         'font-size:.6rem',
-      'padding:.1rem .25rem',   'outline:none',                    'cursor:pointer',
-      'margin-left:.2rem',      'flex-shrink:0',                   'max-width:80px',
-    ].join(';');
-    return s;
-  }
+  _nBadgeEl = document.createElement('span');
+  _nBadgeEl.style.cssText = 'font-size:11px;color:var(--dim);font-family:var(--mono);white-space:nowrap;margin-right:.15rem;';
+  _headerExtraEl.appendChild(_nBadgeEl);
 
-  _headerExtraEl.appendChild(sep());
-  _headerExtraEl.appendChild(lbl('Von'));
-  _fmSel = mkSel();
-  _fmSel.addEventListener('change', () => { _saveCfg(); _render(); });
-  _headerExtraEl.appendChild(_fmSel);
-
-  _headerExtraEl.appendChild(lbl('Bis'));
-  _toSel = mkSel();
-  _toSel.addEventListener('change', () => { _saveCfg(); _render(); });
-  _headerExtraEl.appendChild(_toSel);
-
-  _headerExtraEl.appendChild(sep());
+  const sep = document.createElement('div');
+  sep.style.cssText = 'width:1px;height:14px;background:var(--border);flex-shrink:0;margin:0 .1rem';
+  _headerExtraEl.appendChild(sep);
 
   const fmtBtn = document.createElement('button');
   fmtBtn.innerHTML = '&#9881;';
@@ -159,18 +174,10 @@ function _buildHeaderControls() {
 }
 
 function _rebuildFmtPanel() {
-  const title = _esc(_cfg.title || CFG_DEF.title);
   _fmtPanelEl.innerHTML = `
     <div style="font-weight:600;font-size:.62rem;color:var(--blue);
                 text-transform:uppercase;letter-spacing:.08em;margin-bottom:.55rem">Format</div>
     <div style="display:flex;flex-direction:column;gap:.48rem">
-      <div style="display:flex;flex-direction:column;gap:.15rem">
-        <span style="font-size:.65rem;color:var(--dim)">Titel</span>
-        <input id="${VID}-t" type="text" value="${title}"
-          style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;
-                 color:var(--text);font-family:var(--mono);font-size:.65rem;
-                 padding:.2rem .42rem;outline:none;width:100%;box-sizing:border-box"/>
-      </div>
       <div style="display:flex;flex-direction:column;gap:.15rem">
         <span style="font-size:.65rem;color:var(--dim)">
           Punkt-Radius&thinsp;
@@ -181,16 +188,9 @@ function _rebuildFmtPanel() {
       </div>
     </div>`;
 
-  const ti = _fmtPanelEl.querySelector(`#${VID}-t`);
   const ri = _fmtPanelEl.querySelector(`#${VID}-r`);
   const rd = _fmtPanelEl.querySelector(`#${VID}-rd`);
 
-  ti.addEventListener('input', () => {
-    _cfg.title = ti.value.trim() || CFG_DEF.title;
-    const tel = _tileEl.querySelector('.tile-title');
-    if (tel) tel.textContent = _cfg.title;
-    _saveCfg();
-  });
   ri.addEventListener('input', () => {
     _cfg.dotRadius = Math.max(3, Math.min(12, parseInt(ri.value, 10) || CFG_DEF.dotRadius));
     if (rd) rd.textContent = _cfg.dotRadius;
@@ -264,34 +264,7 @@ function _onData() {
   // Älteste nach links (chronologisch)
   _rawMonths.sort((a, b) => a.date - b.date);
 
-  _populateDateSelects();
   _render();
-}
-
-function _populateDateSelects() {
-  if (!_fmSel || !_toSel || !_rawMonths.length) return;
-
-  const savedFrom = core.load(LS_KEY + '_from', null);
-  const savedTo   = core.load(LS_KEY + '_to',   null);
-  const last       = _rawMonths.length - 1;
-
-  const opts = _rawMonths.map((m, i) => `<option value="${i}">${m.label}</option>`).join('');
-  _fmSel.innerHTML = opts;
-  _toSel.innerHTML = opts;
-
-  // Gespeicherten Monat per Label-String wiederherstellen
-  if (savedFrom) {
-    const fi = _rawMonths.findIndex(m => m.label === savedFrom);
-    _fmSel.value = String(fi >= 0 ? fi : 0);
-  } else {
-    _fmSel.value = '0';
-  }
-  if (savedTo) {
-    const ti = _rawMonths.findIndex(m => m.label === savedTo);
-    _toSel.value = String(ti >= 0 ? ti : last);
-  } else {
-    _toSel.value = String(last);
-  }
 }
 
 // ════════════════════════════════════════════════
@@ -302,17 +275,19 @@ function _render() {
   if (_contentEl.clientWidth < 20) return;
   if (_ttEl) _ttEl.style.display = 'none';
 
+  function _clrBadge() { if (_nBadgeEl) _nBadgeEl.textContent = ''; }
+
   // ── Noch keine Datei geladen ──
   if (!core.state.rows.length && !_rawMonths.length) {
     _showMsg('Noch keine Datei geladen');
-    _diagEl.textContent = '–';
+    _clrBadge(); _diagMid.textContent = '–';
     return;
   }
 
   // ── Sheet fehlt ──
   if (!_rawMonths.length) {
     _showMsg(`Sheet „${SHEET}" nicht in der Excel gefunden`);
-    _diagEl.textContent = 'Sheet fehlt';
+    _clrBadge(); _diagMid.textContent = 'Sheet fehlt';
     return;
   }
 
@@ -321,12 +296,12 @@ function _render() {
 
   if (!sf || !sf.length) {
     _showMsg('Kein Squad ausgewählt');
-    _diagEl.textContent = 'Kein Squad';
+    _clrBadge(); _diagMid.textContent = 'Kein Squad';
     return;
   }
   if (sf.length > 1) {
     _showMsg('Bitte nur 1 Squad wählen');
-    _diagEl.textContent = `${sf.length} Squads gewählt`;
+    _clrBadge(); _diagMid.textContent = `${sf.length} Squads gewählt`;
     return;
   }
 
@@ -336,29 +311,18 @@ function _render() {
   const happinessSquads = Object.keys(_rawMonths[0].values);
   if (!happinessSquads.includes(squadName)) {
     _showMsg(`Squad „${squadName}" nicht in Happiness-Daten`);
-    _diagEl.textContent = 'Squad fehlt';
+    _clrBadge(); _diagMid.textContent = 'Squad fehlt';
     return;
   }
 
-  // ── Zeitraum-Filter ──
-  const fIdx   = Math.min(parseInt(_fmSel?.value ?? '0',  10) || 0, _rawMonths.length - 1);
-  const tIdx   = Math.min(parseInt(_toSel?.value  ?? String(_rawMonths.length - 1), 10), _rawMonths.length - 1);
-  const fi     = Math.min(fIdx, tIdx);
-  const ti     = Math.max(fIdx, tIdx);
-  const months = _rawMonths.slice(fi, ti + 1);
-
-  if (!months.length) {
-    _showMsg('Keine Monate im gewählten Zeitraum');
-    _diagEl.textContent = '0 Monate';
-    return;
-  }
+  const months = _rawMonths;
 
   _drawChart(squadName, months);
 
   const nvCnt    = months.filter(m => m.values[squadName] == null).length;
   const validCnt = months.length - nvCnt;
-  _diagEl.textContent =
-    `Squad: ${squadName} · ${months.length} Monate · ${validCnt} Werte · ${nvCnt} nv`;
+  if (_nBadgeEl) _nBadgeEl.textContent = `N = ${validCnt}`;
+  _diagMid.textContent = nvCnt ? `${nvCnt} ohne Wert` : '';
 }
 
 // ════════════════════════════════════════════════
@@ -493,11 +457,4 @@ function _showMsg(text) {
 
 function _saveCfg() {
   core.save(LS_KEY, _cfg);
-  // Zeitraum per Label-String (stabil über Datei-Reloads hinaus)
-  if (_fmSel && _rawMonths.length) {
-    const fi = Math.min(parseInt(_fmSel.value, 10) || 0, _rawMonths.length - 1);
-    const ti = Math.min(parseInt(_toSel.value,  10) || 0, _rawMonths.length - 1);
-    core.save(LS_KEY + '_from', _rawMonths[fi]?.label ?? null);
-    core.save(LS_KEY + '_to',   _rawMonths[ti]?.label ?? null);
-  }
 }

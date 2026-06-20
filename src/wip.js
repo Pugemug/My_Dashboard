@@ -17,13 +17,35 @@ export function init() {
     title: 'WIP <span class="hl">pro Person</span>',
   });
 
-  contentEl.style.position = 'relative';
-  contentEl.style.overflow = 'hidden';
+  contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
+
+  // Erklärungs-Panel (ausklappbar)
+  let _expOpen = false;
+  const explanationEl = document.createElement('div');
+  explanationEl.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
+  ].join(';');
+  explanationEl.innerHTML =
+    '<div style="padding:8px 14px">' +
+    'Monatlicher Verlauf des <b style="color:var(--text)">WIP pro Person</b> für den gewählten Squad. ' +
+    'Berechnet als aktive Stories ÷ Teamgröße pro Monat. ' +
+    'Die Linienpunkte werden <b style="color:var(--green)">grün</b>, <b style="color:var(--yellow)">gelb</b> oder ' +
+    '<b style="color:var(--red)">rot</b> gefärbt – Schwellwerte im ⚙-Panel konfigurierbar.' +
+    '</div>';
+  contentEl.appendChild(explanationEl);
+
+  // Draw-Wrapper (nimmt den verbleibenden Platz, hält SVG + Tooltip + Settings)
+  const drawWrap = document.createElement('div');
+  drawWrap.style.cssText = 'flex:1;position:relative;overflow:hidden;min-height:0';
+  contentEl.appendChild(drawWrap);
 
   // Draw area (SVG or placeholder) – sits below tooltip and panel in DOM order
   const drawEl = document.createElement('div');
   drawEl.style.cssText = 'position:absolute;inset:0;';
-  contentEl.appendChild(drawEl);
+  drawWrap.appendChild(drawEl);
 
   // Tooltip
   const tooltip = document.createElement('div');
@@ -33,7 +55,7 @@ export function init() {
     'padding:8px 12px', 'font-size:12px', 'color:var(--text)',
     'pointer-events:none', 'z-index:100', 'white-space:nowrap',
   ].join(';');
-  contentEl.appendChild(tooltip);
+  drawWrap.appendChild(tooltip);
 
   // Settings panel
   const panel = document.createElement('div');
@@ -43,7 +65,7 @@ export function init() {
     'border-radius:8px', 'padding:14px', 'z-index:50',
     'min-width:240px', 'font-size:13px', 'color:var(--text)',
   ].join(';');
-  contentEl.appendChild(panel);
+  drawWrap.appendChild(panel);
 
   // ── Header controls ─────────────────────────────────────────────────────────
   const nBadge = document.createElement('span');
@@ -61,6 +83,22 @@ export function init() {
     panel.style.display = visible ? 'none' : 'block';
     if (!visible) buildPanel();
   };
+
+  // ── 3-spaltiger Footer (diagEl) ──────────────────────────────────────────────
+  diagEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;overflow:hidden';
+  const diagLeft = document.createElement('a');
+  diagLeft.textContent = 'Was zeigt diese Ansicht?';
+  diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
+  diagLeft.addEventListener('click', () => {
+    _expOpen = !_expOpen;
+    explanationEl.style.maxHeight = _expOpen ? explanationEl.scrollHeight + 'px' : '0';
+    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
+    setTimeout(render, 240);
+  });
+  const diagMid = document.createElement('span');
+  diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
+  diagEl.appendChild(diagLeft);
+  diagEl.appendChild(diagMid);
 
   // ── Settings panel builder ───────────────────────────────────────────────────
   function buildPanel() {
@@ -157,8 +195,8 @@ export function init() {
   function positionTooltip(mx, my) {
     const ttW = tooltip.offsetWidth  || 180;
     const ttH = tooltip.offsetHeight || 90;
-    const cW  = contentEl.clientWidth;
-    const cH  = contentEl.clientHeight;
+    const cW  = drawWrap.clientWidth;
+    const cH  = drawWrap.clientHeight;
     let left = mx + 14;
     if (left + ttW > cW) left = mx - ttW - 14;
     if (left < 0) left = 0;
@@ -174,13 +212,13 @@ export function init() {
       `<div style="display:flex;align-items:center;justify-content:center;` +
       `height:100%;color:var(--dim);font-size:13px;">${msg}</div>`;
     nBadge.textContent = '';
-    diagEl.textContent  = msg;
+    diagMid.textContent = msg;
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   function render() {
     tooltip.style.display = 'none';
-    if (contentEl.clientWidth < 20) return;
+    if (drawWrap.clientWidth < 20) return;
 
     const filter = core.state.squadFilter || [];
     if (filter.length !== 1) {
@@ -291,13 +329,13 @@ export function init() {
     });
     const nStories = wipIds.size;
 
-    nBadge.textContent  = `n=${nStories} Stories`;
-    const squadHint     = !squadFoundInSheet ? ` · Squad nicht in SquadDaten (Teamgr. = 1)` : '';
-    diagEl.textContent  = `n=${nStories} · ${monthLabel(allMonths[0])}–${monthLabel(allMonths[allMonths.length - 1])} · Squad: ${squadName}${squadHint}`;
+    nBadge.textContent  = `N = ${nStories}`;
+    const squadHint     = !squadFoundInSheet ? 'Squad nicht in SquadDaten (Teamgr. = 1)' : '';
+    diagMid.textContent = squadHint;
 
     // ── SVG aufbauen ────────────────────────────────────────────────────────────
-    const pW = contentEl.clientWidth  || 500;
-    const pH = contentEl.clientHeight || 290;
+    const pW = drawWrap.clientWidth  || 500;
+    const pH = drawWrap.clientHeight || 290;
     const mL = 46, mR = 14, mT = 16, mB = 44;
     const cW = pW - mL - mR;
     const cH = pH - mT - mB;
@@ -363,11 +401,11 @@ export function init() {
           `<div>Teamgröße: <b>${dp.teamSize}</b></div>`,
         ].join('');
         tooltip.style.display = 'block';
-        const rect = contentEl.getBoundingClientRect();
+        const rect = drawWrap.getBoundingClientRect();
         positionTooltip(e.clientX - rect.left, e.clientY - rect.top);
       });
       dot.addEventListener('mousemove', e => {
-        const rect = contentEl.getBoundingClientRect();
+        const rect = drawWrap.getBoundingClientRect();
         positionTooltip(e.clientX - rect.left, e.clientY - rect.top);
       });
       dot.addEventListener('mouseout', () => { tooltip.style.display = 'none'; });
