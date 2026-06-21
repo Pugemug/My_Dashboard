@@ -1,6 +1,6 @@
 # index.html – Spezifikation
 
-**Version:** 2.5  
+**Version:** 2.7  
 **Datum:** 2026-06-20  
 **Status:** Teilweise implementiert · Abschnitte §3 (Upload-Screen) und §4 (Datencheck-Page) ausstehend
 
@@ -25,6 +25,7 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
   #app-screen
     #squad-dropdown         position:fixed – shared Squad-Dropdown (alle Pages)
     #issuetype-dropdown     position:fixed – shared Issue-Type-Dropdown (alle Pages außer Blocker)
+    #daterange-dropdown     position:fixed – shared Zeitraum-Dropdown (alle Pages außer Blocker + Monte)
     .app-body               Sidebar + Main-Content (kein globaler Topbar)
       .sidebar              Persistente linke Navigation
         .sidebar-logo       FlowAnalytics
@@ -251,7 +252,7 @@ pf-sep
 #squad-dd-wrap
   #btn-squad (.btn-squad-trigger)       Squad-Filter-Button — öffnet shared #squad-dropdown
 .btn-issuetype-trigger (.pf-filter-chip)  Issue-Type-Filter-Button — öffnet shared #issuetype-dropdown
-.pf-filter-chip.pf-disabled              „ZEITRAUM Gesamt ▽"  (Platzhalter, noch nicht implementiert)
+.btn-daterange-trigger (.pf-filter-chip)  Zeitraum-Filter-Button — öffnet shared #daterange-dropdown
 pf-spacer
 #lf-filter-reset (.squad-filter-reset)   „↻ Filter zurücksetzen" — setzt Squad + Issue-Type zurück (core.js)
 ```
@@ -267,7 +268,9 @@ pf-spacer
 
 **Issue-Type-Filter:** `.btn-issuetype-trigger` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateIssueTypeBtn()` in core.js (Logik siehe § Issue-Type-Filter).
 
-**Filter-Reset** (`#lf-filter-reset`): setzt Squad-Checkboxen **und** Issue-Type-Checkboxen auf `checked=true`.
+**Zeitraum-Filter:** `.btn-daterange-trigger` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateDateRangeBtn()` in core.js (Logik siehe § Zeitraum-Filter). Nicht auf Monte-Page vorhanden.
+
+**Filter-Reset** (`#lf-filter-reset`): setzt Squad-Checkboxen **und** Issue-Type-Checkboxen auf `checked=true` **und** Zeitraum auf `mode = 'all'`.
 
 ### Scrollbarer Inhalt (`.page-scroll`)
 
@@ -323,6 +326,17 @@ filteredRows() {
     rows = rows.filter(r => core.state.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
   if (core.state.issueTypeFilter.length)
     rows = rows.filter(r => core.state.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+  if (core.state.dateRangeMode !== 'all') {
+    const from = core.state.dateRangeFrom;
+    const to   = core.state.dateRangeTo;
+    rows = rows.filter(r => {
+      const resolved = core.toDate(r['Resolved']);
+      const rejected = core.toDate(r['Rejected']);
+      const doneDate = resolved ?? rejected;     // Abschlussdatum
+      if (!doneDate) return true;                // aktives Ticket: immer anzeigen
+      return doneDate >= from && doneDate <= to; // Abgeschlossen: Datum muss im Zeitraum liegen
+    });
+  }
   return rows;
 }
 ```
@@ -338,6 +352,142 @@ filteredRows() {
 7. „Filter zurücksetzen" setzt Squad UND Issue-Type auf Alle
 8. Fehlende `Issue-Type`-Spalte: Dropdown leer, Button zeigt „Alle" – kein Fehler
 9. Alle JiraStories-basierten Visuals rendern neu (via `'filter'`-Event)
+
+---
+
+## Zeitraum-Filter
+
+Globaler Filter für den angezeigten Zeitraum. Wirkt auf alle Visuals **außer MonteCarlo**. Emittiert bei Änderung `'filter'`-Event — alle bestehenden Visuals rendern automatisch neu.
+
+### State (core.js)
+
+| Feld | Typ | Default | Persistenz |
+|---|---|---|---|
+| `core.state.dateRangeMode` | `string` | `'all'` | `fhwa_global` |
+| `core.state.dateRangeCustomFrom` | `string` (ISO, z.B. `'2026-01-01'`) | `''` | `fhwa_global` |
+| `core.state.dateRangeCustomTo` | `string` (ISO) | `''` | `fhwa_global` |
+| `core.state.dateRangeFrom` | `Date \| null` | `null` | – (berechnet, nicht persistiert) |
+| `core.state.dateRangeTo` | `Date \| null` | `null` | – (berechnet, nicht persistiert) |
+
+`fhwa_global` enthält: `{ squadFilter, issueTypeFilter, urlTemplate, dateRange: { mode, customFrom, customTo } }`.
+
+`dateRangeFrom`/`dateRangeTo` werden bei jedem Laden und bei jeder Modus-Änderung aus `mode` + `customFrom/customTo` berechnet (Ende des Tages = 23:59:59 für `dateRangeTo`).
+
+### Berechnete Datumsgrenzen pro Modus
+
+| Mode | `dateRangeFrom` | `dateRangeTo` |
+|---|---|---|
+| `'all'` | `null` | `null` |
+| `'last30'` | heute − 30 Tage (00:00) | heute (23:59) |
+| `'last90'` | heute − 90 Tage (00:00) | heute (23:59) |
+| `'last180'` | heute − 180 Tage (00:00) | heute (23:59) |
+| `'q0'` | 1. Tag des aktuellen Quartals (00:00) | letzter Tag des aktuellen Quartals (23:59) |
+| `'q1'` | 1. Tag von Q-1 (00:00) | letzter Tag von Q-1 (23:59) |
+| `'q2'` | 1. Tag von Q-2 (00:00) | letzter Tag von Q-2 (23:59) |
+| `'q3'` | 1. Tag von Q-3 (00:00) | letzter Tag von Q-3 (23:59) |
+| `'custom'` | `new Date(customFrom + 'T00:00:00')` | `new Date(customTo + 'T23:59:59')` |
+
+Quartals-Berechnung: Q0 = aktuelles Quartal des heutigen Datums. Q1–Q3 = jeweils 1–3 Quartale davor. Quartal beginnt am 1. Januar / 1. April / 1. Juli / 1. Oktober.
+
+### Dropdown (`#daterange-dropdown`)
+
+`position:fixed` auf `#app-screen`-Ebene, shared. CSS-Rahmen wie `#squad-dropdown` (Klasse `.squad-dropdown`).
+
+```
+#daterange-dropdown (.squad-dropdown)
+  .dr-mode-list
+    .dr-opt[data-mode="all"].active     „Alles anzeigen"
+    .dr-opt[data-mode="last30"]         „Letzte 30 Tage"
+    .dr-opt[data-mode="last90"]         „Letzte 90 Tage"
+    .dr-opt[data-mode="last180"]        „Letzte 180 Tage"
+  .dr-divider                           „Quartale"
+  .dr-mode-list
+    .dr-opt[data-mode="q0"]             z.B. „Q2/2026 (aktuell)"
+    .dr-opt[data-mode="q1"]             z.B. „Q1/2026"
+    .dr-opt[data-mode="q2"]             z.B. „Q4/2025"
+    .dr-opt[data-mode="q3"]             z.B. „Q3/2025"
+  .dr-divider                           „Zeitraum festlegen"
+  .dr-custom
+    .dr-custom-row
+      <label>Von</label>  <input type="date" id="dr-from">
+    .dr-custom-row
+      <label>Bis</label>  <input type="date" id="dr-to">
+    <button id="dr-apply" class="btn-icon">Übernehmen</button>
+```
+
+**Quartals-Labels:** Dynamisch beim Öffnen des Dropdowns aus `new Date()` berechnet. Label = `Q{n}/{Jahr}`, z.B. „Q2/2026 (aktuell)".
+
+**Gegenseitiges Schließen:** Öffnen des Zeitraum-Dropdowns schließt `#squad-dropdown` und `#issuetype-dropdown` (und umgekehrt).
+
+**Positionierung:** Unterhalb des auslösenden `.btn-daterange-trigger`-Buttons, analog zu `#squad-dropdown`.
+
+### Button-Text-Logik (`_updateDateRangeBtn()` in core.js)
+
+| Mode | Anzeige |
+|---|---|
+| `'all'` | `ZEITRAUM Alle ▽` (kein `pf-active`) |
+| `'last30'` | `ZEITRAUM Letzte 30T ▽` + `pf-active` |
+| `'last90'` | `ZEITRAUM Letzte 90T ▽` + `pf-active` |
+| `'last180'` | `ZEITRAUM Letzte 180T ▽` + `pf-active` |
+| `'q0'`–`'q3'` | `ZEITRAUM Q2/2026 ▽` (dynamisches Quartals-Label) + `pf-active` |
+| `'custom'` | `ZEITRAUM 01.04.–30.06. ▽` (dd.mm.–dd.mm., ohne Jahr) + `pf-active` |
+
+`_updateDateRangeBtn()` setzt Text und `.pf-active` auf **allen** `.btn-daterange-trigger`-Buttons (alle Pages synchron).
+
+### Filterlogik pro Datenquelle
+
+#### JiraStories — über `core.filteredRows()` (siehe § filteredRows())
+
+- Aktives Ticket (weder `Resolved` noch `Rejected` gefüllt): **immer anzeigen**
+- Abgeschlossenes Ticket (`Resolved` oder `Rejected` gefüllt): Abschlussdatum (`Resolved ?? Rejected`) muss in `[dateRangeFrom, dateRangeTo]` liegen
+
+#### JiraEpics — von Visuals selbst angewendet
+
+SayDoRatioEpics und Akzeptanzkriterien lesen `core.state.dateRangeFrom/To` im `render()`-Handler:
+- Epic ohne Resolved-/Rejected-Datum (offen): immer anzeigen
+- Epic abgeschlossen: `Resolved ?? Rejected` muss im Zeitraum liegen
+
+#### Happiness Faktor — von `happiness.js` selbst angewendet
+
+Monats-Granularität: Monat wird angezeigt wenn der Monat den Zeitraum überlappt:
+```js
+const monStart = new Date(year, monthIdx, 1);
+const monEnd   = new Date(year, monthIdx + 1, 0, 23, 59, 59);
+return monStart <= core.state.dateRangeTo && monEnd >= core.state.dateRangeFrom;
+```
+Wenn `mode === 'all'`: alle Monate anzeigen (keine Filterung).
+
+### Events
+
+Zeitraum-Änderung emittiert `'filter'`-Event. Alle Visuals die `core.on('filter', render)` abonniert haben rendern automatisch neu.  
+JiraEpics- und Happiness-Visuals lesen im `render()`-Handler `core.state.dateRangeMode/From/To`.
+
+### CSS-Klassen (neu)
+
+| Klasse | Beschreibung |
+|---|---|
+| `.btn-daterange-trigger` | Zeitraum-Filter-Button auf jeder Page (außer Blocker + Monte) — öffnet `#daterange-dropdown` |
+| `.dr-mode-list` | Container für Modus-Buttons |
+| `.dr-opt` | Modus-Button (ganze Breite, cursor:pointer); `.active` = aktuell gewählter Modus (blau hervorgehoben) |
+| `.dr-divider` | Abschnitts-Trenner im Dropdown mit Label-Text (uppercase, gedimmt, kleiner Border oben) |
+| `.dr-custom` | Container für Von/Bis-Inputs + Übernehmen-Button |
+| `.dr-custom-row` | Flex-Zeile (label + date-input, gap zwischen Label und Input) |
+
+### Akzeptanzkriterien
+
+1. Default (mode `'all'`): keine Datumsfilterung; alle Tickets angezeigt; Chip: „ZEITRAUM Alle ▽" ohne `pf-active`
+2. „Letzte 30 Tage": erledigte Tickets mit Resolved/Rejected in letzten 30 Tagen + alle aktiven sichtbar; Chip: „ZEITRAUM Letzte 30T ▽" mit `pf-active`
+3. „Letzte 90/180 Tage": analog zu Letzte 30 Tage
+4. Quartals-Schnellauswahl: genau 4 Optionen (aktuelles Q + Q-1 + Q-2 + Q-3), dynamisch aus aktuellem Datum berechnet
+5. Quartals-Labels: korrekte Bezeichnung (z.B. „Q2/2026 (aktuell)", „Q1/2026") beim Öffnen des Dropdowns
+6. „Zeitraum festlegen": Von/Bis per `<input type="date">`; erst nach „Übernehmen" wird mode auf `'custom'` gesetzt
+7. Custom-Modus: Chip zeigt „ZEITRAUM TT.MM.–TT.MM. ▽" (dd.mm.–dd.mm., ohne Jahr)
+8. Happiness Index: Monate die den Zeitraum überlappen werden angezeigt, außerhalb liegende ausgeblendet
+9. JiraEpics: offene Epics immer sichtbar; abgeschlossene nur wenn Abschlussdatum im Zeitraum
+10. Browser-Reload stellt Modus wieder her (`fhwa_global`)
+11. „Filter zurücksetzen" setzt Squad + Issue-Type + Zeitraum (→ `'all'`) zurück
+12. Monte-Page: kein Zeitraum-Chip in der Filterleiste
+13. Alle `.btn-daterange-trigger`-Buttons synchron aktualisiert nach Auswahl
 
 ---
 
@@ -485,7 +635,8 @@ Pages mit `.page-flex` (aktuell: `#page-lieferfahigkeit`) werden als `flex` ange
 | `.page-detail-canvas` | `flex:1; position:relative; overflow:hidden` — Canvas für wipage/scatter/heatmap |
 | `.btn-squad-trigger` | Squad-Filter-Button auf jeder Page — öffnet shared `#squad-dropdown` |
 | `.btn-issuetype-trigger` | Issue-Type-Filter-Button auf jeder Page (außer Blocker) — öffnet shared `#issuetype-dropdown` |
-| `.squad-filter-reset` | Filter-zurücksetzen-Button auf jeder Page — setzt Squad + Issue-Type zurück (core.js) |
+| `.btn-daterange-trigger` | Zeitraum-Filter-Button auf jeder Page (außer Blocker + Monte) — öffnet shared `#daterange-dropdown` |
+| `.squad-filter-reset` | Filter-zurücksetzen-Button auf jeder Page — setzt Squad + Issue-Type + Zeitraum zurück (core.js) |
 
 #### Sonstige
 
@@ -568,7 +719,6 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 
 | Feature | Aufwand | Beschreibung |
 |---|---|---|
-| **ZEITRAUM Filter** | mittel | Datumsbereich-Picker in Filterleiste; `core.state.dateRange` |
 | **Card-Titel editierbar** | klein | `contenteditable` auf `.card-title`; Änderung in `fhwa_layout2` persistieren |
 | **Card minimieren** | klein | `.card-content` auf `height:0` klappen; Button im Card-Header |
 | **Lieferfähigkeit Page-Header** | mittel | ÜBERSICHT-Label, Titel, Zeitraum-Anzeige, Aufmerksamkeits-Box — eigenes `lieferfahigkeit.js`-Modul |
@@ -842,6 +992,24 @@ body { background:var(--bg); color:var(--text); font-family:var(--sans); height:
 .squad-opt label { font-size:.72rem; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px }
 ```
 
+### Zeitraum-Dropdown
+
+```css
+/* #daterange-dropdown erbt .squad-dropdown (position:fixed, min-width:200px, etc.) */
+.dr-mode-list  { display:flex; flex-direction:column; padding:.2rem 0 }
+.dr-opt        { display:block; width:100%; padding:.22rem .55rem; font-size:.72rem; color:var(--dim); background:transparent; border:none; text-align:left; cursor:pointer; font-family:var(--sans); transition:background .1s,color .1s }
+.dr-opt:hover  { background:var(--bg3); color:var(--text) }
+.dr-opt.active { color:var(--blue); font-weight:600 }
+.dr-divider    { font-size:.56rem; font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--dimmer); padding:.45rem .55rem .15rem; border-top:1px solid var(--border); margin-top:.2rem; opacity:.65 }
+.dr-custom     { padding:.4rem .55rem .5rem; border-top:1px solid var(--border); margin-top:.2rem; display:flex; flex-direction:column; gap:.3rem }
+.dr-custom-row { display:flex; align-items:center; gap:.4rem }
+.dr-custom-row label { font-size:.65rem; color:var(--dim); min-width:22px }
+.dr-custom-row input[type=date] { flex:1; background:var(--bg3); border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:var(--mono); font-size:.68rem; padding:.18rem .35rem; outline:none }
+.dr-custom-row input[type=date]:focus { border-color:var(--blue) }
+#dr-apply      { align-self:flex-end; padding:.22rem .65rem; font-size:.67rem; font-weight:600; background:var(--blue); border:none; border-radius:5px; color:#fff; cursor:pointer; font-family:var(--sans); transition:opacity .15s }
+#dr-apply:hover { opacity:.85 }
+```
+
 ### Order-Items (Reihenfolge-Panel)
 
 ```css
@@ -893,5 +1061,6 @@ th.th-extra { color:var(--orange); opacity:.9 }
 | 2026-06-15 | 2.2 | Bugfix: `#page-canvas-lieferfahigkeit` (Fallback-Div) aus HTML-Struktur und Spec entfernt — Migration zu `core.createTile()` war bereits vollständig. |
 | 2026-06-17 | 2.3 | Neue Sektion „Exaktes CSS – vollständige Klassen-Referenz" ergänzt: alle Klassen mit vollständigen CSS-Regeln (inkl. Hover-, Active-, State-Varianten) als Neubau-Referenz. Design-Tokens ausgelagert nach `docs/design/design-tokens.css`. |
 | 2026-06-19 | 2.4 | Issue-Type-Filter implementiert: `#issuetype-dropdown` (shared, `position:fixed`), `.btn-issuetype-trigger` auf 5 Pages aktiv. `core.state.issueTypeFilter` + `allIssueTypes`. `filteredRows()` filtert Squad + Issue-Type. `fhwa_global` um `issueTypeFilter` erweitert. Filter-Reset setzt beide Filter zurück. Neue Sektion „Issue-Type-Filter" + Backlog-Eintrag entfernt. |
+| 2026-06-20 | 2.7 | **Zeitraum-Filter implementiert:** `#daterange-dropdown` (shared, `position:fixed`), `.btn-daterange-trigger` auf allen Pages außer Blocker + Monte. `core.state.dateRangeMode/From/To/CustomFrom/CustomTo`. Modi: `'all'`, `'last30'`, `'last90'`, `'last180'`, `'q0'`–`'q3'` (4 Quartale dynamisch), `'custom'` (Von/Bis-Input + Übernehmen). `filteredRows()` filtert JiraStories nach Resolved/Rejected-Datum (aktive Tickets immer sichtbar). JiraEpics-Visuals + Happiness-Visual wenden Filter selbst an. `fhwa_global` um `dateRange: { mode, customFrom, customTo }` erweitert. Filter-Reset setzt alle 3 Filter zurück. Neue CSS-Klassen: `.dr-mode-list`, `.dr-opt`, `.dr-divider`, `.dr-custom`, `.dr-custom-row`. Neue Sektion „Zeitraum-Filter" + Backlog-Eintrag entfernt. |
 | 2026-06-20 | 2.6 | **Squad-Filter Button-Text:** `_updateSquadBtn()` auf gleiche Logik wie Issue-Type-Filter umgestellt: 1 Name / 2 Namen / N/M (vorher immer N/M). |
 | 2026-06-20 | 2.5 | **Upload-Screen: Komplett neu gestalten.** `.hint-box` wird durch `.sheet-nav` mit 5 Tabs (JiraStories / JiraEpics / BRP Etappen / Blockermanagement / Happiness Faktor) ersetzt. Neue CSS-Klassen: `.sheet-nav`, `.sheet-tabs`, `.sheet-tab`, `.tab-badge.req/.opt`, `.sheet-tab-content`. **Datencheck-Page: Zentrierungs-Fix** (`.dc-wrap` + `margin:0 auto`). **Neue optionale Sheets-Sektion** (`.dc-extra-sheets` mit `.dc-sheet-card` je Sheet): JiraEpics (Epic-Anzahl + Status-Verteilung) · Blockermanagement (offene + Gesamt-Episoden) · Happiness Faktor (letzter Wert + Ø). Neue CSS-Klassen: `.dc-extra-sheets`, `.dc-section-title`, `.dc-sheets`, `.dc-sheet-card`, `.dc-sheet-card-title`, `.dc-sheet-pills`, `.dc-pill.resolved/.rejected/.uncalled/.alert`. **Browser-Back-Bug** (kein Neuladen nach Browser-Zurück) als separater Bugfix in core.js dokumentiert – nicht Teil dieser Spec. |

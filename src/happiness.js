@@ -315,7 +315,18 @@ function _render() {
     return;
   }
 
-  const months = _rawMonths;
+  // ── Zeitraum-Filter anwenden (Monats-Granularität) ──
+  const drMode = core.state.dateRangeMode;
+  let months = _rawMonths;
+  if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+    const from = core.state.dateRangeFrom;
+    const to   = core.state.dateRangeTo;
+    months = _rawMonths.filter(m => {
+      const monStart = new Date(m.date.getFullYear(), m.date.getMonth(), 1);
+      const monEnd   = new Date(m.date.getFullYear(), m.date.getMonth() + 1, 0, 23, 59, 59);
+      return monStart <= to && monEnd >= from;
+    });
+  }
 
   _drawChart(squadName, months);
 

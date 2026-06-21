@@ -110,6 +110,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .squad-opt input[type=checkbox]{accent-color:var(--blue);width:12px;height:12px;cursor:pointer;flex-shrink:0}
 .squad-opt label{font-size:.72rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 
+/* ── ZEITRAUM DROPDOWN ── */
+.dr-mode-list{display:flex;flex-direction:column;padding:.2rem 0}
+.dr-opt{display:block;width:100%;padding:.22rem .55rem;font-size:.72rem;color:var(--dim);background:transparent;border:none;text-align:left;cursor:pointer;font-family:var(--sans);transition:background .1s,color .1s}
+.dr-opt:hover{background:var(--bg3);color:var(--text)}
+.dr-opt.active{color:var(--blue);font-weight:600}
+.dr-divider{font-size:.56rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);padding:.45rem .55rem .15rem;border-top:1px solid var(--border);margin-top:.2rem;opacity:.65}
+.dr-custom{padding:.4rem .55rem .5rem;border-top:1px solid var(--border);margin-top:.2rem;display:flex;flex-direction:column;gap:.3rem}
+.dr-custom-row{display:flex;align-items:center;gap:.4rem}
+.dr-custom-row label{font-size:.65rem;color:var(--dim);min-width:22px}
+.dr-custom-row input[type=date]{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:.68rem;padding:.18rem .35rem;outline:none;color-scheme:dark}
+[data-theme="light"] .dr-custom-row input[type=date]{color-scheme:light}
+.dr-custom-row input[type=date]:focus{border-color:var(--blue)}
+#dr-apply{align-self:flex-end;padding:.22rem .65rem;font-size:.67rem;font-weight:600;background:var(--blue);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--sans);transition:opacity .15s}
+#dr-apply:hover{opacity:.85}
+
 /* ── SETTINGS PANEL (Overlay, zentriert) ── */
 .settings-wrap{position:relative;flex-shrink:0}
 .settings-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:490;display:none}
@@ -475,6 +490,30 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <div id="issuetype-opts"></div>
   </div>
 
+  <!-- Shared Zeitraum-Dropdown – position:fixed, geöffnet von jeder .btn-daterange-trigger -->
+  <div class="squad-dropdown" id="daterange-dropdown">
+    <div class="dr-mode-list">
+      <button class="dr-opt active" data-mode="all">Alles anzeigen</button>
+      <button class="dr-opt" data-mode="last30">Letzte 30 Tage</button>
+      <button class="dr-opt" data-mode="last90">Letzte 90 Tage</button>
+      <button class="dr-opt" data-mode="last180">Letzte 180 Tage</button>
+    </div>
+    <div class="dr-divider">Quartale</div>
+    <div class="dr-mode-list" id="dr-quarters"></div>
+    <div class="dr-divider">Zeitraum festlegen</div>
+    <div class="dr-custom">
+      <div class="dr-custom-row">
+        <label>Von</label>
+        <input type="date" id="dr-from">
+      </div>
+      <div class="dr-custom-row">
+        <label>Bis</label>
+        <input type="date" id="dr-to">
+      </div>
+      <button id="dr-apply">&#10003; &Uuml;bernehmen</button>
+    </div>
+  </div>
+
   <!-- App-Body: Sidebar + Main-Content (kein globaler Topbar mehr) -->
   <div class="app-body">
 
@@ -599,7 +638,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
             <!-- #squad-dropdown wurde auf #app-screen-Ebene verschoben (position:fixed, shared) -->
           </div>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset" id="lf-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -631,7 +670,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-wipage">SQUADS Alle &#9661;</button>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -645,7 +684,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-scatter">SQUADS Alle &#9661;</button>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -659,7 +698,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-heatmap">SQUADS Alle &#9661;</button>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -1045,8 +1084,13 @@ const core = {
     allIssueTypes:   [],
     hasSquad:        false,
     hasIssueType:    false,
-    squadFilter:     [],  // [] = alle aktiv
-    issueTypeFilter: [],  // [] = alle aktiv
+    squadFilter:         [],   // [] = alle aktiv
+    issueTypeFilter:     [],   // [] = alle aktiv
+    dateRangeMode:       'all',
+    dateRangeCustomFrom: '',
+    dateRangeCustomTo:   '',
+    dateRangeFrom:       null, // Date | null – berechnet aus dateRangeMode
+    dateRangeTo:         null, // Date | null – berechnet aus dateRangeMode
     fileName:     '',
     sheetName:    '',
     urlTemplate:  '',     // global Jira URL-Template
@@ -1115,12 +1159,25 @@ const core = {
   },
 
   // ── Data utilities ─────────────────────────────
-  /** Returns rows after applying active squadFilter and issueTypeFilter. */
+  /** Returns rows after applying active squadFilter, issueTypeFilter, and dateRange. */
   filteredRows() {
     const s = core.state;
     let rows = s.rows;
-    if (s.squadFilter.length)     rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
-    if (s.issueTypeFilter.length) rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    if (s.squadFilter.length)
+      rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+    if (s.issueTypeFilter.length)
+      rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    if (s.dateRangeMode !== 'all' && s.dateRangeFrom && s.dateRangeTo) {
+      const from = s.dateRangeFrom;
+      const to   = s.dateRangeTo;
+      rows = rows.filter(r => {
+        const resolved = core.toDate(r['Resolved']);
+        const rejected = core.toDate(r['Rejected']);
+        const doneDate = resolved ?? rejected;
+        if (!doneDate) return false;             // kein Abschlussdatum → nicht im Zeitraum
+        return doneDate >= from && doneDate <= to;
+      });
+    }
     return rows;
   },
 
@@ -1353,6 +1410,12 @@ const core = {
     if (g && Array.isArray(g.squadFilter))      core.state.squadFilter      = g.squadFilter;
     if (g && Array.isArray(g.issueTypeFilter))  core.state.issueTypeFilter  = g.issueTypeFilter;
     if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate      = g.urlTemplate;
+    if (g && g.dateRange) {
+      core.state.dateRangeMode       = g.dateRange.mode       || 'all';
+      core.state.dateRangeCustomFrom = g.dateRange.customFrom || '';
+      core.state.dateRangeCustomTo   = g.dateRange.customTo   || '';
+      _applyDateRange(core.state.dateRangeMode, core.state.dateRangeCustomFrom, core.state.dateRangeCustomTo);
+    }
 
     _initFileUpload();
     _initSidebarButtons();
@@ -1582,6 +1645,11 @@ function _saveGlobal() {
     squadFilter:     core.state.squadFilter,
     issueTypeFilter: core.state.issueTypeFilter,
     urlTemplate:     core.state.urlTemplate,
+    dateRange: {
+      mode:       core.state.dateRangeMode,
+      customFrom: core.state.dateRangeCustomFrom,
+      customTo:   core.state.dateRangeCustomTo,
+    },
   });
 }
 
@@ -1684,13 +1752,14 @@ function _initSidebarButtons() {
     });
   }
 
-  // Filter zurücksetzen – beide Filter (Squad + Issue-Type)
+  // Filter zurücksetzen – Squad + Issue-Type + Zeitraum
   document.querySelectorAll('.squad-filter-reset').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#squad-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onSquadFilterChange();
       document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onIssueTypeFilterChange();
+      _setDateRangeMode('all');
     });
   });
 
@@ -1704,7 +1773,13 @@ function _initSidebarButtons() {
       document.getElementById('issuetype-dropdown')?.classList.remove('open');
       _updateIssueTypeBtn();
     }
+    if (!e.target.closest('.btn-daterange-trigger') && !e.target.closest('#daterange-dropdown')) {
+      document.getElementById('daterange-dropdown')?.classList.remove('open');
+      _updateDateRangeBtn();
+    }
   });
+
+  _initDateRangeDD();
 }
 
 // ── Sidebar-Navigation initialisieren ──
@@ -2189,6 +2264,176 @@ function _updateIssueTypeBtn() {
     btn.classList.toggle('pf-active', isActive);
     btn.classList.remove('p-blue');
   });
+}
+
+// ════════════════════════════════════════════════
+// Private: Zeitraum-Filter
+// ════════════════════════════════════════════════
+
+function _computeQuarterBounds(back) {
+  const now    = new Date();
+  const totalQ = now.getFullYear() * 4 + Math.floor(now.getMonth() / 3) - back;
+  const yr     = Math.floor(totalQ / 4);
+  const qn     = totalQ % 4;   // 0=Q1,1=Q2,2=Q3,3=Q4
+  const from   = new Date(yr, qn * 3,     1, 0,  0,  0,   0);
+  const to     = new Date(yr, qn * 3 + 3, 0, 23, 59, 59, 999);
+  return { from, to, label: `Q${qn + 1}/${yr}` };
+}
+
+function _applyDateRange(mode, customFrom, customTo) {
+  const s   = core.state;
+  const now = new Date();
+  if (mode === 'all') {
+    s.dateRangeFrom = null;
+    s.dateRangeTo   = null;
+  } else if (mode === 'last30' || mode === 'last90' || mode === 'last180') {
+    const days = mode === 'last30' ? 30 : mode === 'last90' ? 90 : 180;
+    s.dateRangeFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days, 0, 0, 0, 0);
+    s.dateRangeTo   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  } else if (/^q[0-3]$/.test(mode)) {
+    const back    = parseInt(mode[1]);
+    const bounds  = _computeQuarterBounds(back);
+    s.dateRangeFrom = bounds.from;
+    s.dateRangeTo   = bounds.to;
+  } else if (mode === 'custom' && customFrom && customTo) {
+    s.dateRangeFrom = new Date(customFrom + 'T00:00:00');
+    s.dateRangeTo   = new Date(customTo   + 'T23:59:59');
+  } else {
+    s.dateRangeFrom = null;
+    s.dateRangeTo   = null;
+  }
+}
+
+function _setDateRangeMode(mode, customFrom, customTo) {
+  const s = core.state;
+  s.dateRangeMode       = mode;
+  s.dateRangeCustomFrom = customFrom || '';
+  s.dateRangeCustomTo   = customTo   || '';
+  _applyDateRange(mode, s.dateRangeCustomFrom, s.dateRangeCustomTo);
+  _updateDateRangeBtn();
+  _saveGlobal();
+  core.emit('filter');
+}
+
+function _fmtDDMM(isoStr) {
+  if (!isoStr) return '';
+  const [, m, d] = isoStr.split('-');
+  return `${d}.${m}.`;
+}
+
+function _updateDateRangeBtn() {
+  const s    = core.state;
+  const mode = s.dateRangeMode;
+  let text, isActive;
+  if (mode === 'all') {
+    text = 'ZEITRAUM Alle ▽';
+    isActive = false;
+  } else if (mode === 'last30') {
+    text = 'ZEITRAUM Letzte 30T ▽';  isActive = true;
+  } else if (mode === 'last90') {
+    text = 'ZEITRAUM Letzte 90T ▽';  isActive = true;
+  } else if (mode === 'last180') {
+    text = 'ZEITRAUM Letzte 180T ▽'; isActive = true;
+  } else if (/^q[0-3]$/.test(mode)) {
+    const back  = parseInt(mode[1]);
+    const label = _computeQuarterBounds(back).label;
+    text = `ZEITRAUM ${label} ▽`; isActive = true;
+  } else if (mode === 'custom') {
+    text = `ZEITRAUM ${_fmtDDMM(s.dateRangeCustomFrom)}–${_fmtDDMM(s.dateRangeCustomTo)} ▽`;
+    isActive = true;
+  } else {
+    text = 'ZEITRAUM Alle ▽'; isActive = false;
+  }
+  document.querySelectorAll('.btn-daterange-trigger').forEach(btn => {
+    btn.textContent = text;
+    btn.classList.toggle('pf-active', isActive);
+    btn.classList.remove('p-blue');
+  });
+}
+
+function _initDateRangeDD() {
+  const dd = document.getElementById('daterange-dropdown');
+  if (!dd) return;
+
+  // Quartals-Buttons dynamisch befüllen
+  const quartersEl = document.getElementById('dr-quarters');
+  if (quartersEl) {
+    quartersEl.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const { label } = _computeQuarterBounds(i);
+      const btn = document.createElement('button');
+      btn.className    = 'dr-opt';
+      btn.dataset.mode = `q${i}`;
+      btn.textContent  = label + (i === 0 ? ' (aktuell)' : '');
+      quartersEl.appendChild(btn);
+    }
+  }
+
+  // Trigger-Buttons – Dropdown öffnen
+  document.querySelectorAll('.btn-daterange-trigger').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const isOpen = dd.classList.contains('open');
+      // andere Dropdowns schließen
+      document.getElementById('squad-dropdown')?.classList.remove('open');
+      document.getElementById('issuetype-dropdown')?.classList.remove('open');
+      _updateSquadBtn();
+      _updateIssueTypeBtn();
+      if (isOpen) {
+        dd.classList.remove('open');
+        _updateDateRangeBtn();
+        return;
+      }
+      // Quartals-Labels aktualisieren (falls Datum sich seit letztem Öffnen geändert hat)
+      const ql = document.getElementById('dr-quarters');
+      if (ql) {
+        [...ql.querySelectorAll('.dr-opt')].forEach((b, i) => {
+          const { label } = _computeQuarterBounds(i);
+          b.textContent  = label + (i === 0 ? ' (aktuell)' : '');
+        });
+      }
+      // Aktiven Modus markieren
+      dd.querySelectorAll('.dr-opt').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === core.state.dateRangeMode);
+      });
+      // Custom-Felder vorbelegen
+      const drFrom = document.getElementById('dr-from');
+      const drTo   = document.getElementById('dr-to');
+      if (drFrom) drFrom.value = core.state.dateRangeCustomFrom;
+      if (drTo)   drTo.value   = core.state.dateRangeCustomTo;
+      // Positionieren
+      const rect = btn.getBoundingClientRect();
+      dd.style.top  = (rect.bottom + 4) + 'px';
+      dd.style.left = rect.left + 'px';
+      dd.classList.add('open');
+    });
+  });
+
+  // Modus-Auswahl (außer custom – der läuft über Übernehmen)
+  dd.querySelectorAll('.dr-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (!mode) return;
+      dd.querySelectorAll('.dr-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _setDateRangeMode(mode);
+      dd.classList.remove('open');
+    });
+  });
+
+  // Übernehmen (custom)
+  document.getElementById('dr-apply')?.addEventListener('click', () => {
+    const from = document.getElementById('dr-from')?.value || '';
+    const to   = document.getElementById('dr-to')?.value   || '';
+    if (!from || !to) return;
+    if (from > to)    return;
+    dd.querySelectorAll('.dr-opt').forEach(b => b.classList.remove('active'));
+    _setDateRangeMode('custom', from, to);
+    dd.classList.remove('open');
+  });
+
+  // Initial-Text setzen
+  _updateDateRangeBtn();
 }
 
 // ════════════════════════════════════════════════
@@ -4364,12 +4609,22 @@ function init_wipage() {
 
     // ── Aktive Items filtern ──────────────────
     // Aktiv = In Progress_first gefüllt UND weder Resolved noch Rejected gefüllt
-    const allRows    = core.filteredRows();
-    const activeRows = allRows.filter(r => {
+    // Zeitraumfilter: nach Startdatum (In Progress_first), nicht nach Abschlussdatum
+    let baseRows = core.state.rows;
+    const sf = core.state.squadFilter;
+    const itf = core.state.issueTypeFilter;
+    if (sf.length)  baseRows = baseRows.filter(r => sf.includes(String(r['Squad'] || '')));
+    if (itf.length) baseRows = baseRows.filter(r => itf.includes(String(r['Issue-Type'] || '')));
+    const drActive = core.state.dateRangeMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo;
+    const drFrom   = core.state.dateRangeFrom;
+    const drTo     = core.state.dateRangeTo;
+    const activeRows = baseRows.filter(r => {
       const ip       = core.toDate(r['In Progress_first']);
       const resolved = core.toDate(r['Resolved']);
       const rejected = core.toDate(r['Rejected']);
-      return ip != null && resolved == null && rejected == null;
+      if (ip == null || resolved != null || rejected != null) return false;
+      if (drActive) return ip >= drFrom && ip <= drTo;
+      return true;
     });
 
     // ── Exclude-Liste ─────────────────────────
@@ -4426,7 +4681,7 @@ function init_wipage() {
     }
 
     const cutoff_ms = today_ms - cfg.rollingDays * 86400000;
-    const completedRows = allRows.filter(r => {
+    const completedRows = baseRows.filter(r => {
       const res = core.toDate(r['Resolved']);
       return res != null && res.getTime() >= cutoff_ms;
     });
@@ -6164,7 +6419,18 @@ function _render() {
     return;
   }
 
-  const months = _rawMonths;
+  // ── Zeitraum-Filter anwenden (Monats-Granularität) ──
+  const drMode = core.state.dateRangeMode;
+  let months = _rawMonths;
+  if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+    const from = core.state.dateRangeFrom;
+    const to   = core.state.dateRangeTo;
+    months = _rawMonths.filter(m => {
+      const monStart = new Date(m.date.getFullYear(), m.date.getMonth(), 1);
+      const monEnd   = new Date(m.date.getFullYear(), m.date.getMonth() + 1, 0, 23, 59, 59);
+      return monStart <= to && monEnd >= from;
+    });
+  }
 
   _drawChart(squadName, months);
 
@@ -6581,19 +6847,31 @@ function init_wip() {
       }
     }
 
-    // ── Letzte 12 Monate als festes Fenster (inkl. aktuellem Monat) ─────────────
-    const now      = new Date();
-    const nowYM    = now.getFullYear() * 100 + (now.getMonth() + 1);
-    let winY = now.getFullYear(), winM = now.getMonth() + 1 - 11;
-    if (winM <= 0) { winY--; winM += 12; }
-    const windowStart = winY * 100 + winM;
-
+    // ── Monats-Fenster aus Zeitraum-Filter oder letzten 12 Monaten ──────────────
+    const drMode  = core.state.dateRangeMode;
     const allMonths = [];
-    for (let ym = windowStart; ; ) {
-      allMonths.push(ym);
-      if (ym === nowYM) break;
-      const y = Math.floor(ym / 100), m = ym % 100;
-      ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
+    if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+      const from    = core.state.dateRangeFrom;
+      const to      = core.state.dateRangeTo;
+      const startYM = from.getFullYear() * 100 + (from.getMonth() + 1);
+      const endYM   = to.getFullYear()   * 100 + (to.getMonth()   + 1);
+      for (let ym = startYM; ym <= endYM; ) {
+        allMonths.push(ym);
+        const y = Math.floor(ym / 100), m = ym % 100;
+        ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
+      }
+    } else {
+      const now   = new Date();
+      const nowYM = now.getFullYear() * 100 + (now.getMonth() + 1);
+      let winY = now.getFullYear(), winM = now.getMonth() + 1 - 11;
+      if (winM <= 0) { winY--; winM += 12; }
+      const windowStart = winY * 100 + winM;
+      for (let ym = windowStart; ; ) {
+        allMonths.push(ym);
+        if (ym === nowYM) break;
+        const y = Math.floor(ym / 100), m = ym % 100;
+        ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
+      }
     }
 
     // ── WIP pro Monat berechnen ─────────────────────────────────────────────────
@@ -8000,9 +8278,29 @@ function init_saydoratioepics() {
       currentIdx = today < core.toDate(allEtappen[0]['Startdatum']) ? 0 : allEtappen.length - 1;
     }
 
-    // Aktuelle + bis zu 3 vorherige Etappen (max 4)
-    const startIdx = Math.max(0, currentIdx - 3);
-    const visibleEtappen = allEtappen.slice(startIdx, currentIdx + 1);
+    // Sichtbare Etappen: bei aktivem Zeitraum-Filter alle überlappenden,
+    // sonst aktuelle + bis zu 3 vorherige Etappen (max 4)
+    let visibleEtappen;
+    const drMode = core.state.dateRangeMode;
+    if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+      const from = core.state.dateRangeFrom;
+      const to   = core.state.dateRangeTo;
+      visibleEtappen = allEtappen.filter(e => {
+        const eStart = core.toDate(e['Startdatum']);
+        const eEnd   = core.toDate(e['Endedatum']);
+        return eStart <= to && eEnd >= from;
+      });
+      if (!visibleEtappen.length) {
+        nBadge.textContent = '';
+        diagStats.textContent = 'Keine Etappen im Zeitraum';
+        currentData = [];
+        svgWrap.innerHTML = '';
+        return;
+      }
+    } else {
+      const startIdx = Math.max(0, currentIdx - 3);
+      visibleEtappen = allEtappen.slice(startIdx, currentIdx + 1);
+    }
 
     // Daten berechnen
     const data = visibleEtappen.map(etappe => {
@@ -9186,10 +9484,30 @@ function _render() {
 
   const squadName = sf[0];
 
+  // ── Zeitraum-Filter auf Epics anwenden ──
+  let filteredEpics = _epicRows;
+  const drMode = core.state.dateRangeMode;
+  if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+    const from = core.state.dateRangeFrom;
+    const to   = core.state.dateRangeTo;
+    filteredEpics = _epicRows.filter(r => {
+      const resolved = core.toDate(r['Resolved']);
+      const rejected = core.toDate(r['Rejected']);
+      const doneDate = resolved ?? rejected;
+      if (!doneDate) return true;          // offenes Epic: immer anzeigen
+      return doneDate >= from && doneDate <= to;
+    });
+  }
+
+  // ── Stages einschränken auf solche mit mind. 1 Epic für diesen Squad ──
+  const visibleStages = _stages.filter(stage =>
+    filteredEpics.some(r => r['Stage'] === stage && r['Squad'] === squadName)
+  );
+
   // ── Qualität pro Stage berechnen ──
-  const qualities = _stages.map(stage => ({
+  const qualities = visibleStages.map(stage => ({
     stage,
-    q: calcAkQuality(_epicRows, stage, squadName),
+    q: calcAkQuality(filteredEpics, stage, squadName),
   }));
 
   // ── Squad hat keine Epics in JiraEpics ──
@@ -9200,7 +9518,7 @@ function _render() {
     return;
   }
 
-  const totalEpics   = _epicRows.filter(r => r['Squad'] === squadName && r['Stage'] != null && String(r['Stage']).trim() !== '').length;
+  const totalEpics = filteredEpics.filter(r => r['Squad'] === squadName && r['Stage'] != null && String(r['Stage']).trim() !== '').length;
 
   if (_nBadgeEl) _nBadgeEl.textContent = `N = ${totalEpics}`;
   _drawChart(squadName, qualities);

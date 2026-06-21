@@ -266,10 +266,30 @@ function _render() {
 
   const squadName = sf[0];
 
+  // ── Zeitraum-Filter auf Epics anwenden ──
+  let filteredEpics = _epicRows;
+  const drMode = core.state.dateRangeMode;
+  if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+    const from = core.state.dateRangeFrom;
+    const to   = core.state.dateRangeTo;
+    filteredEpics = _epicRows.filter(r => {
+      const resolved = core.toDate(r['Resolved']);
+      const rejected = core.toDate(r['Rejected']);
+      const doneDate = resolved ?? rejected;
+      if (!doneDate) return true;          // offenes Epic: immer anzeigen
+      return doneDate >= from && doneDate <= to;
+    });
+  }
+
+  // ── Stages einschränken auf solche mit mind. 1 Epic für diesen Squad ──
+  const visibleStages = _stages.filter(stage =>
+    filteredEpics.some(r => r['Stage'] === stage && r['Squad'] === squadName)
+  );
+
   // ── Qualität pro Stage berechnen ──
-  const qualities = _stages.map(stage => ({
+  const qualities = visibleStages.map(stage => ({
     stage,
-    q: calcAkQuality(_epicRows, stage, squadName),
+    q: calcAkQuality(filteredEpics, stage, squadName),
   }));
 
   // ── Squad hat keine Epics in JiraEpics ──
@@ -280,7 +300,7 @@ function _render() {
     return;
   }
 
-  const totalEpics   = _epicRows.filter(r => r['Squad'] === squadName && r['Stage'] != null && String(r['Stage']).trim() !== '').length;
+  const totalEpics = filteredEpics.filter(r => r['Squad'] === squadName && r['Stage'] != null && String(r['Stage']).trim() !== '').length;
 
   if (_nBadgeEl) _nBadgeEl.textContent = `N = ${totalEpics}`;
   _drawChart(squadName, qualities);

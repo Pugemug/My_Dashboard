@@ -250,9 +250,29 @@ export function init() {
       currentIdx = today < core.toDate(allEtappen[0]['Startdatum']) ? 0 : allEtappen.length - 1;
     }
 
-    // Aktuelle + bis zu 3 vorherige Etappen (max 4)
-    const startIdx = Math.max(0, currentIdx - 3);
-    const visibleEtappen = allEtappen.slice(startIdx, currentIdx + 1);
+    // Sichtbare Etappen: bei aktivem Zeitraum-Filter alle überlappenden,
+    // sonst aktuelle + bis zu 3 vorherige Etappen (max 4)
+    let visibleEtappen;
+    const drMode = core.state.dateRangeMode;
+    if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+      const from = core.state.dateRangeFrom;
+      const to   = core.state.dateRangeTo;
+      visibleEtappen = allEtappen.filter(e => {
+        const eStart = core.toDate(e['Startdatum']);
+        const eEnd   = core.toDate(e['Endedatum']);
+        return eStart <= to && eEnd >= from;
+      });
+      if (!visibleEtappen.length) {
+        nBadge.textContent = '';
+        diagStats.textContent = 'Keine Etappen im Zeitraum';
+        currentData = [];
+        svgWrap.innerHTML = '';
+        return;
+      }
+    } else {
+      const startIdx = Math.max(0, currentIdx - 3);
+      visibleEtappen = allEtappen.slice(startIdx, currentIdx + 1);
+    }
 
     // Daten berechnen
     const data = visibleEtappen.map(etappe => {

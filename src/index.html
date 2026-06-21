@@ -110,6 +110,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .squad-opt input[type=checkbox]{accent-color:var(--blue);width:12px;height:12px;cursor:pointer;flex-shrink:0}
 .squad-opt label{font-size:.72rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 
+/* ── ZEITRAUM DROPDOWN ── */
+.dr-mode-list{display:flex;flex-direction:column;padding:.2rem 0}
+.dr-opt{display:block;width:100%;padding:.22rem .55rem;font-size:.72rem;color:var(--dim);background:transparent;border:none;text-align:left;cursor:pointer;font-family:var(--sans);transition:background .1s,color .1s}
+.dr-opt:hover{background:var(--bg3);color:var(--text)}
+.dr-opt.active{color:var(--blue);font-weight:600}
+.dr-divider{font-size:.56rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);padding:.45rem .55rem .15rem;border-top:1px solid var(--border);margin-top:.2rem;opacity:.65}
+.dr-custom{padding:.4rem .55rem .5rem;border-top:1px solid var(--border);margin-top:.2rem;display:flex;flex-direction:column;gap:.3rem}
+.dr-custom-row{display:flex;align-items:center;gap:.4rem}
+.dr-custom-row label{font-size:.65rem;color:var(--dim);min-width:22px}
+.dr-custom-row input[type=date]{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:.68rem;padding:.18rem .35rem;outline:none;color-scheme:dark}
+[data-theme="light"] .dr-custom-row input[type=date]{color-scheme:light}
+.dr-custom-row input[type=date]:focus{border-color:var(--blue)}
+#dr-apply{align-self:flex-end;padding:.22rem .65rem;font-size:.67rem;font-weight:600;background:var(--blue);border:none;border-radius:5px;color:#fff;cursor:pointer;font-family:var(--sans);transition:opacity .15s}
+#dr-apply:hover{opacity:.85}
+
 /* ── SETTINGS PANEL (Overlay, zentriert) ── */
 .settings-wrap{position:relative;flex-shrink:0}
 .settings-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:490;display:none}
@@ -475,6 +490,30 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <div id="issuetype-opts"></div>
   </div>
 
+  <!-- Shared Zeitraum-Dropdown – position:fixed, geöffnet von jeder .btn-daterange-trigger -->
+  <div class="squad-dropdown" id="daterange-dropdown">
+    <div class="dr-mode-list">
+      <button class="dr-opt active" data-mode="all">Alles anzeigen</button>
+      <button class="dr-opt" data-mode="last30">Letzte 30 Tage</button>
+      <button class="dr-opt" data-mode="last90">Letzte 90 Tage</button>
+      <button class="dr-opt" data-mode="last180">Letzte 180 Tage</button>
+    </div>
+    <div class="dr-divider">Quartale</div>
+    <div class="dr-mode-list" id="dr-quarters"></div>
+    <div class="dr-divider">Zeitraum festlegen</div>
+    <div class="dr-custom">
+      <div class="dr-custom-row">
+        <label>Von</label>
+        <input type="date" id="dr-from">
+      </div>
+      <div class="dr-custom-row">
+        <label>Bis</label>
+        <input type="date" id="dr-to">
+      </div>
+      <button id="dr-apply">&#10003; &Uuml;bernehmen</button>
+    </div>
+  </div>
+
   <!-- App-Body: Sidebar + Main-Content (kein globaler Topbar mehr) -->
   <div class="app-body">
 
@@ -599,7 +638,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
             <!-- #squad-dropdown wurde auf #app-screen-Ebene verschoben (position:fixed, shared) -->
           </div>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset" id="lf-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -631,7 +670,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-wipage">SQUADS Alle &#9661;</button>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -645,7 +684,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-scatter">SQUADS Alle &#9661;</button>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -659,7 +698,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-heatmap">SQUADS Alle &#9661;</button>
           <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip pf-disabled" title="Kommt bald">ZEITRAUM Gesamt &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>

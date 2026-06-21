@@ -253,12 +253,22 @@ export function init() {
 
     // ── Aktive Items filtern ──────────────────
     // Aktiv = In Progress_first gefüllt UND weder Resolved noch Rejected gefüllt
-    const allRows    = core.filteredRows();
-    const activeRows = allRows.filter(r => {
+    // Zeitraumfilter: nach Startdatum (In Progress_first), nicht nach Abschlussdatum
+    let baseRows = core.state.rows;
+    const sf = core.state.squadFilter;
+    const itf = core.state.issueTypeFilter;
+    if (sf.length)  baseRows = baseRows.filter(r => sf.includes(String(r['Squad'] || '')));
+    if (itf.length) baseRows = baseRows.filter(r => itf.includes(String(r['Issue-Type'] || '')));
+    const drActive = core.state.dateRangeMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo;
+    const drFrom   = core.state.dateRangeFrom;
+    const drTo     = core.state.dateRangeTo;
+    const activeRows = baseRows.filter(r => {
       const ip       = core.toDate(r['In Progress_first']);
       const resolved = core.toDate(r['Resolved']);
       const rejected = core.toDate(r['Rejected']);
-      return ip != null && resolved == null && rejected == null;
+      if (ip == null || resolved != null || rejected != null) return false;
+      if (drActive) return ip >= drFrom && ip <= drTo;
+      return true;
     });
 
     // ── Exclude-Liste ─────────────────────────
@@ -315,7 +325,7 @@ export function init() {
     }
 
     const cutoff_ms = today_ms - cfg.rollingDays * 86400000;
-    const completedRows = allRows.filter(r => {
+    const completedRows = baseRows.filter(r => {
       const res = core.toDate(r['Resolved']);
       return res != null && res.getTime() >= cutoff_ms;
     });

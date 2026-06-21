@@ -104,8 +104,13 @@ export const core = {
     allIssueTypes:   [],
     hasSquad:        false,
     hasIssueType:    false,
-    squadFilter:     [],  // [] = alle aktiv
-    issueTypeFilter: [],  // [] = alle aktiv
+    squadFilter:         [],   // [] = alle aktiv
+    issueTypeFilter:     [],   // [] = alle aktiv
+    dateRangeMode:       'all',
+    dateRangeCustomFrom: '',
+    dateRangeCustomTo:   '',
+    dateRangeFrom:       null, // Date | null – berechnet aus dateRangeMode
+    dateRangeTo:         null, // Date | null – berechnet aus dateRangeMode
     fileName:     '',
     sheetName:    '',
     urlTemplate:  '',     // global Jira URL-Template
@@ -174,12 +179,25 @@ export const core = {
   },
 
   // ── Data utilities ─────────────────────────────
-  /** Returns rows after applying active squadFilter and issueTypeFilter. */
+  /** Returns rows after applying active squadFilter, issueTypeFilter, and dateRange. */
   filteredRows() {
     const s = core.state;
     let rows = s.rows;
-    if (s.squadFilter.length)     rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
-    if (s.issueTypeFilter.length) rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    if (s.squadFilter.length)
+      rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
+    if (s.issueTypeFilter.length)
+      rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    if (s.dateRangeMode !== 'all' && s.dateRangeFrom && s.dateRangeTo) {
+      const from = s.dateRangeFrom;
+      const to   = s.dateRangeTo;
+      rows = rows.filter(r => {
+        const resolved = core.toDate(r['Resolved']);
+        const rejected = core.toDate(r['Rejected']);
+        const doneDate = resolved ?? rejected;
+        if (!doneDate) return false;             // kein Abschlussdatum → nicht im Zeitraum
+        return doneDate >= from && doneDate <= to;
+      });
+    }
     return rows;
   },
 
@@ -412,6 +430,12 @@ export const core = {
     if (g && Array.isArray(g.squadFilter))      core.state.squadFilter      = g.squadFilter;
     if (g && Array.isArray(g.issueTypeFilter))  core.state.issueTypeFilter  = g.issueTypeFilter;
     if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate      = g.urlTemplate;
+    if (g && g.dateRange) {
+      core.state.dateRangeMode       = g.dateRange.mode       || 'all';
+      core.state.dateRangeCustomFrom = g.dateRange.customFrom || '';
+      core.state.dateRangeCustomTo   = g.dateRange.customTo   || '';
+      _applyDateRange(core.state.dateRangeMode, core.state.dateRangeCustomFrom, core.state.dateRangeCustomTo);
+    }
 
     _initFileUpload();
     _initSidebarButtons();
@@ -641,6 +665,11 @@ function _saveGlobal() {
     squadFilter:     core.state.squadFilter,
     issueTypeFilter: core.state.issueTypeFilter,
     urlTemplate:     core.state.urlTemplate,
+    dateRange: {
+      mode:       core.state.dateRangeMode,
+      customFrom: core.state.dateRangeCustomFrom,
+      customTo:   core.state.dateRangeCustomTo,
+    },
   });
 }
 
@@ -743,13 +772,14 @@ function _initSidebarButtons() {
     });
   }
 
-  // Filter zurücksetzen – beide Filter (Squad + Issue-Type)
+  // Filter zurücksetzen – Squad + Issue-Type + Zeitraum
   document.querySelectorAll('.squad-filter-reset').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#squad-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onSquadFilterChange();
       document.querySelectorAll('#issuetype-opts input[type=checkbox]').forEach(cb => cb.checked = true);
       _onIssueTypeFilterChange();
+      _setDateRangeMode('all');
     });
   });
 
@@ -763,7 +793,13 @@ function _initSidebarButtons() {
       document.getElementById('issuetype-dropdown')?.classList.remove('open');
       _updateIssueTypeBtn();
     }
+    if (!e.target.closest('.btn-daterange-trigger') && !e.target.closest('#daterange-dropdown')) {
+      document.getElementById('daterange-dropdown')?.classList.remove('open');
+      _updateDateRangeBtn();
+    }
   });
+
+  _initDateRangeDD();
 }
 
 // ── Sidebar-Navigation initialisieren ──
@@ -1248,6 +1284,176 @@ function _updateIssueTypeBtn() {
     btn.classList.toggle('pf-active', isActive);
     btn.classList.remove('p-blue');
   });
+}
+
+// ════════════════════════════════════════════════
+// Private: Zeitraum-Filter
+// ════════════════════════════════════════════════
+
+function _computeQuarterBounds(back) {
+  const now    = new Date();
+  const totalQ = now.getFullYear() * 4 + Math.floor(now.getMonth() / 3) - back;
+  const yr     = Math.floor(totalQ / 4);
+  const qn     = totalQ % 4;   // 0=Q1,1=Q2,2=Q3,3=Q4
+  const from   = new Date(yr, qn * 3,     1, 0,  0,  0,   0);
+  const to     = new Date(yr, qn * 3 + 3, 0, 23, 59, 59, 999);
+  return { from, to, label: `Q${qn + 1}/${yr}` };
+}
+
+function _applyDateRange(mode, customFrom, customTo) {
+  const s   = core.state;
+  const now = new Date();
+  if (mode === 'all') {
+    s.dateRangeFrom = null;
+    s.dateRangeTo   = null;
+  } else if (mode === 'last30' || mode === 'last90' || mode === 'last180') {
+    const days = mode === 'last30' ? 30 : mode === 'last90' ? 90 : 180;
+    s.dateRangeFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days, 0, 0, 0, 0);
+    s.dateRangeTo   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  } else if (/^q[0-3]$/.test(mode)) {
+    const back    = parseInt(mode[1]);
+    const bounds  = _computeQuarterBounds(back);
+    s.dateRangeFrom = bounds.from;
+    s.dateRangeTo   = bounds.to;
+  } else if (mode === 'custom' && customFrom && customTo) {
+    s.dateRangeFrom = new Date(customFrom + 'T00:00:00');
+    s.dateRangeTo   = new Date(customTo   + 'T23:59:59');
+  } else {
+    s.dateRangeFrom = null;
+    s.dateRangeTo   = null;
+  }
+}
+
+function _setDateRangeMode(mode, customFrom, customTo) {
+  const s = core.state;
+  s.dateRangeMode       = mode;
+  s.dateRangeCustomFrom = customFrom || '';
+  s.dateRangeCustomTo   = customTo   || '';
+  _applyDateRange(mode, s.dateRangeCustomFrom, s.dateRangeCustomTo);
+  _updateDateRangeBtn();
+  _saveGlobal();
+  core.emit('filter');
+}
+
+function _fmtDDMM(isoStr) {
+  if (!isoStr) return '';
+  const [, m, d] = isoStr.split('-');
+  return `${d}.${m}.`;
+}
+
+function _updateDateRangeBtn() {
+  const s    = core.state;
+  const mode = s.dateRangeMode;
+  let text, isActive;
+  if (mode === 'all') {
+    text = 'ZEITRAUM Alle ▽';
+    isActive = false;
+  } else if (mode === 'last30') {
+    text = 'ZEITRAUM Letzte 30T ▽';  isActive = true;
+  } else if (mode === 'last90') {
+    text = 'ZEITRAUM Letzte 90T ▽';  isActive = true;
+  } else if (mode === 'last180') {
+    text = 'ZEITRAUM Letzte 180T ▽'; isActive = true;
+  } else if (/^q[0-3]$/.test(mode)) {
+    const back  = parseInt(mode[1]);
+    const label = _computeQuarterBounds(back).label;
+    text = `ZEITRAUM ${label} ▽`; isActive = true;
+  } else if (mode === 'custom') {
+    text = `ZEITRAUM ${_fmtDDMM(s.dateRangeCustomFrom)}–${_fmtDDMM(s.dateRangeCustomTo)} ▽`;
+    isActive = true;
+  } else {
+    text = 'ZEITRAUM Alle ▽'; isActive = false;
+  }
+  document.querySelectorAll('.btn-daterange-trigger').forEach(btn => {
+    btn.textContent = text;
+    btn.classList.toggle('pf-active', isActive);
+    btn.classList.remove('p-blue');
+  });
+}
+
+function _initDateRangeDD() {
+  const dd = document.getElementById('daterange-dropdown');
+  if (!dd) return;
+
+  // Quartals-Buttons dynamisch befüllen
+  const quartersEl = document.getElementById('dr-quarters');
+  if (quartersEl) {
+    quartersEl.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const { label } = _computeQuarterBounds(i);
+      const btn = document.createElement('button');
+      btn.className    = 'dr-opt';
+      btn.dataset.mode = `q${i}`;
+      btn.textContent  = label + (i === 0 ? ' (aktuell)' : '');
+      quartersEl.appendChild(btn);
+    }
+  }
+
+  // Trigger-Buttons – Dropdown öffnen
+  document.querySelectorAll('.btn-daterange-trigger').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const isOpen = dd.classList.contains('open');
+      // andere Dropdowns schließen
+      document.getElementById('squad-dropdown')?.classList.remove('open');
+      document.getElementById('issuetype-dropdown')?.classList.remove('open');
+      _updateSquadBtn();
+      _updateIssueTypeBtn();
+      if (isOpen) {
+        dd.classList.remove('open');
+        _updateDateRangeBtn();
+        return;
+      }
+      // Quartals-Labels aktualisieren (falls Datum sich seit letztem Öffnen geändert hat)
+      const ql = document.getElementById('dr-quarters');
+      if (ql) {
+        [...ql.querySelectorAll('.dr-opt')].forEach((b, i) => {
+          const { label } = _computeQuarterBounds(i);
+          b.textContent  = label + (i === 0 ? ' (aktuell)' : '');
+        });
+      }
+      // Aktiven Modus markieren
+      dd.querySelectorAll('.dr-opt').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === core.state.dateRangeMode);
+      });
+      // Custom-Felder vorbelegen
+      const drFrom = document.getElementById('dr-from');
+      const drTo   = document.getElementById('dr-to');
+      if (drFrom) drFrom.value = core.state.dateRangeCustomFrom;
+      if (drTo)   drTo.value   = core.state.dateRangeCustomTo;
+      // Positionieren
+      const rect = btn.getBoundingClientRect();
+      dd.style.top  = (rect.bottom + 4) + 'px';
+      dd.style.left = rect.left + 'px';
+      dd.classList.add('open');
+    });
+  });
+
+  // Modus-Auswahl (außer custom – der läuft über Übernehmen)
+  dd.querySelectorAll('.dr-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      if (!mode) return;
+      dd.querySelectorAll('.dr-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _setDateRangeMode(mode);
+      dd.classList.remove('open');
+    });
+  });
+
+  // Übernehmen (custom)
+  document.getElementById('dr-apply')?.addEventListener('click', () => {
+    const from = document.getElementById('dr-from')?.value || '';
+    const to   = document.getElementById('dr-to')?.value   || '';
+    if (!from || !to) return;
+    if (from > to)    return;
+    dd.querySelectorAll('.dr-opt').forEach(b => b.classList.remove('active'));
+    _setDateRangeMode('custom', from, to);
+    dd.classList.remove('open');
+  });
+
+  // Initial-Text setzen
+  _updateDateRangeBtn();
 }
 
 // ════════════════════════════════════════════════

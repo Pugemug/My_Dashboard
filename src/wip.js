@@ -267,19 +267,31 @@ export function init() {
       }
     }
 
-    // ── Letzte 12 Monate als festes Fenster (inkl. aktuellem Monat) ─────────────
-    const now      = new Date();
-    const nowYM    = now.getFullYear() * 100 + (now.getMonth() + 1);
-    let winY = now.getFullYear(), winM = now.getMonth() + 1 - 11;
-    if (winM <= 0) { winY--; winM += 12; }
-    const windowStart = winY * 100 + winM;
-
+    // ── Monats-Fenster aus Zeitraum-Filter oder letzten 12 Monaten ──────────────
+    const drMode  = core.state.dateRangeMode;
     const allMonths = [];
-    for (let ym = windowStart; ; ) {
-      allMonths.push(ym);
-      if (ym === nowYM) break;
-      const y = Math.floor(ym / 100), m = ym % 100;
-      ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
+    if (drMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo) {
+      const from    = core.state.dateRangeFrom;
+      const to      = core.state.dateRangeTo;
+      const startYM = from.getFullYear() * 100 + (from.getMonth() + 1);
+      const endYM   = to.getFullYear()   * 100 + (to.getMonth()   + 1);
+      for (let ym = startYM; ym <= endYM; ) {
+        allMonths.push(ym);
+        const y = Math.floor(ym / 100), m = ym % 100;
+        ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
+      }
+    } else {
+      const now   = new Date();
+      const nowYM = now.getFullYear() * 100 + (now.getMonth() + 1);
+      let winY = now.getFullYear(), winM = now.getMonth() + 1 - 11;
+      if (winM <= 0) { winY--; winM += 12; }
+      const windowStart = winY * 100 + winM;
+      for (let ym = windowStart; ; ) {
+        allMonths.push(ym);
+        if (ym === nowYM) break;
+        const y = Math.floor(ym / 100), m = ym % 100;
+        ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
+      }
     }
 
     // ── WIP pro Monat berechnen ─────────────────────────────────────────────────
