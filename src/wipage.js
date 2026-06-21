@@ -663,7 +663,6 @@ export function init() {
   }
 
   function _renderMsg(title, msg) {
-    const ns = 'http://www.w3.org/2000/svg';
     const W  = contentEl.clientWidth  || 300;
     const H  = contentEl.clientHeight || 200;
     svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);

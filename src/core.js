@@ -125,20 +125,21 @@ export const core = {
 
   emit(event) {
     (_listeners[event] || []).forEach(fn => {
+      // eslint-disable-next-line no-console
       try { fn(); } catch (e) { console.error('[core] emit', event, e); }
     });
   },
 
   // ── Storage ────────────────────────────────────
   save(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
   },
 
   load(key, def) {
     try {
       const v = localStorage.getItem(key);
       return v != null ? JSON.parse(v) : def;
-    } catch (e) { return def; }
+    } catch { return def; }
   },
 
   // ── Globale Status-Reihenfolge ──────────────────
@@ -154,7 +155,7 @@ export const core = {
     try {
       const v = localStorage.getItem('fhwa_status_order');
       if (v) saved = JSON.parse(v);
-    } catch (e) {}
+    } catch {}
     const base = saved ? [...saved] : [...DEFAULT_STATUS_ORDER];
     if (knownNames && knownNames.length) {
       // Case-insensitive Dedup: verhindert dass z.B. 'In Test' als Extra angehängt
@@ -174,7 +175,7 @@ export const core = {
    * @param {string[]} order
    */
   saveGlobalStatusOrder(order) {
-    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch (e) {}
+    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch {}
     core.emit('statusOrder');
   },
 
@@ -947,7 +948,7 @@ function _escHtml(s) {
 }
 
 // ── Datencheck-Page befüllen ──
-function _buildDatencheckPage(sheetNames, sheets) {
+function _buildDatencheckPage(_sheetNames, _sheets) {
   const s   = core.state;
   const rows = s.rows;
 
@@ -1075,7 +1076,7 @@ function _buildDatencheckPage(sheetNames, sheets) {
         const lastVals = dataRows.map(r => parseFloat(r[lastColIdx])).filter(v => !isNaN(v));
         const happLast = lastVals.length ? (lastVals.reduce((a, b) => a + b, 0) / lastVals.length) : null;
         // Gesamt-Durchschnitt über alle Monatsspalten
-        let allVals = [];
+        const allVals = [];
         for (let ci = 1; ci < header.length; ci++) {
           dataRows.forEach(r => { const v = parseFloat(r[ci]); if (!isNaN(v)) allVals.push(v); });
         }

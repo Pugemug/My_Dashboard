@@ -41,7 +41,6 @@ export function init() {
   });
 
   const titleEl = cardEl.querySelector('.card-title');
-  let ltModeBtn, ctModeBtn;
 
   // ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ───────────────────
   function _detectMode() {
@@ -78,12 +77,12 @@ export function init() {
   const sep2        = document.createElement('div'); sep2.className = 'tb-sep';
   const btnSettings = _mkBtn('⚙ Einstellungen', () => _toggleSettings());
 
-  ltModeBtn = _mkBtn('Lead Time', () => {
+  const ltModeBtn = _mkBtn('Lead Time', () => {
     cfg.ctStart = LT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
     ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
     saveConfig(); _updateModeUI(); render();
   });
-  ctModeBtn = _mkBtn('Cycle Time', () => {
+  const ctModeBtn = _mkBtn('Cycle Time', () => {
     cfg.ctStart = CT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
     ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
     saveConfig(); _updateModeUI(); render();

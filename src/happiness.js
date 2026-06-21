@@ -12,15 +12,6 @@ const LS_KEY = 'fhwa_happinessfaktor';
 const SHEET  = 'Happiness Faktor';
 const NV_COL = '#9e9e9e';
 
-function _esc(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 const CFG_DEF = { title: 'Happiness Faktor', dotRadius: 6 };
 
 // ── Happiness colour: 1=rot · 3=gelb · 5=grün (semantisch, theme-unabhängig) ──
@@ -364,7 +355,6 @@ function _drawChart(squadName, months) {
   // ── Y-Gitternetz (0–5) ──
   for (let y = 0; y <= 5; y++) {
     const yp  = yOf(y).toFixed(1);
-    const dim = sc.axisLabelFaint;
     parts.push(
       `<line x1="${padL}" y1="${yp}" x2="${(W - padR).toFixed(1)}" y2="${yp}"
          stroke="${sc.gridLine}" stroke-width="${y === 0 ? 1.5 : 0.5}"

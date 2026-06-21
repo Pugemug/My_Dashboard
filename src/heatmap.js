@@ -5,7 +5,7 @@
 // ════════════════════════════════════════════════
 
 import { core, LT_START_DEFAULT, LT_END_DEFAULT, DEFAULT_STATUS_ORDER, _mkBtn, _mkPanel, _mkTglGrp, _mkSelect, _mkLtField, _mkTTRow, _posTooltip, _buildOrderPanel } from './core.js';
-import { stateStats as _stateStatsCalc, calcHeatmapT } from './calc/heatmap.calc.js';
+import { stateStats as _stateStatsCalc } from './calc/heatmap.calc.js';
 
 export function init() {
 
@@ -21,12 +21,11 @@ export function init() {
   });
 
   // Runtime-only state (nicht persistiert)
-  let hiddenGlobal  = new Set(cfg.hiddenGlobal || []);
+  const hiddenGlobal  = new Set(cfg.hiddenGlobal || []);
   const hiddenPerSquad = {};      // { squadName: Set<string> }
   let drillSquad    = null;
   let drillKeepFilter = false;
   const colDrag     = { name: null };
-  let   typeMap     = {};         // für Tooltip-Farbreferenz (nicht genutzt in HM)
 
   function saveConfig() {
     core.save('fhwa_heatmap', {

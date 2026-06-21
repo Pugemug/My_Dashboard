@@ -7,7 +7,7 @@
 //   - Panel: × Schließen-Button + Klick-außen schließt Panel
 //   - Y-Achse: Schrittweite konfigurierbar + Log-Skala wählbar (im ⚙-Panel)
 // ════════════════════════════════════════════════
-import { calcBoxStats, isOutlier } from './calc/boxchart.calc.js';
+import { calcBoxStats } from './calc/boxchart.calc.js';
 
 import { core } from './core.js';
 

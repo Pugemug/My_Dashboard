@@ -324,7 +324,6 @@ export function init() {
     const barW    = Math.max(28, Math.min(90, barSlot * 0.65));
     const barGap  = (barSlot - barW) / 2;
 
-    const fs      = Math.max(9, Math.min(12, W / 44));
     const fsSmall = Math.max(8, Math.min(11, W / 56));
     const fsLabel = Math.max(8, Math.min(11, barW / 5));
 

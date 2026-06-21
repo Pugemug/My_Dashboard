@@ -259,7 +259,7 @@ function _buildMainTable(type, rows, countMap) {
   // Thead
   const thead = document.createElement('thead');
   const trHead = document.createElement('tr');
-  cols.forEach((col, idx) => {
+  cols.forEach((col, _idx) => {
     const th = document.createElement('th');
     th.textContent = col.label;
     if (col.center) th.style.textAlign = 'center';
@@ -397,7 +397,7 @@ function _buildRow(r, isAktuell, countMap) {
 }
 
 // ── Sortier-Handler ────────────────────────────────────────────────────────
-function _onSort(type, field, _rows, countMap) {
+function _onSort(type, field, _rows, _countMap) {
   const prev = _sortState[type];
   const asc = prev && prev.field === field ? !prev.asc : true;
   _sortState[type] = { field, asc };

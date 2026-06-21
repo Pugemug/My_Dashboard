@@ -312,7 +312,7 @@ export function init() {
 
   function _buildSlices(fromD, toD, unit) {
     const slices = [];
-    let cur = new Date(fromD);
+    const cur = new Date(fromD);
     while (cur <= toD) {
       slices.push(new Date(cur));
       if (unit === 'day')        cur.setDate(cur.getDate() + 1);
@@ -356,7 +356,6 @@ export function init() {
     const W = sparkWrap.clientWidth || 160;
     const H = 24;
     const bw = Math.max(1, (W / samples.length) - 1);
-    const C  = core.scatterColors();
     const parts = samples.map((v, i) => {
       const h   = Math.max(1, (v / maxV) * H);
       const x   = i * (bw + 1);
@@ -547,9 +546,8 @@ export function init() {
 
   function _renderTable() {
     if (!_simResult) return;
-    const { results, p50, p70, p85, p95 } = _simResult;
+    const { p50, p70, p85, p95 } = _simResult;
     const isWhen = cfg.mode === 'when';
-    const n      = results.length;
     const fmt    = v => isWhen ? _fmtDate(new Date(v)) : Math.round(v).toString();
 
     tableWrap.innerHTML = '';
@@ -648,7 +646,7 @@ export function init() {
     });
   }
 
-  function _togglePanel(id) {
+  function _togglePanel(_id) {
     const panel = settingsPanel;
     const isOpen = panel.classList.contains('open');
     panel.classList.toggle('open', !isOpen);

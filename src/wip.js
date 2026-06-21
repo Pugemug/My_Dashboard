@@ -230,7 +230,6 @@ export function init() {
 
     // ── SquadDaten lesen ────────────────────────────────────────────────────────
     const sheetsRaw  = core.state.sheetsRaw || {};
-    const sheetNames = Object.keys(sheetsRaw);
     const raw        = sheetsRaw['SquadDaten'] ?? [];
     const hIdx       = raw.findIndex(row => row && row.some(c => c === 'Squad'));
 
