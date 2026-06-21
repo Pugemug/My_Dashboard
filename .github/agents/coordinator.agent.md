@@ -34,13 +34,17 @@ Du folgst diesen Protokollen ohne Aufforderung — sie sind verbindlich.
 4. **Gate 1** — Spec vorlegen, auf Bestätigung warten
 5. Erst dann: **coder** beauftragen (Implementierung)
 6. Parallel: **tester** beauftragen (Vitest-Tests)
-7. **Gate 2** — Pre-Delivery Review (Smoke-Test, Spec-Check)
-8. **Gate 3** — Nur wenn Gate 2 bestanden
+7. **Gate 2** — Pre-Delivery Review: alle vier Punkte müssen erfüllt sein:
+   - `npm run lint` → 0 Fehler
+   - `npm test` → alle grün
+   - `npm run test:coverage` → ≥ 80 % Lines + Functions
+   - Smoke-Test (§M9) bestanden + Spec-Akzeptanzkriterien (Block G) erfüllt
+8. **Gate 3** — Nur wenn Gate 2 vollständig bestanden
 
 ### Für einen Bugfix
 1. `docs/WebAppEntwickeln.md` + betroffene `.js`-Datei lesen
 2. **tester** → reproduzierenden Test schreiben (rot bestätigen)
-3. **coder** → Fix implementieren
+3. **coder** → Fix implementieren + M7 vollständig durchlaufen
 4. **tester** → Test grün bestätigen
 5. Smoke-Test (§M9) durchführen
 

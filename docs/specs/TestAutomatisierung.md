@@ -178,10 +178,11 @@ Automatisierte Tests für das Flow Analytics Dashboard in zwei Schichten:
 - Kein Power BI, kein Server
 
 ### Technologie
-- Unit Tests: **Vitest** (ESM-nativ, kein Babel, minimaler Setup)
+- Statische Analyse: **ESLint** (Flat Config, `eslint.config.js`) mit `@eslint/js` + `globals`
+- Unit Tests: **Vitest** (ESM-nativ, kein Babel, minimaler Setup) mit `@vitest/coverage-v8`
 - E2E Tests: **Playwright** (Cross-Browser, lokal + CI)
 - Test-Runner: Node.js (lokal installiert, nicht deployed)
-- Pre-commit: **Husky** (blockiert Commit wenn Unit Tests rot)
+- Pre-commit: **Husky** + **lint-staged** (ESLint nur auf geänderte Dateien, dann Unit Tests)
 
 ---
 
@@ -245,7 +246,7 @@ My_Dashboard/
   vitest.config.js                ← Vitest Konfiguration (environment: node)
   playwright.config.js            ← Playwright Konfiguration
   .husky/
-    pre-commit                    ← npx vitest run (Unit Tests vor Commit)
+    pre-commit                    ← lint-staged (ESLint auf geänderte .js) + npm test
 ```
 
 ### Geplant: data.upload.spec.js (Phase 1 – Priorität hoch)
@@ -388,14 +389,17 @@ Claude schreibt nach dem Interview automatisch einen **Test-Skeleton** für das 
 - `tests/unit/[visualName].calc.test.js` – leere `it()`-Blöcke für jeden AC
 - `tests/e2e/[visualName].spec.js` – Playwright-Skeleton für Smoke-Test
 
-**Gate 2 (Pre-Delivery Review) – neuer Pflicht-Check:**
+**Gate 2 (Pre-Delivery Review) – Pflicht-Checks:**
 ```
-- [ ] Unit Tests für dieses Visual: alle grün (npx vitest run tests/unit/[visual].test.js)
+- [ ] ESLint: npm run lint → 0 Errors
+- [ ] Unit Tests: npm test → alle grün
+- [ ] Coverage: npm run test:coverage → ≥ 80 % Lines + Functions
 - [ ] E2E Smoke-Test: Visual erscheint nach Upload (npx playwright test e2e/[visual].spec.js)
 ```
 
 **Pre-commit Hook:**
-- Blockiert Commit wenn `npx vitest run` fehlschlägt
+- `lint-staged`: ESLint mit `--fix` auf alle geänderten `src/**/*.js` (blockiert bei nicht-behebbaren Fehlern)
+- `npm test`: blockiert Commit wenn ein Unit Test fehlschlägt
 - E2E Tests laufen NICHT automatisch vor Commit (zu langsam)
 
 ### Bestehende Maßnahmen unverändert
@@ -407,10 +411,13 @@ M9 (manueller Smoke-Test) bleibt erhalten – E2E Tests ersetzen ihn nicht volls
 
 ### Setup & Konfiguration
 - [ ] `npm install` läuft ohne Fehler auf Windows 11
-- [ ] `npx vitest run` findet alle `tests/unit/**/*.test.js` und gibt Ergebnis aus
+- [ ] `npm run lint` läuft ohne Errors (Warnings erlaubt)
+- [ ] `npm test` findet alle `tests/unit/**/*.test.js` und gibt Ergebnis aus
+- [ ] `npm run test:coverage` zeigt Coverage-Report, Schwelle ≥ 80 % nicht unterschritten
 - [ ] `npx playwright test` findet alle `tests/e2e/**/*.spec.js`
+- [ ] Pre-commit Hook: Commit wird geblockt wenn ESLint Errors in geänderten Dateien meldet
 - [ ] Pre-commit Hook: Commit wird geblockt wenn ein Unit Test fehlschlägt
-- [ ] Pre-commit Hook: Commit geht durch wenn alle Unit Tests grün sind
+- [ ] Pre-commit Hook: Commit geht durch wenn Lint sauber + alle Unit Tests grün sind
 
 ### Unit Tests – core.js
 - [ ] `toDate(44927)` (Excel-Seriennummer) → gültiges Date-Objekt

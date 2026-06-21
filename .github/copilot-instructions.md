@@ -195,6 +195,26 @@ if (url) window.open(url, '_blank');
 
 ---
 
+## Qualitäts-Pflicht (§Q — immer einhalten)
+
+Nach **jeder** Code-Änderung in `src/` zwingend ausführen:
+
+```bash
+npm run lint:fix   # ESLint — alle Fehler beheben bevor weiter
+npm test           # alle Unit-Tests müssen grün sein
+```
+
+Für neue Funktionen zusätzlich:
+```bash
+npm run test:coverage   # Schwelle ≥ 80 % Lines und Functions
+```
+
+**Fertig bedeutet: Lint sauber + Tests grün. Nicht früher.**  
+Wenn ESLint nach `--fix` noch Fehler meldet: manuell korrigieren, nicht ignorieren.  
+Wenn Tests rot sind: fixen, nicht überspringen.
+
+---
+
 ## Zusammenarbeits-Protokoll (§0)
 
 Bei **neuen Visuals**: SDD-Interview (Blöcke A–G) führen → `docs/specs/VisualName.md` erstellen → Gate 1 bestätigen → HTML-Prototyp → Implementierung.

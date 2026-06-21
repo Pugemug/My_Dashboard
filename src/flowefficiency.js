@@ -23,11 +23,11 @@ export function init() {
   const DEF  = { months: 12, targetFE: 40, showTarget: true, mode: 'line' };
 
   // ── State ──────────────────────────────────────
-  let cfg       = Object.assign({}, DEF, core.load(KEY, {}));
+  const cfg       = Object.assign({}, DEF, core.load(KEY, {}));
   let _monthData  = [];   // [{ key, label, fe, items, n, ltAvg, breakdown }]
   let _errors     = 0;
   let _errorItems = [];  // [{ jiraId, issueType, totalWait, lt, breakdown }]
-  let _errSort    = { col: 'diff', dir: -1 };
+  const _errSort    = { col: 'diff', dir: -1 };
 
   // ── Tile ───────────────────────────────────────
   const { contentEl, headerExtraEl, diagEl } = core.createTile({
@@ -490,30 +490,30 @@ export function init() {
   }
 
   function _renderErrTable() {
-    var sorted = _errorItems.slice().sort(function(a, b) {
+    const sorted = _errorItems.slice().sort(function(a, b) {
       if (_errSort.col === 'jiraId')    return _errSort.dir * a.jiraId.localeCompare(b.jiraId);
       if (_errSort.col === 'issueType') return _errSort.dir * a.issueType.localeCompare(b.issueType);
       return _errSort.dir * ((a.totalWait - a.lt) - (b.totalWait - b.lt));
     });
 
-    var urlTpl = core.state.urlTemplate || '';
+    const urlTpl = core.state.urlTemplate || '';
 
-    var rowsHtml = sorted.map(function(item) {
-      var jiraCell;
+    const rowsHtml = sorted.map(function(item) {
+      let jiraCell;
       if (urlTpl && item.jiraId !== '–') {
-        var safeId = item.jiraId.replace(/[^A-Za-z0-9\-_]/g, '');
-        var url    = urlTpl.replace('{id}', safeId);
+        const safeId = item.jiraId.replace(/[^A-Za-z0-9\-_]/g, '');
+        const url    = urlTpl.replace('{id}', safeId);
         jiraCell   = '<a href="' + url + '" target="_blank" rel="noopener noreferrer"' +
           ' style="color:var(--blue);text-decoration:none;font-family:var(--mono)">' + item.jiraId + '</a>';
       } else {
         jiraCell = '<span style="font-family:var(--mono)">' + item.jiraId + '</span>';
       }
 
-      var bdParts = Object.keys(item.breakdown)
+      const bdParts = Object.keys(item.breakdown)
         .filter(function(k) { return item.breakdown[k] > 0; })
         .sort(function(a, b) { return item.breakdown[b] - item.breakdown[a]; })
         .map(function(k) { return k + ': ' + item.breakdown[k].toFixed(1) + 'd'; });
-      var fk = 'Wartezeit ' + item.totalWait.toFixed(1) + 'd > LT ' + item.lt.toFixed(1) + 'd';
+      let fk = 'Wartezeit ' + item.totalWait.toFixed(1) + 'd > LT ' + item.lt.toFixed(1) + 'd';
       if (bdParts.length) fk += ' (' + bdParts.join(', ') + ')';
 
       return '<tr>' +
@@ -529,7 +529,7 @@ export function init() {
         ? '<span style="font-size:9px"> ↓</span>'
         : '<span style="font-size:9px"> ↑</span>';
     }
-    var thBase = 'text-align:left;padding:8px 10px;background:var(--bg4);font-weight:500;border-bottom:1px solid var(--border);' +
+    const thBase = 'text-align:left;padding:8px 10px;background:var(--bg4);font-weight:500;border-bottom:1px solid var(--border);' +
       'cursor:pointer;user-select:none;white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.06em;';
 
     feErrPanel.innerHTML =
@@ -553,7 +553,7 @@ export function init() {
     feErrPanel.querySelector('#fe-err-close').addEventListener('click', _closeErrModal);
     feErrPanel.querySelectorAll('th[data-sort]').forEach(function(th) {
       th.addEventListener('click', function() {
-        var col = th.dataset.sort;
+        const col = th.dataset.sort;
         if (_errSort.col === col) {
           _errSort.dir *= -1;
         } else {
@@ -617,16 +617,16 @@ export function init() {
     // Fallback lookup without squad: jiraId → episodes
     const bMapNS = {};
     blockers.forEach(function(b) {
-      var jid   = String(b['issues.key'] || '').trim();
-      var sq    = String(b['Squad']      || '').trim();
-      var dauer = parseFloat(b['BlockiertWartendSeit']);
+      const jid   = String(b['issues.key'] || '').trim();
+      const sq    = String(b['Squad']      || '').trim();
+      const dauer = parseFloat(b['BlockiertWartendSeit']);
       if (!jid || isNaN(dauer) || dauer <= 0) return;
-      var ep = {
+      const ep = {
         zustand: String(b['Blockiert/Wartend_Zustand'] || '').trim(),
         grund:   String(b['Blockiert/Wartend_Grund']   || '').trim(),
         dauer,
       };
-      var k = jid + '\u00a7' + sq;
+      const k = jid + '\u00a7' + sq;
       if (!bMap[k])   bMap[k]   = [];
       if (!bMapNS[jid]) bMapNS[jid] = [];
       bMap[k].push(ep);
@@ -634,33 +634,33 @@ export function init() {
     });
 
     // Rolling-window cutoff
-    var now     = new Date();
-    var cutoff  = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
+    const now     = new Date();
+    const cutoff  = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
 
-    var monthly = {};
-    var errors  = 0;
+    const monthly = {};
+    let errors  = 0;
     _errorItems = [];
 
     rows.forEach(function(row) {
       // Resolved only (XOR Rejected)
-      var resolved = core.toDate(row['Resolved']);
+      const resolved = core.toDate(row['Resolved']);
       if (!resolved) return;
       if (row['Rejected'] != null && row['Rejected'] !== '') return;
 
       // Rolling window
       if (resolved < cutoff) return;
 
-      var r4p = core.toDate(row['Ready4Progress_first']);
+      const r4p = core.toDate(row['Ready4Progress_first']);
       if (!r4p) return;   // skip – no LT start
 
-      var lt = core.dur(r4p, resolved);
+      const lt = core.dur(r4p, resolved);
       if (!lt || lt <= 0) return;
 
       // Warte_JiraStories: dual-period for each waiting status
-      var waiteJS  = 0;
-      var breakdown = {};
+      let waiteJS  = 0;
+      const breakdown = {};
       WAIT_STATUS.forEach(function(s) {
-        var d = _dualPeriodDays(row, s);
+        const d = _dualPeriodDays(row, s);
         if (d > 0) {
           waiteJS += d;
           breakdown[s] = (breakdown[s] || 0) + d;
@@ -668,20 +668,20 @@ export function init() {
       });
 
       // Warte_Zusatz: JiraBlockermanagement episodes NOT already in WAIT_STATUS
-      var jid     = String(row['Jira-ID'] || '').trim();
-      var sq      = String(row['Squad']   || '').trim();
-      var entries = bMap[jid + '\u00a7' + sq] || bMapNS[jid] || [];
-      var waiteZ  = 0;
+      const jid     = String(row['Jira-ID'] || '').trim();
+      const sq      = String(row['Squad']   || '').trim();
+      const entries = bMap[jid + '\u00a7' + sq] || bMapNS[jid] || [];
+      let waiteZ  = 0;
       entries.forEach(function(ep) {
-        var isKnown = WAIT_STATUS_LOWER.includes(ep.zustand.toLowerCase());
+        const isKnown = WAIT_STATUS_LOWER.includes(ep.zustand.toLowerCase());
         if (!isKnown && ep.dauer > 0) {
           waiteZ += ep.dauer;
-          var label = ep.zustand || 'Blockiert';
+          const label = ep.zustand || 'Blockiert';
           breakdown[label] = (breakdown[label] || 0) + ep.dauer;
         }
       });
 
-      var totalWait = waiteJS + waiteZ;
+      const totalWait = waiteJS + waiteZ;
 
       // Edge case: waiting > LT → data error
       if (totalWait > lt) {
@@ -696,11 +696,11 @@ export function init() {
         return;
       }
 
-      var fe = ((lt - totalWait) / lt) * 100;
+      const fe = ((lt - totalWait) / lt) * 100;
 
-      var mKey   = resolved.getFullYear() + '-' +
+      const mKey   = resolved.getFullYear() + '-' +
                    String(resolved.getMonth() + 1).padStart(2, '0');
-      var mLabel = resolved.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+      const mLabel = resolved.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
 
       if (!monthly[mKey]) monthly[mKey] = { label: mLabel, fes: [], lts: [], bds: [] };
       monthly[mKey].fes.push(fe);
@@ -710,12 +710,12 @@ export function init() {
 
     // Sort chronologically and aggregate
     _monthData = Object.keys(monthly).sort().map(function(k) {
-      var m      = monthly[k];
-      var sorted = m.fes.slice().sort(function(a, b) { return a - b; });
-      var fe     = core.pct(sorted, 50) || 0;
+      const m      = monthly[k];
+      const sorted = m.fes.slice().sort(function(a, b) { return a - b; });
+      const fe     = core.pct(sorted, 50) || 0;
 
       // Average breakdown
-      var bdAgg = {};
+      const bdAgg = {};
       m.bds.forEach(function(bd) {
         Object.keys(bd).forEach(function(s) {
           bdAgg[s] = (bdAgg[s] || 0) + bd[s];
@@ -742,19 +742,19 @@ export function init() {
   // ── KDE helpers ────────────────────────────────
   function _std(arr) {
     if (arr.length < 2) return 0;
-    var m = arr.reduce(function(a, b) { return a + b; }, 0) / arr.length;
+    const m = arr.reduce(function(a, b) { return a + b; }, 0) / arr.length;
     return Math.sqrt(arr.reduce(function(s, v) { return s + (v - m) * (v - m); }, 0) / arr.length);
   }
 
   function _kde(vals) {
     if (vals.length < 2) return [];
-    var bw   = Math.max(1.06 * _std(vals) * Math.pow(vals.length, -0.2), 4);
-    var K    = Math.sqrt(2 * Math.PI);
-    var pts  = [];
-    for (var i = 0; i <= 60; i++) {
-      var x = (i / 60) * 100;
-      var d = 0;
-      vals.forEach(function(v) { var z = (x - v) / bw; d += Math.exp(-0.5 * z * z); });
+    const bw   = Math.max(1.06 * _std(vals) * Math.pow(vals.length, -0.2), 4);
+    const K    = Math.sqrt(2 * Math.PI);
+    const pts  = [];
+    for (let i = 0; i <= 60; i++) {
+      const x = (i / 60) * 100;
+      let d = 0;
+      vals.forEach(function(v) { const z = (x - v) / bw; d += Math.exp(-0.5 * z * z); });
       pts.push({ x: x, d: d / (vals.length * bw * K) });
     }
     return pts;
@@ -762,38 +762,38 @@ export function init() {
 
   // ── Chart render ───────────────────────────────
   function _renderChart() {
-    var W  = contentEl.clientWidth  || 500;
+    const W  = contentEl.clientWidth  || 500;
     if (W < 20) return;
-    var H  = Math.max(60, contentEl.clientHeight - explanationEl.offsetHeight) || 280;
-    var P  = { t: 18, r: 56, b: 34, l: 40 };
-    var cW = W - P.l - P.r;
-    var cH = H - P.t - P.b;
+    const H  = Math.max(60, contentEl.clientHeight - explanationEl.offsetHeight) || 280;
+    const P  = { t: 18, r: 56, b: 34, l: 40 };
+    const cW = W - P.l - P.r;
+    const cH = H - P.t - P.b;
 
-    var data = _monthData;
+    const data = _monthData;
     if (!data.length) {
       svg.innerHTML = '';
       diagMid.textContent = 'Keine Resolved Items im Zeitraum — Datei laden oder Filter anpassen';
       return;
     }
 
-    var sc        = core.scatterColors();
-    var lt        = core.isLight();
-    var gridCol   = sc.gridLine;
-    var axisCol   = sc.axisLabel;
-    var tgtCol    = lt ? '#2563eb' : '#60a5fa';
-    var greenCol  = lt ? '#16a34a' : '#4ade80';
-    var redCol    = lt ? '#dc2626' : '#f87171';
-    var bg2       = lt ? 'rgba(255,255,255,.9)' : 'var(--bg2)';
+    const sc        = core.scatterColors();
+    const lt        = core.isLight();
+    const gridCol   = sc.gridLine;
+    const axisCol   = sc.axisLabel;
+    const tgtCol    = lt ? '#2563eb' : '#60a5fa';
+    const greenCol  = lt ? '#16a34a' : '#4ade80';
+    const redCol    = lt ? '#dc2626' : '#f87171';
+    const bg2       = lt ? 'rgba(255,255,255,.9)' : 'var(--bg2)';
 
     function yS(v) { return P.t + cH - (v / 100) * cH; }
     function xS(i) { return P.l + (data.length < 2 ? cW / 2 : (i / (data.length - 1)) * cW); }
-    var slotW = data.length > 1 ? cW / (data.length - 1) : cW;
+    const slotW = data.length > 1 ? cW / (data.length - 1) : cW;
 
-    var parts = [];
+    const parts = [];
 
     // Grid + Y-labels
     [0, 25, 50, 75, 100].forEach(function(v) {
-      var y = yS(v);
+      const y = yS(v);
       parts.push('<line x1="' + P.l + '" y1="' + y + '" x2="' + (P.l + cW) + '" y2="' + y + '"' +
         ' stroke="' + gridCol + '" stroke-width="' + (v === 0 ? 1 : 0.6) + '"' +
         ' stroke-dasharray="' + (v === 0 ? 'none' : '3,5') + '" opacity="' + (v === 0 ? 1 : 0.7) + '"/>');
@@ -803,7 +803,7 @@ export function init() {
 
     // Target line
     if (cfg.showTarget) {
-      var ty = yS(cfg.targetFE);
+      const ty = yS(cfg.targetFE);
       parts.push('<line x1="' + P.l + '" y1="' + ty + '" x2="' + (P.l + cW) + '" y2="' + ty + '"' +
         ' stroke="' + tgtCol + '" stroke-width="1.5" stroke-dasharray="6,4" opacity=".75"/>');
       parts.push('<text x="' + (P.l + cW + 5) + '" y="' + (ty + 4) + '"' +
@@ -811,15 +811,15 @@ export function init() {
     }
 
     // N label (top-right, wie Lead Time)
-    var totalN = data.reduce(function(s, d) { return s + d.n; }, 0);
+    const totalN = data.reduce(function(s, d) { return s + d.n; }, 0);
     parts.push('<text x="' + (P.l + cW) + '" y="' + (P.t - 4) + '"' +
       ' text-anchor="end" font-size="11" fill="' + axisCol + '" font-family="var(--mono)">N = ' + totalN + '</text>');
 
     // X-axis ticks + labels
-    var step = Math.ceil(data.length / 12);
+    const step = Math.ceil(data.length / 12);
     data.forEach(function(d, i) {
-      var x    = xS(i);
-      var show = data.length <= 12 || i % step === 0 || i === data.length - 1;
+      const x    = xS(i);
+      const show = data.length <= 12 || i % step === 0 || i === data.length - 1;
       parts.push('<line x1="' + x + '" y1="' + (P.t + cH) + '" x2="' + x + '" y2="' + (P.t + cH + 4) + '"' +
         ' stroke="' + gridCol + '"/>');
       if (show) {
@@ -831,24 +831,24 @@ export function init() {
     if (cfg.mode === 'line') {
       // ── Line mode ──
       if (data.length > 1) {
-        var pts = data.map(function(d, i) { return xS(i) + ',' + yS(d.fe); }).join(' ');
+        const pts = data.map(function(d, i) { return xS(i) + ',' + yS(d.fe); }).join(' ');
         parts.push('<polyline points="' + pts + '" fill="none" stroke="' + greenCol + '"' +
           ' stroke-width="1.8" stroke-linejoin="round" opacity=".65"/>');
       }
       data.forEach(function(d, i) {
-        var x = xS(i), y = yS(d.fe);
-        var c = (cfg.showTarget && d.fe < cfg.targetFE) ? redCol : greenCol;
+        const x = xS(i), y = yS(d.fe);
+        const c = (cfg.showTarget && d.fe < cfg.targetFE) ? redCol : greenCol;
         parts.push('<circle cx="' + x + '" cy="' + y + '" r="5" fill="' + c + '"' +
           ' stroke="' + bg2 + '" stroke-width="2" data-i="' + i + '" class="fe-pt" style="cursor:default"/>');
       });
 
     } else {
       // ── Violin mode ──
-      var maxHW = Math.min(slotW * 0.38, 26);
+      const maxHW = Math.min(slotW * 0.38, 26);
 
       data.forEach(function(d, i) {
-        var cx = xS(i);
-        var c  = (cfg.showTarget && d.fe < cfg.targetFE) ? redCol : greenCol;
+        const cx = xS(i);
+        const c  = (cfg.showTarget && d.fe < cfg.targetFE) ? redCol : greenCol;
 
         if (d.items.length < 3) {
           parts.push('<circle cx="' + cx + '" cy="' + yS(d.fe) + '" r="5" fill="' + c + '"' +
@@ -856,14 +856,14 @@ export function init() {
           return;
         }
 
-        var curve = _kde(d.items);
-        var maxD  = 0;
+        const curve = _kde(d.items);
+        let maxD  = 0;
         curve.forEach(function(p) { if (p.d > maxD) maxD = p.d; });
         if (!maxD) return;
 
-        var L = curve.map(function(p) { return { x: cx - (p.d / maxD) * maxHW, y: yS(p.x) }; });
-        var R = curve.slice().reverse().map(function(p) { return { x: cx + (p.d / maxD) * maxHW, y: yS(p.x) }; });
-        var ph = L.concat(R).map(function(p, j) {
+        const L = curve.map(function(p) { return { x: cx - (p.d / maxD) * maxHW, y: yS(p.x) }; });
+        const R = curve.slice().reverse().map(function(p) { return { x: cx + (p.d / maxD) * maxHW, y: yS(p.x) }; });
+        const ph = L.concat(R).map(function(p, j) {
           return (j === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1);
         }).join(' ') + 'Z';
 
@@ -873,19 +873,19 @@ export function init() {
           ' data-i="' + i + '" class="fe-pt" style="cursor:default"/>');
 
         // IQR box
-        var sorted = d.items.slice().sort(function(a, b) { return a - b; });
-        var q1 = sorted[Math.floor(sorted.length * 0.25)];
-        var q3 = sorted[Math.floor(sorted.length * 0.75)];
-        var bh = Math.max(2, yS(q1) - yS(q3));
-        var bw = maxHW * 0.2;
+        const sorted = d.items.slice().sort(function(a, b) { return a - b; });
+        const q1 = sorted[Math.floor(sorted.length * 0.25)];
+        const q3 = sorted[Math.floor(sorted.length * 0.75)];
+        const bh = Math.max(2, yS(q1) - yS(q3));
+        const bw = maxHW * 0.2;
         parts.push('<rect x="' + (cx - bw) + '" y="' + yS(q3) + '"' +
           ' width="' + (bw * 2) + '" height="' + bh + '"' +
           ' fill="' + c + '" opacity=".45"' +
           ' data-i="' + i + '" class="fe-pt" style="cursor:default"/>');
 
         // Median dot
-        var med  = core.pct(sorted, 50);
-        var medC = (cfg.showTarget && med < cfg.targetFE) ? redCol : greenCol;
+        const med  = core.pct(sorted, 50);
+        const medC = (cfg.showTarget && med < cfg.targetFE) ? redCol : greenCol;
         parts.push('<circle cx="' + cx + '" cy="' + yS(med) + '" r="4" fill="' + medC + '"' +
           ' stroke="' + bg2 + '" stroke-width="2"' +
           ' data-i="' + i + '" class="fe-pt" style="cursor:default"/>');
@@ -902,10 +902,10 @@ export function init() {
     });
 
     // Diag
-    var hasBM = (core.state.sheets['JiraBlockermanagement'] || []).length > 0;
+    const hasBM = (core.state.sheets['JiraBlockermanagement'] || []).length > 0;
     while (diagMid.firstChild) diagMid.removeChild(diagMid.firstChild);
     if (_errors > 0) {
-      var errA = document.createElement('a');
+      const errA = document.createElement('a');
       errA.textContent = _errors + ' Datenfehler ausgeschlossen';
       errA.style.cssText = 'color:var(--blue);cursor:pointer;text-decoration:none';
       errA.addEventListener('click', _openErrModal);
@@ -920,14 +920,14 @@ export function init() {
   // ── Tooltip ────────────────────────────────────
   function _showTT(e, d) {
     if (!d) return;
-    var feColor = (cfg.showTarget && d.fe < cfg.targetFE)
+    const feColor = (cfg.showTarget && d.fe < cfg.targetFE)
       ? (core.isLight() ? '#dc2626' : '#f87171')
       : (core.isLight() ? '#16a34a' : '#4ade80');
 
-    var bRows = Object.keys(d.breakdown)
+    const bRows = Object.keys(d.breakdown)
       .sort(function(a, b) { return d.breakdown[b] - d.breakdown[a]; })
       .map(function(s) {
-        var c = BREAKDOWN_COLORS[s] || 'var(--dim)';
+        const c = BREAKDOWN_COLORS[s] || 'var(--dim)';
         return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">' +
           '<span style="width:8px;height:8px;border-radius:50%;background:' + c +
           ';flex-shrink:0;display:inline-block"></span>' +
@@ -936,11 +936,11 @@ export function init() {
           '</div>';
       }).join('');
 
-    var violinExtra = '';
+    let violinExtra = '';
     if (cfg.mode === 'violin' && d.items.length >= 3) {
-      var sorted = d.items.slice().sort(function(a, b) { return a - b; });
-      var q1 = sorted[Math.floor(sorted.length * 0.25)];
-      var q3 = sorted[Math.floor(sorted.length * 0.75)];
+      const sorted = d.items.slice().sort(function(a, b) { return a - b; });
+      const q1 = sorted[Math.floor(sorted.length * 0.25)];
+      const q3 = sorted[Math.floor(sorted.length * 0.75)];
       violinExtra =
         '<div style="border-top:1px solid var(--border);margin:5px 0"></div>' +
         '<div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:2px">' +
@@ -980,9 +980,9 @@ export function init() {
   }
 
   function _moveTT(e) {
-    var tw = tt.offsetWidth, th = tt.offsetHeight;
-    var vw = window.innerWidth, vh = window.innerHeight;
-    var x  = e.clientX + 14, y = e.clientY - 10;
+    const tw = tt.offsetWidth, th = tt.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let x  = e.clientX + 14, y = e.clientY - 10;
     if (x + tw > vw - 8) x = e.clientX - tw - 14;
     if (y + th > vh - 8) y = vh - th - 8;
     if (y < 8) y = 8;

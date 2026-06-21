@@ -166,8 +166,10 @@ Oliver antwortet mit „Ja" oder korrigiert einzelne Punkte. Erst dann beginnt C
 - [x] docs/specs/VisualName.md aktualisiert und zusammen mit .js übergeben
 - [x] Alle Änderungen in Akzeptanzkriterien (Block G) und Änderungshistorie eingetragen
 
-### Testautomatisierung (§0.21 M19)
-- [x] Unit Tests für neue/geänderte Berechnungslogik: `npx vitest run` → alle grün
+### Testautomatisierung & Code-Qualität (§0.21 M19)
+- [x] ESLint: `npm run lint` → 0 Errors (Warnings erlaubt)
+- [x] Unit Tests: `npm test` → alle grün
+- [x] Coverage: `npm run test:coverage` → ≥ 80 % Lines + Functions (bei neuen Berechnungsfunktionen)
 - [x/-] Test-Skeleton für neues Visual angelegt: `tests/unit/[visualName].calc.test.js` + `tests/e2e/[visualName].spec.js`
 
 ### Manueller Test-Hinweis für Oliver (§0.11 M9 Smoke-Test)
@@ -441,7 +443,9 @@ Ergänzung mit echten (anonymisierten) Jira-Daten empfohlen — siehe TestAutoma
 
 | Schicht | Werkzeug | Befehl | Wann |
 |---|---|---|---|
+| Statische Analyse | ESLint | `npm run lint` | Automatisch vor Commit (lint-staged, nur geänderte Dateien) |
 | Unit Tests | Vitest | `npm test` | Automatisch vor jedem Commit (pre-commit Hook) |
+| Coverage | Vitest | `npm run test:coverage` | Bei neuen Berechnungsfunktionen, Schwelle ≥ 80 % |
 | E2E Tests | Playwright | `npm run test:e2e` | Manuell nach `build.py` |
 
 #### Was Claude bei neuem Visual automatisch tut

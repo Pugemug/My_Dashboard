@@ -67,13 +67,22 @@ docs/
 
 ## Nach der Implementierung (M7 — Pflicht)
 
-Prüfe nach jeder Änderung:
+Führe nach jeder Änderung **in dieser Reihenfolge** aus:
+
+```bash
+npm run lint:fix        # ESLint — automatisch fixen
+npm run lint            # Verbleibende Fehler prüfen — müssen 0 sein
+npm test                # alle Unit-Tests müssen grün sein
+npm run test:coverage   # Coverage ≥ 80 % Lines + Functions
+```
+
+Dann manuell prüfen:
 - Läuft `build.py` durch ohne Fehler?
 - Sind alle IIFE-Wraps an den erwarteten Stellen?
-- Keine `console.log`-Reste im Code?
+- Keine `console.log`-Reste im Code? (ESLint warnt davor)
 - Spec-Akzeptanzkriterien (Block G) erfüllt?
 
-Melde dem Coordinator: welche Dateien geändert, welche Exports neu, bereit für tester.
+**Erst wenn Lint sauber + Tests grün:** Melde dem Coordinator welche Dateien geändert wurden, welche Exports neu sind und dass M7 bestanden wurde.
 
 ## Was du nicht tust
 
