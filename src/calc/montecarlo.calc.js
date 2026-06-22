@@ -1,5 +1,7 @@
 // Monte Carlo Berechnungslogik aus montecarlo.js — keine Browser-APIs.
 
+const MAX_LOOP_GUARD = 10_000;
+
 /** Variationskoeffizient CV = σ/μ. Gibt null für leeres Array oder μ=0. */
 export function calcCV(samples) {
   if (!samples.length) return null;
@@ -21,7 +23,7 @@ export function runSimulation(samples, targetCount, numRuns) {
     while (total < targetCount) {
       total += samples[Math.floor(Math.random() * samples.length)];
       slices++;
-      if (slices > 10000) break;
+      if (slices > MAX_LOOP_GUARD) break;
     }
     results.push(slices);
   }

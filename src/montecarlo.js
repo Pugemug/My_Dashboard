@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, _mkBtn, _mkPanel, _mkTglGrp } from './core.js';
+import { core, mkBtn, mkPanel, mkTglGrp } from './core.js';
 import { calcCV } from './calc/montecarlo.calc.js';
 
 export function init() {
@@ -47,7 +47,7 @@ export function init() {
   });
 
   // ── 3. Header-Controls ───────────────────────
-  const modeToggle = _mkTglGrp([
+  const modeToggle = mkTglGrp([
     { val: 'when',    label: 'Bis wann fertig?' },
     { val: 'howmany', label: 'Wie viele bis X?' },
   ], val => {
@@ -58,11 +58,11 @@ export function init() {
     _renderInputArea();
   });
 
-  const btnSettings = _mkBtn('⚙ Einstellungen', () => _togglePanel('mc-settings-panel'));
+  const btnSettings = mkBtn('⚙ Einstellungen', () => _togglePanel('mc-settings-panel'));
   [modeToggle, btnSettings].forEach(el => headerExtraEl.appendChild(el));
 
   // ── 4. Einstellungs-Panel ────────────────────
-  const settingsPanel = _mkPanel(); settingsPanel.id = 'mc-settings-panel';
+  const settingsPanel = mkPanel(); settingsPanel.id = 'mc-settings-panel';
   settingsPanel.style.cssText += 'max-width:420px;';
 
   const spTitle = document.createElement('div');
@@ -98,7 +98,7 @@ export function init() {
 
   // Throughput-Aggregation
   const unitSection = _mkSection('Throughput-Aggregation', 'var(--dim)');
-  const unitToggle = _mkTglGrp([
+  const unitToggle = mkTglGrp([
     { val: 'day',   label: 'Täglich'   },
     { val: 'week',  label: 'Wöchentl.' },
     { val: 'month', label: 'Monatlich' },
@@ -597,7 +597,7 @@ export function init() {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
   }
 
-  // _mkTglGrp, _mkBtn, _mkPanel werden von core.js importiert (P3.7)
+
 
   function _mkSection(title, color) {
     const s = document.createElement('div'); s.style.cssText = 'margin-bottom:.65rem;';

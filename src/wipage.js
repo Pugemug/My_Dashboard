@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, DEFAULT_STATUS_ORDER, _mkBtn, _mkPanel, _buildOrderPanel } from './core.js';
+import { core, DEFAULT_STATUS_ORDER, mkBtn, mkPanel, buildOrderPanel } from './core.js';
 import { calcAge, parseExcludeList } from './calc/wipage.calc.js';
 
 export function init() {
@@ -42,13 +42,13 @@ export function init() {
   });
 
   // ── 3. Header-Controls ───────────────────────
-  const btnSettings = _mkBtn('⚙ Einstellungen', () => _togglePanel('wa-settings-panel'));
-  const btnOrder    = _mkBtn('↕ Reihenfolge',   () => _togglePanel('wa-order-panel'));
+  const btnSettings = mkBtn('⚙ Einstellungen', () => _togglePanel('wa-settings-panel'));
+  const btnOrder    = mkBtn('↕ Reihenfolge',   () => _togglePanel('wa-order-panel'));
   headerExtraEl.appendChild(btnSettings);
   headerExtraEl.appendChild(btnOrder);
 
   // ── 4. Settings-Panel ────────────────────────
-  const settingsPanel = _mkPanel();
+  const settingsPanel = mkPanel();
   settingsPanel.id = 'wa-settings-panel';
 
   const spTitle = document.createElement('div');
@@ -151,7 +151,7 @@ export function init() {
   cardEl.insertBefore(settingsPanel, contentEl);
 
   // ── 5. Order-Panel (exakt wie heatmap.js) ────
-  const orderPanel = _mkPanel();
+  const orderPanel = mkPanel();
   orderPanel.id = 'wa-order-panel';
 
   const orTitle = document.createElement('div');
@@ -222,7 +222,7 @@ export function init() {
 
   // ── 8. Order-Panel-Logik ─────────────────────
   function _updateOrderPanel() {
-    _buildOrderPanel(
+    buildOrderPanel(
       orderList,
       cfg.stateOrder,
       arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); render(); },

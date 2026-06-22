@@ -5,26 +5,17 @@
 // Page        : lieferfahigkeit (tile-canvas)
 // localStorage: fhwa_akzeptanz
 // ════════════════════════════════════════════════
-import { core } from './core.js';
+import { core, escHtml, createTooltip, createExplanationPanel } from './core.js';
 import { wordCount, calcAkQuality, sortStagesByBrpEtappen } from './calc/akzeptanz.calc.js';
 
 const VID    = 'akzeptanz';
 const LS_KEY = 'fhwa_akzeptanz';
 
-function _esc(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 const CFG_DEF = { dotRadius: 5 };
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
 let _cfg, _contentEl, _svgWrapEl, _diagEl, _diagTextEl, _nBadgeEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
-let _explanationEl, _showExplanation = false;
+let _expPanel;
 let _stages   = []; // geordnete Stage-Namen (aus _onData)
 let _epicRows = []; // JiraEpics-Zeilen
 
@@ -44,24 +35,7 @@ export function init() {
   _headerExtraEl = headerExtraEl;
   _diagEl        = diagEl;
 
-  // Tooltip: position:fixed weil .tile overflow:hidden hat
-  _ttEl = document.createElement('div');
-  Object.assign(_ttEl.style, {
-    position:      'fixed',
-    display:       'none',
-    pointerEvents: 'none',
-    zIndex:        '500',
-    background:    'var(--bg2)',
-    border:        '1px solid var(--border)',
-    borderRadius:  '7px',
-    padding:       '.38rem .58rem',
-    fontFamily:    'var(--mono)',
-    fontSize:      '.65rem',
-    color:         'var(--text)',
-    whiteSpace:    'nowrap',
-    boxShadow:     '0 2px 8px rgba(0,0,0,.3)',
-  });
-  document.body.appendChild(_ttEl);
+  _ttEl = createTooltip();
 
   // ── Diag-Bar: flex mit „Was zeigt diese Ansicht?"-Link links ──
   _diagEl.style.cssText = 'display:flex;align-items:center;gap:8px;overflow:hidden';
@@ -74,27 +48,17 @@ export function init() {
   _diagEl.appendChild(diagLink);
   _diagEl.appendChild(_diagTextEl);
 
-  // ── Erklärungs-Panel (ausklappbar, unterhalb Tile-Header) ──
+  // ── Layout + Erklärungs-Panel ──
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
-  _explanationEl = document.createElement('div');
-  _explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:12px', 'color:var(--dim)', 'line-height:1.6',
-    'font-family:var(--sans)',
-  ].join(';');
-  _explanationEl.innerHTML =
-    '<div style="padding:9px 14px">' +
+  _expPanel = createExplanationPanel(contentEl,
     'Misst die Qualität der Akzeptanzkriterien pro Etappe.' +
     '<br><br>' +
     '<strong style="color:var(--text)">AK-Qualität</strong> = Anteil der Epics, deren ' +
     'Akzeptanzkriterien-Feld mehr als&nbsp;3&nbsp;Wörter enthält – bezogen auf alle Epics ' +
     'des gewählten Squads in dieser Etappe.' +
     '<br><br>' +
-    'Eine hohe Quote deutet auf gut formulierte Anforderungen hin.' +
-    '</div>';
-  contentEl.appendChild(_explanationEl);
+    'Eine hohe Quote deutet auf gut formulierte Anforderungen hin.',
+  );
 
   // ── SVG-Wrapper: permanenter Chart-Bereich (nie überschrieben) ──
   _svgWrapEl = document.createElement('div');
@@ -109,16 +73,7 @@ export function init() {
   core.on('resize', _render);
 }
 
-// ════════════════════════════════════════════════
-// Erklärungs-Panel toggle
-// ════════════════════════════════════════════════
-function _toggleExplanation() {
-  _showExplanation = !_showExplanation;
-  _explanationEl.style.maxHeight = _showExplanation
-    ? _explanationEl.scrollHeight + 'px'
-    : '0';
-  setTimeout(_render, 240); // nach CSS-Transition neu rendern
-}
+function _toggleExplanation() { _expPanel.toggle(_render); }
 
 // ════════════════════════════════════════════════
 // Header-Controls: ⚙-Button + Format-Panel
@@ -294,7 +249,7 @@ function _render() {
 
   // ── Squad hat keine Epics in JiraEpics ──
   if (!qualities.some(d => d.q !== null)) {
-    _showMsg(`Keine Daten für Squad „${_esc(squadName)}”`);
+    _showMsg(`Keine Daten für Squad „${escHtml(squadName)}”`);
     if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Squad fehlt';
     return;
@@ -383,7 +338,7 @@ function _drawChart(squadName, qualities) {
       `<text x="${x}" y="${ty}" text-anchor="middle"
          font-family="var(--mono)" font-size="9"
          fill="${sc.axisLabel}"
-         transform="rotate(-30,${x},${ry})">${_esc(d.stage)}</text>`,
+         transform="rotate(-30,${x},${ry})">${escHtml(d.stage)}</text>`,
     );
   });
 
@@ -399,8 +354,8 @@ function _drawChart(squadName, qualities) {
       const N    = grp.length;
       const nQ   = grp.filter(r => wordCount(r['Akzeptanzkriterien']) > 3).length;
       _ttEl.innerHTML =
-        `<div style="font-weight:600;margin-bottom:.25rem;color:var(--blue)">${_esc(d.stage)}</div>` +
-        `<div><span style="color:var(--dim)">Squad&nbsp;</span>${_esc(squadName)}</div>` +
+        `<div style="font-weight:600;margin-bottom:.25rem;color:var(--blue)">${escHtml(d.stage)}</div>` +
+        `<div><span style="color:var(--dim)">Squad&nbsp;</span>${escHtml(squadName)}</div>` +
         `<div><span style="color:var(--dim)">AK-Qualität&nbsp;</span><b>${d.q.toFixed(2)}&thinsp;%</b></div>` +
         `<div><span style="color:var(--dim)">Epics&nbsp;</span>${nQ} von ${N}</div>`;
       _ttEl.style.display = 'block';

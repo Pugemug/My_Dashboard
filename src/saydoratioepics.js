@@ -1,4 +1,4 @@
-import { core } from './core.js';
+import { core, escHtml } from './core.js';
 
 export function init() {
 
@@ -175,12 +175,6 @@ export function init() {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  function _esc(s) {
-    return String(s ?? '')
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
   function positionTooltip(mx, my) {
     const ttW = tooltip.offsetWidth  || 220;
     const ttH = tooltip.offsetHeight || 130;
@@ -348,7 +342,7 @@ export function init() {
     legendItems.forEach(item => {
       parts.push(`<rect x="${lx}" y="${ly - 9}" width="10" height="10" fill="${item.fill}" stroke="${item.stroke}" stroke-width="1" rx="2"/>`);
       lx += 13;
-      parts.push(`<text x="${lx}" y="${ly}" fill="var(--dim)" font-size="${fsSmall}">${_esc(item.label)}</text>`);
+      parts.push(`<text x="${lx}" y="${ly}" fill="var(--dim)" font-size="${fsSmall}">${escHtml(item.label)}</text>`);
       lx += item.label.length * (fsSmall * 0.64) + 6;
     });
 
@@ -405,7 +399,7 @@ export function init() {
       const labelY  = MARGIN_TOP + chartH + 16;
       const rotate  = barW < 60 ? `transform="rotate(-35,${bx + barW / 2},${labelY})"` : '';
       const anchor  = barW < 60 ? 'end' : 'middle';
-      parts.push(`<text x="${bx + barW / 2}" y="${labelY}" text-anchor="${anchor}" fill="var(--dim)" font-size="${fsSmall}" ${rotate} data-idx="${i}">${_esc(d.name)}</text>`);
+      parts.push(`<text x="${bx + barW / 2}" y="${labelY}" text-anchor="${anchor}" fill="var(--dim)" font-size="${fsSmall}" ${rotate} data-idx="${i}">${escHtml(d.name)}</text>`);
     });
 
     parts.push('</svg>');
@@ -419,7 +413,7 @@ export function init() {
     const d = currentData[idx];
     const sdrTxt = d.sdr !== null ? `${d.sdr}%` : '–';
     tooltip.innerHTML =
-      `<div style="font-weight:600;margin-bottom:4px">${_esc(d.name)}</div>` +
+      `<div style="font-weight:600;margin-bottom:4px">${escHtml(d.name)}</div>` +
       `<div style="color:var(--dim);font-size:11px;margin-bottom:6px">${_fmt2(d.start)} – ${_fmt2(d.end)}</div>` +
       `<div style="border-top:1px solid var(--border);padding-top:5px">` +
       `<div>Resolved:&nbsp;<b>${d.resolved}</b></div>` +

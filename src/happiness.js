@@ -5,7 +5,7 @@
 // Page        : lieferfahigkeit (tile-canvas)
 // localStorage: fhwa_happinessfaktor
 // ════════════════════════════════════════════════
-import { core } from './core.js';
+import { core, createTooltip, createExplanationPanel } from './core.js';
 
 const VID    = 'happinessfaktor';
 const LS_KEY = 'fhwa_happinessfaktor';
@@ -34,7 +34,7 @@ function _mlbl(d) {
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
 let _cfg, _contentEl, _diagEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
-let _nBadgeEl, _diagMid, _explanationEl, _expOpen = false;
+let _nBadgeEl, _diagMid, _expPanel;
 let _rawMonths = []; // [{ date:Date, label:string, values:{[squad]:number|null} }]
 
 // ════════════════════════════════════════════════
@@ -55,21 +55,11 @@ export function init() {
   // contentEl als Flex-Spalte (damit das Erklärungs-Panel den Chart nach unten drückt)
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
 
-  // Erklärungs-Panel (ausklappbar)
-  _explanationEl = document.createElement('div');
-  _explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
-  ].join(';');
-  _explanationEl.innerHTML =
-    '<div style="padding:8px 14px">' +
+  _expPanel = createExplanationPanel(contentEl,
     'Monatlicher Verlauf des <b style="color:var(--text)">Happiness-Faktors</b> (Skala 1–5) für den gewählten Squad. ' +
     '<b style="color:var(--green)">Grün</b> = gut (≥4), <b style="color:var(--yellow)">Gelb</b> = mittel, ' +
-    '<b style="color:var(--red)">Rot</b> = niedrig (≤2). Grau = kein Wert erhoben.' +
-    '</div>';
-  contentEl.appendChild(_explanationEl);
+    '<b style="color:var(--red)">Rot</b> = niedrig (≤2). Grau = kein Wert erhoben.',
+  );
 
   // SVG-Bereich nimmt den verbleibenden Platz (flex:1)
   const svgWrapEl = document.createElement('div');
@@ -78,24 +68,7 @@ export function init() {
   // contentEl-Referenz für _drawChart auf den SVG-Wrapper umleiten
   _contentEl = svgWrapEl;
 
-  // Tooltip: position:fixed weil .tile overflow:hidden hat
-  _ttEl = document.createElement('div');
-  Object.assign(_ttEl.style, {
-    position:     'fixed',
-    display:      'none',
-    pointerEvents:'none',
-    zIndex:       '500',
-    background:   'var(--bg2)',
-    border:       '1px solid var(--border)',
-    borderRadius: '7px',
-    padding:      '.38rem .58rem',
-    fontFamily:   'var(--mono)',
-    fontSize:     '.65rem',
-    color:        'var(--text)',
-    whiteSpace:   'nowrap',
-    boxShadow:    '0 2px 8px rgba(0,0,0,.3)',
-  });
-  document.body.appendChild(_ttEl);
+  _ttEl = createTooltip();
 
   // 3-spaltiger Footer (diagEl)
   _diagEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;overflow:hidden';
@@ -103,10 +76,8 @@ export function init() {
   diagLeft.textContent = 'Was zeigt diese Ansicht?';
   diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
   diagLeft.addEventListener('click', () => {
-    _expOpen = !_expOpen;
-    _explanationEl.style.maxHeight = _expOpen ? _explanationEl.scrollHeight + 'px' : '0';
-    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
-    setTimeout(_render, 240);
+    const open = _expPanel.toggle(_render);
+    diagLeft.style.opacity = open ? '0.7' : '1';
   });
   _diagMid = document.createElement('span');
   _diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';

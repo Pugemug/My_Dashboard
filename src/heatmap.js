@@ -4,7 +4,7 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, LT_START_DEFAULT, LT_END_DEFAULT, DEFAULT_STATUS_ORDER, _mkBtn, _mkPanel, _mkTglGrp, _mkSelect, _mkLtField, _mkTTRow, _posTooltip, _buildOrderPanel } from './core.js';
+import { core, LT_START_DEFAULT, LT_END_DEFAULT, DEFAULT_STATUS_ORDER, mkBtn, mkPanel, mkTglGrp, mkSelect, mkLtField, mkTTRow, posTooltip, buildOrderPanel } from './core.js';
 import { stateStats as _stateStatsCalc } from './calc/heatmap.calc.js';
 
 export function init() {
@@ -49,14 +49,14 @@ export function init() {
   // ── 3. Header-Controls bauen ─────────────────
 
   // Grouping toggle
-  const grpToggle = _mkTglGrp([
+  const grpToggle = mkTglGrp([
     { val: 'Issue-Type', label: 'Issue-Typ' },
     { val: 'Squad',      label: 'Squad'     },
   ], val => _setGrouping(val));
   grpToggle.id = 'hm-grp-toggle';
 
   // Metric toggle
-  const metToggle = _mkTglGrp([
+  const metToggle = mkTglGrp([
     { val: 'p25', label: 'P25'    },
     { val: 'med', label: 'Median' },
     { val: 'p85', label: 'P85'    },
@@ -64,7 +64,7 @@ export function init() {
   metToggle.id = 'hm-met-toggle';
 
   // Filter toggle
-  const fltToggle = _mkTglGrp([
+  const fltToggle = mkTglGrp([
     { val: 'all',      label: 'Alle'     },
     { val: 'resolved', label: 'Resolved' },
   ], val => _setFilter(val));
@@ -72,9 +72,9 @@ export function init() {
 
   const sep2 = document.createElement('div'); sep2.className = 'tb-sep';
 
-  const btnLt     = _mkBtn('⏱ Lead Time',  () => _togglePanel('lt-panel'));
-  const btnStatus = _mkBtn('👁 Status',      () => _togglePanel('status-panel'));
-  const btnOrder  = _mkBtn('↕ Reihenfolge', () => _togglePanel('order-panel'));
+  const btnLt     = mkBtn('⏱ Lead Time',  () => _togglePanel('lt-panel'));
+  const btnStatus = mkBtn('👁 Status',      () => _togglePanel('status-panel'));
+  const btnOrder  = mkBtn('↕ Reihenfolge', () => _togglePanel('order-panel'));
 
   [grpToggle, metToggle, fltToggle, sep2, btnLt, btnStatus, btnOrder]
     .forEach(el => headerExtraEl.appendChild(el));
@@ -111,15 +111,15 @@ export function init() {
   cardEl.insertBefore(breadcrumb, contentEl);
 
   // ── 5. Sub-Panels ────────────────────────────
-  const ltPanel = _mkPanel(); ltPanel.id = 'hm-lt-panel';
+  const ltPanel = mkPanel(); ltPanel.id = 'hm-lt-panel';
   const ltTitle = document.createElement('div'); ltTitle.className = 'panel-title'; ltTitle.style.color = 'var(--purple)'; ltTitle.textContent = 'Lead Time Konfiguration';
   const ltRow   = document.createElement('div'); ltRow.className = 'lt-row';
 
-  const ltStartSel = _mkSelect(); const ltEndSel = _mkSelect();
+  const ltStartSel = mkSelect(); const ltEndSel = mkSelect();
   const ltHint = document.createElement('span'); ltHint.className = 'lt-hint'; ltHint.textContent = '—';
 
-  ltRow.appendChild(_mkLtField('Start', ltStartSel));
-  ltRow.appendChild(_mkLtField('Ende',  ltEndSel));
+  ltRow.appendChild(mkLtField('Start', ltStartSel));
+  ltRow.appendChild(mkLtField('Ende',  ltEndSel));
   ltRow.appendChild(ltHint);
   ltPanel.appendChild(ltTitle); ltPanel.appendChild(ltRow);
 
@@ -127,7 +127,7 @@ export function init() {
   ltEndSel.addEventListener('change',   () => { cfg.ltEnd   = ltEndSel.value;   _updateHasLT(); _updateLtHint(); _updateFilterToggle(); saveConfig(); render(); });
 
   // Status panel
-  const statusPanel = _mkPanel(); statusPanel.id = 'hm-status-panel';
+  const statusPanel = mkPanel(); statusPanel.id = 'hm-status-panel';
   const stTitle = document.createElement('div'); stTitle.className = 'panel-title'; stTitle.style.color = 'var(--orange)';
   const stTitleSpan = document.createElement('span'); stTitleSpan.textContent = 'Status sichtbar';
   const stCtxSpan   = document.createElement('span'); stCtxSpan.className = 'status-panel-ctx';
@@ -141,7 +141,7 @@ export function init() {
   statusPanel.appendChild(stTitle); statusPanel.appendChild(stGrid);
 
   // Order panel
-  const orderPanel = _mkPanel(); orderPanel.id = 'hm-order-panel';
+  const orderPanel = mkPanel(); orderPanel.id = 'hm-order-panel';
   const orTitle = document.createElement('div'); orTitle.className = 'panel-title'; orTitle.style.color = 'var(--yellow)';
   const orTitleText = document.createElement('span'); orTitleText.textContent = 'Spalten-Reihenfolge ';
   const orTitleHint = document.createElement('span'); orTitleHint.style.cssText = 'font-size:.56rem;color:var(--dimmer);font-weight:400;text-transform:none;letter-spacing:0'; orTitleHint.textContent = '↔ ziehen oder ▲▼';
@@ -185,9 +185,9 @@ export function init() {
      ['Min', d.min ? d.min + 'd' : '–'],
      ['Max', d.max ? d.max + 'd' : '–'],
      ['n', d.n || '–'],
-    ].forEach(([l, v]) => hmTTBody.appendChild(_mkTTRow(l, v)));
+    ].forEach(([l, v]) => hmTTBody.appendChild(mkTTRow(l, v)));
     hmTooltip.style.display = 'block';
-    _posTooltip(hmTooltip, e.clientX, e.clientY);
+    posTooltip(hmTooltip, e.clientX, e.clientY);
   });
 
   // ── Panel toggle map ─────────────────────────
@@ -347,7 +347,7 @@ export function init() {
   // ── Order panel ───────────────────────────────
   function _updateOrderPanel() {
     const hidden = _getHiddenStates();
-    _buildOrderPanel(
+    buildOrderPanel(
       orderList,
       cfg.stateOrder,
       arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); _updateStatusPanel(); render(); },

@@ -888,6 +888,8 @@ function calcHeatmapT(cellValue, gMax) {
 // ── calc/montecarlo.calc.js ──
 // Monte Carlo Berechnungslogik aus montecarlo.js — keine Browser-APIs.
 
+const MAX_LOOP_GUARD = 10_000;
+
 /** Variationskoeffizient CV = σ/μ. Gibt null für leeres Array oder μ=0. */
 function calcCV(samples) {
   if (!samples.length) return null;
@@ -909,7 +911,7 @@ function runSimulation(samples, targetCount, numRuns) {
     while (total < targetCount) {
       total += samples[Math.floor(Math.random() * samples.length)];
       slices++;
-      if (slices > 10000) break;
+      if (slices > MAX_LOOP_GUARD) break;
     }
     results.push(slices);
   }
@@ -996,6 +998,20 @@ const _intTicks = intTicks;
 const TARGET_SHEET      = 'JiraStories';
 const LT_START_DEFAULT  = 'Ready4Progress_first';
 const LT_END_DEFAULT    = 'Resolved';
+const CT_START_DEFAULT  = 'In Progress_first';
+
+function detectLtMode(start, end) {
+  if (start === LT_START_DEFAULT && end === LT_END_DEFAULT) return 'lt';
+  if (start === CT_START_DEFAULT && end === LT_END_DEFAULT) return 'ct';
+  return 'custom';
+}
+
+function ltModeTitle(start, end) {
+  const m = detectLtMode(start, end);
+  if (m === 'lt') return 'Lead<span class="hl">Time</span>';
+  if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
+  return 'Cycle Time <span class="hl">sonstige</span>';
+}
 
 // ── Default Status-Reihenfolge (globaler Standard für alle Visuals) ──
 // Queue-Status: New → Evaluated → Refinement → Ready4Progress
@@ -1062,6 +1078,7 @@ const _gridMap    = {};           // { id: {col,row,w,h} }
 const _cardMap    = {};           // { id: { el, defaultGrid, pageId } }
 let   _cardDrag   = null;
 let   _cardResize = null;
+let   _resizeRafPending = false;
 let   _layoutInit = false;        // guard against double-init on second file load
 
 // ════════════════════════════════════════════════
@@ -1105,21 +1122,21 @@ const core = {
 
   emit(event) {
     (_listeners[event] || []).forEach(fn => {
-      // eslint-disable-next-line no-console
+       
       try { fn(); } catch (e) { console.error('[core] emit', event, e); }
     });
   },
 
   // ── Storage ────────────────────────────────────
   save(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.warn('[core] localStorage save:', e); }
   },
 
   load(key, def) {
     try {
       const v = localStorage.getItem(key);
       return v != null ? JSON.parse(v) : def;
-    } catch { return def; }
+    } catch (e) { console.warn('[core] localStorage load:', e); return def; }
   },
 
   // ── Globale Status-Reihenfolge ──────────────────
@@ -1135,7 +1152,7 @@ const core = {
     try {
       const v = localStorage.getItem('fhwa_status_order');
       if (v) saved = JSON.parse(v);
-    } catch {}
+    } catch (e) { console.warn('[core] localStorage statusOrder load:', e); }
     const base = saved ? [...saved] : [...DEFAULT_STATUS_ORDER];
     if (knownNames && knownNames.length) {
       // Case-insensitive Dedup: verhindert dass z.B. 'In Test' als Extra angehängt
@@ -1155,7 +1172,7 @@ const core = {
    * @param {string[]} order
    */
   saveGlobalStatusOrder(order) {
-    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch {}
+    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch (e) { console.warn('[core] localStorage statusOrder save:', e); }
     core.emit('statusOrder');
   },
 
@@ -1164,10 +1181,14 @@ const core = {
   filteredRows() {
     const s = core.state;
     let rows = s.rows;
-    if (s.squadFilter.length)
-      rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
-    if (s.issueTypeFilter.length)
-      rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    if (s.squadFilter.length) {
+      const squadSet = new Set(s.squadFilter);
+      rows = rows.filter(r => squadSet.has(String(r['Squad'] || '')));
+    }
+    if (s.issueTypeFilter.length) {
+      const typeSet = new Set(s.issueTypeFilter);
+      rows = rows.filter(r => typeSet.has(String(r['Issue-Type'] || '')));
+    }
     if (s.dateRangeMode !== 'all' && s.dateRangeFrom && s.dateRangeTo) {
       const from = s.dateRangeFrom;
       const to   = s.dateRangeTo;
@@ -1447,7 +1468,7 @@ function _getColW(id) {
   // Letzter Ausweg: Fensterbreite minus Sidebar
   const sidebar = document.querySelector('.sidebar');
   const sidebarW = sidebar ? sidebar.offsetWidth : 196;
-  return (window.innerWidth - sidebarW) / GRID_COLS;
+  return Math.max(1, (window.innerWidth - sidebarW) / GRID_COLS);
 }
 
 function _applyCardLayout(id) {
@@ -1592,7 +1613,10 @@ document.addEventListener('mousemove', e => {
     card.style.width  = nw + 'px';
     card.style.height = nh + 'px';
     _updateCanvasH();
-    core.emit('resize');
+    if (!_resizeRafPending) {
+      _resizeRafPending = true;
+      requestAnimationFrame(() => { _resizeRafPending = false; core.emit('resize'); });
+    }
   }
 });
 
@@ -1828,7 +1852,7 @@ function _loadFile(file) {
     } catch (err) {
       const dp = document.getElementById('data-preview');
       if (dp) {
-        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${_escHtml(err.message)}</div>`;
+        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${escHtml(err.message)}</div>`;
       }
     }
   };
@@ -1918,7 +1942,7 @@ function _switchToAppScreen() {
 }
 
 // ── HTML-Sonderzeichen escapen (verhindert XSS aus Excel-Daten) ──
-function _escHtml(s) {
+function escHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -1927,19 +1951,14 @@ function _escHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-// ── Datencheck-Page befüllen ──
-function _buildDatencheckPage(_sheetNames, _sheets) {
-  const s   = core.state;
-  const rows = s.rows;
-
-  // Fertige / aktive Tickets
+// ── Datencheck-Statistiken berechnen ──
+function _calcDcSummary(rows, s) {
   const finished = rows.filter(r =>
     (r['Resolved'] != null && r['Resolved'] !== '') ||
     (r['Rejected'] != null && r['Rejected'] !== '')
   ).length;
   const active = rows.length - finished;
 
-  // Zeitraum aus allen Datumsspalten
   let minDate = null, maxDate = null;
   rows.forEach(r => {
     s.dateCols.forEach(col => {
@@ -1949,15 +1968,10 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       if (!maxDate || d > maxDate) maxDate = d;
     });
   });
-  const fmtD = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '–';
-  const totalDays = (minDate && maxDate) ? (maxDate - minDate) / 86400000 : 0;
-  const months    = totalDays > 0 ? Math.round(totalDays / 30.5) : null;
+  const totalDays  = (minDate && maxDate) ? (maxDate - minDate) / 86400000 : 0;
+  const months     = totalDays > 0 ? Math.round(totalDays / 30.5) : null;
+  const throughput = (finished > 0 && totalDays > 0) ? Math.round(finished / totalDays * 30) : null;
 
-  // Durchsatz (fertige Tickets / 30 Tage)
-  const throughput = (finished > 0 && totalDays > 0)
-    ? Math.round(finished / totalDays * 30) : null;
-
-  // Auffällig alt: aktive Tickets deren erster Eintrag > 90 Tage zurückliegt
   let oldCount = 0;
   if (s.states.length > 0) {
     const firstCol = s.states[0].entryCol;
@@ -1969,34 +1983,19 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
     });
   }
 
-  // Issue-Typen
-  let issueTypes = [];
-  if (s.hasIssueType) {
-    issueTypes = [...new Set(rows.map(r => r['Issue-Type']).filter(Boolean).map(String))].slice(0, 8);
-  }
+  const issueTypes = s.hasIssueType
+    ? [...new Set(rows.map(r => r['Issue-Type']).filter(Boolean).map(String))].slice(0, 8)
+    : [];
 
-  // State-Pills (leaving-States farbig)
-  const statePills = s.states.map(st => {
-    const isLeaving = st.exitCol !== null;
-    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${_escHtml(st.name)}</span>`;
-  }).join('');
+  return { finished, active, minDate, maxDate, months, throughput, oldCount, issueTypes };
+}
 
-  // Squad-Pills
-  const squadPills = s.allSquads.map(sq =>
-    `<span class="dc-pill">&#127968; ${_escHtml(sq)}</span>`
-  ).join('');
-
-  // Type-Pills
-  const typePills = issueTypes.map(t =>
-    `<span class="dc-pill type">${_escHtml(t)}</span>`
-  ).join('');
-
-  // ── Optionale Sheets ──
+// ── HTML für optionale Sheet-Karten (JiraEpics, Blockermanagement, Happiness) ──
+function _buildDcExtraSheets(s) {
   const epics       = (s.sheets && s.sheets['JiraEpics']) || [];
   const blockerRows = (s.sheets && s.sheets['JiraBlockermanagement']) || [];
   const happRaw     = ((s.sheetsRaw || {})['Happiness Faktor']) || [];
 
-  // JiraEpics-Auswertung
   let epicCard = '';
   if (epics.length > 0) {
     const epicResolved = epics.filter(r => r['Resolved'] != null && r['Resolved'] !== '').length;
@@ -2017,7 +2016,6 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       </div>`;
   }
 
-  // Blockermanagement-Auswertung
   let blockerCard = '';
   if (blockerRows.length > 0) {
     const blockerOpen = blockerRows.filter(r =>
@@ -2039,14 +2037,12 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       </div>`;
   }
 
-  // Happiness-Faktor-Auswertung
   let happCard = '';
   if (happRaw.length > 3) {
     const headerIdx = happRaw.findIndex(row => row.some(c => c === 'Squad'));
     if (headerIdx >= 0) {
-      const header = happRaw[headerIdx];
+      const header   = happRaw[headerIdx];
       const dataRows = happRaw.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim());
-      // Letzte Monatsspalte mit Daten finden
       let lastColIdx = -1, lastColName = '';
       for (let ci = header.length - 1; ci >= 1; ci--) {
         const hasData = dataRows.some(r => r[ci] != null && r[ci] !== '' && !isNaN(parseFloat(r[ci])));
@@ -2054,14 +2050,13 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       }
       if (lastColIdx >= 0) {
         const lastVals = dataRows.map(r => parseFloat(r[lastColIdx])).filter(v => !isNaN(v));
-        const happLast = lastVals.length ? (lastVals.reduce((a, b) => a + b, 0) / lastVals.length) : null;
-        // Gesamt-Durchschnitt über alle Monatsspalten
-        const allVals = [];
+        const happLast = lastVals.length ? lastVals.reduce((a, b) => a + b, 0) / lastVals.length : null;
+        const allVals  = [];
         for (let ci = 1; ci < header.length; ci++) {
           dataRows.forEach(r => { const v = parseFloat(r[ci]); if (!isNaN(v)) allVals.push(v); });
         }
-        const happAvg = allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length) : null;
-        const fmtH = v => v != null ? v.toFixed(1) : '–';
+        const happAvg  = allVals.length ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
+        const fmtH     = v => v != null ? v.toFixed(1) : '–';
         const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
         happCard = `
           <div class="dc-sheet-card">
@@ -2069,7 +2064,7 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
             <div style="display:flex;gap:1.2rem;align-items:flex-end">
               <div>
                 <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
-                <div class="dc-stat-lbl">Letzter Wert &middot; ${_escHtml(lastColName)}</div>
+                <div class="dc-stat-lbl">Letzter Wert &middot; ${escHtml(lastColName)}</div>
               </div>
               <div>
                 <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
@@ -2081,11 +2076,33 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
     }
   }
 
-  const extraSheetsHtml = (epicCard || blockerCard || happCard) ? `
+  if (!epicCard && !blockerCard && !happCard) return '';
+  return `
     <div class="dc-extra-sheets">
       <div class="dc-section-title">Weitere Daten erkannt</div>
       <div class="dc-sheets">${epicCard}${blockerCard}${happCard}</div>
-    </div>` : '';
+    </div>`;
+}
+
+// ── Datencheck-Page befüllen ──
+function _buildDatencheckPage(_sheetNames, _sheets) {
+  const s    = core.state;
+  const rows = s.rows;
+  const { finished, active, minDate, maxDate, months, throughput, oldCount, issueTypes } = _calcDcSummary(rows, s);
+  const fmtD = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '–';
+
+  const statePills = s.states.map(st => {
+    const isLeaving = st.exitCol !== null;
+    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${escHtml(st.name)}</span>`;
+  }).join('');
+  const squadPills = s.allSquads.map(sq =>
+    `<span class="dc-pill">&#127968; ${escHtml(sq)}</span>`
+  ).join('');
+  const typePills = issueTypes.map(t =>
+    `<span class="dc-pill type">${escHtml(t)}</span>`
+  ).join('');
+
+  const extraSheetsHtml = _buildDcExtraSheets(s);
 
   const page = document.getElementById('page-datencheck');
   if (!page) return;
@@ -2094,7 +2111,7 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
     <div class="dc-wrap">
       <div class="dc-badge">&#10003; Datei erkannt</div>
       <h2 class="dc-title">Das haben wir in deinem Export gefunden</h2>
-      <div class="dc-sub">${_escHtml(s.fileName)} &middot; Sheet &bdquo;${_escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
+      <div class="dc-sub">${escHtml(s.fileName)} &middot; Sheet &bdquo;${escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
 
       <div class="dc-stats">
         <div class="dc-stat">
@@ -2442,16 +2459,16 @@ function _initDateRangeDD() {
 // Exportiert für alle Visuals – kein Kopieren mehr nötig.
 // ════════════════════════════════════════════════
 
-function _mkBtn(label, onClick) {
+function mkBtn(label, onClick) {
   const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
   b.addEventListener('click', onClick); return b;
 }
 
-function _mkPanel() {
+function mkPanel() {
   const p = document.createElement('div'); p.className = 'sub-panel'; return p;
 }
 
-function _mkTglGrp(buttons, onChange) {
+function mkTglGrp(buttons, onChange) {
   const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
   buttons.forEach(({ val, label }) => {
     const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
@@ -2461,29 +2478,65 @@ function _mkTglGrp(buttons, onChange) {
   return wrap;
 }
 
-function _mkSelect() {
+function mkSelect() {
   const s = document.createElement('select'); s.className = 'lt-select'; return s;
 }
 
-function _mkLtField(label, selectEl) {
+function mkLtField(label, selectEl) {
   const f = document.createElement('div'); f.className = 'lt-field';
   const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
   f.appendChild(l); f.appendChild(selectEl); return f;
 }
 
-function _mkTTRow(label, val) {
+function mkTTRow(label, val) {
   const row = document.createElement('div'); row.className = 'tt-row';
   const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
   const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
   row.appendChild(lb); row.appendChild(vl); return row;
 }
 
-function _posTooltip(tt, cx, cy) {
+function posTooltip(tt, cx, cy) {
   const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
   let l = cx + 14, t = cy + 14;
   if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
   if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
   tt.style.left = l + 'px'; tt.style.top = t + 'px';
+}
+
+function createTooltip() {
+  const el = document.createElement('div');
+  Object.assign(el.style, {
+    position: 'fixed', display: 'none', pointerEvents: 'none',
+    zIndex: '500', background: 'var(--bg2)', border: '1px solid var(--border)',
+    borderRadius: '7px', padding: '.38rem .58rem', fontFamily: 'var(--mono)',
+    fontSize: '.65rem', color: 'var(--text)', whiteSpace: 'nowrap',
+    boxShadow: '0 2px 8px rgba(0,0,0,.3)',
+  });
+  document.body.appendChild(el);
+  return el;
+}
+
+function createExplanationPanel(contentEl, html) {
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
+    'font-family:var(--sans)',
+  ].join(';');
+  el.innerHTML = `<div style="padding:8px 14px">${html}</div>`;
+  contentEl.appendChild(el);
+  let open = false;
+  return {
+    el,
+    toggle(onAfter) {
+      open = !open;
+      el.style.maxHeight = open ? el.scrollHeight + 'px' : '0';
+      if (onAfter) setTimeout(onAfter, 240);
+      return open;
+    },
+  };
 }
 
 // ════════════════════════════════════════════════
@@ -2496,7 +2549,7 @@ function _posTooltip(tt, cx, cy) {
 // @param {function}    onReorder      – Callback(newOrder: string[]) nach Änderung
 // @param {function}   [decorateItem]  – Optional: extra Styling pro Item (item, name)
 // ════════════════════════════════════════════════
-function _buildOrderPanel(orderList, stateOrder, onReorder, decorateItem) {
+function buildOrderPanel(orderList, stateOrder, onReorder, decorateItem) {
   orderList.innerHTML = '';
   let panelDragSrc = null;
   stateOrder.forEach((name, idx) => {
@@ -3287,14 +3340,14 @@ function init_heatmap() {
   // ── 3. Header-Controls bauen ─────────────────
 
   // Grouping toggle
-  const grpToggle = _mkTglGrp([
+  const grpToggle = mkTglGrp([
     { val: 'Issue-Type', label: 'Issue-Typ' },
     { val: 'Squad',      label: 'Squad'     },
   ], val => _setGrouping(val));
   grpToggle.id = 'hm-grp-toggle';
 
   // Metric toggle
-  const metToggle = _mkTglGrp([
+  const metToggle = mkTglGrp([
     { val: 'p25', label: 'P25'    },
     { val: 'med', label: 'Median' },
     { val: 'p85', label: 'P85'    },
@@ -3302,7 +3355,7 @@ function init_heatmap() {
   metToggle.id = 'hm-met-toggle';
 
   // Filter toggle
-  const fltToggle = _mkTglGrp([
+  const fltToggle = mkTglGrp([
     { val: 'all',      label: 'Alle'     },
     { val: 'resolved', label: 'Resolved' },
   ], val => _setFilter(val));
@@ -3310,9 +3363,9 @@ function init_heatmap() {
 
   const sep2 = document.createElement('div'); sep2.className = 'tb-sep';
 
-  const btnLt     = _mkBtn('⏱ Lead Time',  () => _togglePanel('lt-panel'));
-  const btnStatus = _mkBtn('👁 Status',      () => _togglePanel('status-panel'));
-  const btnOrder  = _mkBtn('↕ Reihenfolge', () => _togglePanel('order-panel'));
+  const btnLt     = mkBtn('⏱ Lead Time',  () => _togglePanel('lt-panel'));
+  const btnStatus = mkBtn('👁 Status',      () => _togglePanel('status-panel'));
+  const btnOrder  = mkBtn('↕ Reihenfolge', () => _togglePanel('order-panel'));
 
   [grpToggle, metToggle, fltToggle, sep2, btnLt, btnStatus, btnOrder]
     .forEach(el => headerExtraEl.appendChild(el));
@@ -3349,15 +3402,15 @@ function init_heatmap() {
   cardEl.insertBefore(breadcrumb, contentEl);
 
   // ── 5. Sub-Panels ────────────────────────────
-  const ltPanel = _mkPanel(); ltPanel.id = 'hm-lt-panel';
+  const ltPanel = mkPanel(); ltPanel.id = 'hm-lt-panel';
   const ltTitle = document.createElement('div'); ltTitle.className = 'panel-title'; ltTitle.style.color = 'var(--purple)'; ltTitle.textContent = 'Lead Time Konfiguration';
   const ltRow   = document.createElement('div'); ltRow.className = 'lt-row';
 
-  const ltStartSel = _mkSelect(); const ltEndSel = _mkSelect();
+  const ltStartSel = mkSelect(); const ltEndSel = mkSelect();
   const ltHint = document.createElement('span'); ltHint.className = 'lt-hint'; ltHint.textContent = '—';
 
-  ltRow.appendChild(_mkLtField('Start', ltStartSel));
-  ltRow.appendChild(_mkLtField('Ende',  ltEndSel));
+  ltRow.appendChild(mkLtField('Start', ltStartSel));
+  ltRow.appendChild(mkLtField('Ende',  ltEndSel));
   ltRow.appendChild(ltHint);
   ltPanel.appendChild(ltTitle); ltPanel.appendChild(ltRow);
 
@@ -3365,7 +3418,7 @@ function init_heatmap() {
   ltEndSel.addEventListener('change',   () => { cfg.ltEnd   = ltEndSel.value;   _updateHasLT(); _updateLtHint(); _updateFilterToggle(); saveConfig(); render(); });
 
   // Status panel
-  const statusPanel = _mkPanel(); statusPanel.id = 'hm-status-panel';
+  const statusPanel = mkPanel(); statusPanel.id = 'hm-status-panel';
   const stTitle = document.createElement('div'); stTitle.className = 'panel-title'; stTitle.style.color = 'var(--orange)';
   const stTitleSpan = document.createElement('span'); stTitleSpan.textContent = 'Status sichtbar';
   const stCtxSpan   = document.createElement('span'); stCtxSpan.className = 'status-panel-ctx';
@@ -3379,7 +3432,7 @@ function init_heatmap() {
   statusPanel.appendChild(stTitle); statusPanel.appendChild(stGrid);
 
   // Order panel
-  const orderPanel = _mkPanel(); orderPanel.id = 'hm-order-panel';
+  const orderPanel = mkPanel(); orderPanel.id = 'hm-order-panel';
   const orTitle = document.createElement('div'); orTitle.className = 'panel-title'; orTitle.style.color = 'var(--yellow)';
   const orTitleText = document.createElement('span'); orTitleText.textContent = 'Spalten-Reihenfolge ';
   const orTitleHint = document.createElement('span'); orTitleHint.style.cssText = 'font-size:.56rem;color:var(--dimmer);font-weight:400;text-transform:none;letter-spacing:0'; orTitleHint.textContent = '↔ ziehen oder ▲▼';
@@ -3423,9 +3476,9 @@ function init_heatmap() {
      ['Min', d.min ? d.min + 'd' : '–'],
      ['Max', d.max ? d.max + 'd' : '–'],
      ['n', d.n || '–'],
-    ].forEach(([l, v]) => hmTTBody.appendChild(_mkTTRow(l, v)));
+    ].forEach(([l, v]) => hmTTBody.appendChild(mkTTRow(l, v)));
     hmTooltip.style.display = 'block';
-    _posTooltip(hmTooltip, e.clientX, e.clientY);
+    posTooltip(hmTooltip, e.clientX, e.clientY);
   });
 
   // ── Panel toggle map ─────────────────────────
@@ -3585,7 +3638,7 @@ function init_heatmap() {
   // ── Order panel ───────────────────────────────
   function _updateOrderPanel() {
     const hidden = _getHiddenStates();
-    _buildOrderPanel(
+    buildOrderPanel(
       orderList,
       cfg.stateOrder,
       arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); _updateStatusPanel(); render(); },
@@ -3851,9 +3904,6 @@ window.init_heatmap = init_heatmap;
 
 
 
-const LT_START_DEFAULT = 'Ready4Progress_first';
-const CT_START_DEFAULT = 'In Progress_first';
-
 function init_scatter() {
 
   // ── 1. Lokaler Config-State ──────────────────
@@ -3887,17 +3937,8 @@ function init_scatter() {
   const titleEl = cardEl.querySelector('.card-title');
 
   // ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ───────────────────
-  function _detectMode() {
-    if (cfg.ctStart === LT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'lt';
-    if (cfg.ctStart === CT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'ct';
-    return 'custom';
-  }
-  function _getModeTitle() {
-    const m = _detectMode();
-    if (m === 'lt') return 'Lead<span class="hl">Time</span>';
-    if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
-    return 'Cycle Time <span class="hl">sonstige</span>';
-  }
+  function _detectMode()   { return detectLtMode(cfg.ctStart, cfg.ctEnd); }
+  function _getModeTitle() { return ltModeTitle(cfg.ctStart, cfg.ctEnd); }
   function _updateModeUI() {
     const mode = _detectMode();
     if (titleEl) titleEl.innerHTML = _getModeTitle();
@@ -3906,27 +3947,27 @@ function init_scatter() {
   }
 
   // ── 3. Header-Controls ───────────────────────
-  const colorToggle = _mkTglGrp([
+  const colorToggle = mkTglGrp([
     { val: 'single',    label: 'Einfarbig' },
     { val: 'issueType', label: 'Typ'       },
     { val: 'heatmap',   label: 'Heatmap'   },
   ], val => { cfg.colorMode = val; saveConfig(); _updateColorToggle(); render(); });
 
-  const intervalToggle = _mkTglGrp([
+  const intervalToggle = mkTglGrp([
     { val: 'week',    label: 'Wo' },
     { val: 'month',   label: 'Mo' },
     { val: 'quarter', label: 'Q'  },
   ], val => { cfg.interval = val; saveConfig(); _updateIntervalToggle(); render(); });
 
   const sep2        = document.createElement('div'); sep2.className = 'tb-sep';
-  const btnSettings = _mkBtn('⚙ Einstellungen', () => _toggleSettings());
+  const btnSettings = mkBtn('⚙ Einstellungen', () => _toggleSettings());
 
-  const ltModeBtn = _mkBtn('Lead Time', () => {
+  const ltModeBtn = mkBtn('Lead Time', () => {
     cfg.ctStart = LT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
     ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
     saveConfig(); _updateModeUI(); render();
   });
-  const ctModeBtn = _mkBtn('Cycle Time', () => {
+  const ctModeBtn = mkBtn('Cycle Time', () => {
     cfg.ctStart = CT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
     ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
     saveConfig(); _updateModeUI(); render();
@@ -3938,14 +3979,14 @@ function init_scatter() {
 
   // ── 4. Settings-Panel (einheitlich) ──────────
 
-  const settingsPanel = _mkPanel(); settingsPanel.id = 'sc-settings-panel';
+  const settingsPanel = mkPanel(); settingsPanel.id = 'sc-settings-panel';
 
   // Section: ⚙ Berechnungslogik
   const calcTitle = document.createElement('div'); calcTitle.className = 'panel-title'; calcTitle.style.color = 'var(--purple)'; calcTitle.textContent = '⚙ Berechnungslogik';
-  const ctStartSel = _mkSelect(); const ctEndSel = _mkSelect();
+  const ctStartSel = mkSelect(); const ctEndSel = mkSelect();
   const colsRow = document.createElement('div'); colsRow.className = 'sc-row';
-  colsRow.appendChild(_mkLtField('CT Start',           ctStartSel));
-  colsRow.appendChild(_mkLtField('CT Ende (X-Achse)',  ctEndSel));
+  colsRow.appendChild(mkLtField('CT Start',           ctStartSel));
+  colsRow.appendChild(mkLtField('CT Ende (X-Achse)',  ctEndSel));
   ctStartSel.addEventListener('change', () => { cfg.ctStart = ctStartSel.value; saveConfig(); _updateModeUI(); render(); });
   ctEndSel.addEventListener('change',   () => { cfg.ctEnd   = ctEndSel.value;   saveConfig(); _updateModeUI(); render(); });
 
@@ -4139,7 +4180,7 @@ function init_scatter() {
     [['CT',    item.ct.toFixed(1) + 'd'],
      ['Datum', item.date.toLocaleDateString('de-DE')],
      ...(item.type ? [['Typ', item.type]] : []),
-    ].forEach(([l, v]) => scTTBody.appendChild(_mkTTRow(l, v)));
+    ].forEach(([l, v]) => scTTBody.appendChild(mkTTRow(l, v)));
 
     if (item.url) {
       const lnk = document.createElement('a');
@@ -4152,7 +4193,7 @@ function init_scatter() {
       scTooltip.style.pointerEvents = 'none';
     }
     scTooltip.style.display = 'block';
-    _posTooltip(scTooltip, e.clientX, e.clientY);
+    posTooltip(scTooltip, e.clientX, e.clientY);
   }
 
   // ════════════════════════════════════════════════
@@ -4301,7 +4342,7 @@ function init_scatter() {
     svgEl.querySelectorAll('.sc-dot').forEach(dot => {
       const item = items[parseInt(dot.dataset.idx)];
       dot.addEventListener('mouseenter', e => _showTT(e, item));
-      dot.addEventListener('mousemove',  e => _posTooltip(scTooltip, e.clientX, e.clientY));
+      dot.addEventListener('mousemove',  e => posTooltip(scTooltip, e.clientX, e.clientY));
       dot.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 130); });
     });
 
@@ -4397,13 +4438,13 @@ function init_wipage() {
   });
 
   // ── 3. Header-Controls ───────────────────────
-  const btnSettings = _mkBtn('⚙ Einstellungen', () => _togglePanel('wa-settings-panel'));
-  const btnOrder    = _mkBtn('↕ Reihenfolge',   () => _togglePanel('wa-order-panel'));
+  const btnSettings = mkBtn('⚙ Einstellungen', () => _togglePanel('wa-settings-panel'));
+  const btnOrder    = mkBtn('↕ Reihenfolge',   () => _togglePanel('wa-order-panel'));
   headerExtraEl.appendChild(btnSettings);
   headerExtraEl.appendChild(btnOrder);
 
   // ── 4. Settings-Panel ────────────────────────
-  const settingsPanel = _mkPanel();
+  const settingsPanel = mkPanel();
   settingsPanel.id = 'wa-settings-panel';
 
   const spTitle = document.createElement('div');
@@ -4506,7 +4547,7 @@ function init_wipage() {
   cardEl.insertBefore(settingsPanel, contentEl);
 
   // ── 5. Order-Panel (exakt wie heatmap.js) ────
-  const orderPanel = _mkPanel();
+  const orderPanel = mkPanel();
   orderPanel.id = 'wa-order-panel';
 
   const orTitle = document.createElement('div');
@@ -4577,7 +4618,7 @@ function init_wipage() {
 
   // ── 8. Order-Panel-Logik ─────────────────────
   function _updateOrderPanel() {
-    _buildOrderPanel(
+    buildOrderPanel(
       orderList,
       cfg.stateOrder,
       arr => { cfg.stateOrder = arr; core.saveGlobalStatusOrder(arr); _updateOrderPanel(); render(); },
@@ -5053,7 +5094,7 @@ window.init_wipage = init_wipage;
 
 // ── boxchart.js ──
 (function() {
-﻿// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // boxchart.js – LeadTime BoxChart (Kachel-Format)
 // Flow Analytics Dashboard v2.5
 // Spec: LeadTime_BoxChart.md v1.8
@@ -5070,89 +5111,971 @@ const KDE_POINTS = 80;
 const BW_ON      = 4;    // Violin-Glättung: An
 const BW_OFF     = 1.2;  // Violin-Glättung: Aus (minimal, zeigt Rohdaten-Form)
 
-const LT_START = 'Ready4Progress_first';
-const CT_START = 'In Progress_first';
-const LT_END   = 'Resolved';
-
 const DEFAULT_CFG = {
-  chartMode:    'box',               // 'box' | 'violin' | 'combo'
-  periodMode:   'month',             // 'month' | 'quarter'
+  chartMode:    'box',
+  periodMode:   'month',
   showOutliers: true,
   smoothing:    true,
-  ltStart:      'Ready4Progress_first',
-  ltEnd:        'Resolved',
-  yStep:        0,           // 0 = automatisch; > 0 = feste Schrittweite in Tagen
-  yLog:         false,       // Logarithmische Y-Skala
-  includeBug:   false,       // Bug (Issue-Type exakt "bug") per Default ausgeschlossen
+  ltStart:      LT_START_DEFAULT,
+  ltEnd:        LT_END_DEFAULT,
+  yStep:        0,
+  yLog:         false,
+  includeBug:   false,
 };
 
-// ── Modul-State ──
-let cfg = {};
-let _contentEl, _diagEl, _headerExtraEl;
-let _tooltip = null;
-let _ttTimer = null;
-let _cfgOpen = false;
-let _explanationOpen = false;
-let _explanationEl = null;
-let _titleEl       = null;
-
-// ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ──────────────────────
-function _detectMode() {
-  if (cfg.ltStart === LT_START && cfg.ltEnd === LT_END) return 'lt';
-  if (cfg.ltStart === CT_START && cfg.ltEnd === LT_END) return 'ct';
-  return 'custom';
-}
-
-function _getModeTitle() {
-  const m = _detectMode();
-  if (m === 'lt') return 'Lead<span class="hl">Time</span>';
-  if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
-  return 'Cycle Time <span class="hl">sonstige</span>';
-}
-
-function _getModeExplanation() {
-  const m = _detectMode();
-  if (m === 'lt') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket vom Moment der Bereitschaft zur Bearbeitung (Ready4Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert entspricht der Wartezeit aus Kundensicht – inklusive Liegezeiten im Prozess. Ziel: P85 dauerhaft unter dem vereinbarten SLA halten.</div>';
-  if (m === 'ct') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket ab dem ersten aktiven Bearbeitungsmoment (In Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert spiegelt die reine Teamleistung wider, ohne vorgelagerte Wartezeiten in der Queue.</div>';
-  return '<div style="padding:8px 14px">Die Durchlaufzeit wird mit benutzerdefinierten Start- und Endspalten berechnet (⚙). Wähle „Ready4Progress_first → Resolved“ für Lead Time oder „In Progress_first → Resolved“ für Cycle Time.</div>';
-}
-
-function _updateModeUI() {
-  const mode = _detectMode();
-  if (_titleEl) _titleEl.innerHTML = _getModeTitle();
-  if (_explanationEl) _explanationEl.innerHTML = _getModeExplanation();
-  const ltBtn = document.getElementById('bc-mode-lt');
-  const ctBtn = document.getElementById('bc-mode-ct');
-  if (ltBtn) ltBtn.classList.toggle('p-blue', mode === 'lt');
-  if (ctBtn) ctBtn.classList.toggle('p-blue', mode === 'ct');
-}
+let _initialized = false;
 
 // ════════════════════════════════════════════════
 // Public: init
 // ════════════════════════════════════════════════
 function init_boxchart() {
+  if (_initialized) return;
+  _initialized = true;
+
+  // ── Config laden ─────────────────────────────────────────────────────────
   const saved = core.load(LS_KEY, {});
-  // Migration: bandwidth (alt) → smoothing (neu)
   if ('bandwidth' in saved && !('smoothing' in saved)) {
     saved.smoothing = saved.bandwidth > 2;
     delete saved.bandwidth;
   }
-  // Migration: yStep/yLog Defaults sicherstellen
   if (!('yStep'      in saved)) saved.yStep      = 0;
   if (!('yLog'       in saved)) saved.yLog        = false;
   if (!('includeBug' in saved)) saved.includeBug  = false;
-  cfg = { ...DEFAULT_CFG, ...saved };
+  const cfg = { ...DEFAULT_CFG, ...saved };
 
+  // ── Tile anlegen ──────────────────────────────────────────────────────────
   const { tileEl, contentEl, headerExtraEl, diagEl } = core.createTile({
     id:    'boxchart',
     title: 'Lead<span class="hl">Time</span>',
   });
+  const _contentEl     = contentEl;
+  const _diagEl        = diagEl;
+  const _headerExtraEl = headerExtraEl;
+  const _titleEl       = tileEl.querySelector('.tile-title');
 
-  _contentEl     = contentEl;
-  _diagEl        = diagEl;
-  _headerExtraEl = headerExtraEl;
-  _titleEl       = tileEl.querySelector('.tile-title');
+  // ── Mutabler State ────────────────────────────────────────────────────────
+  let _tooltip = null;
+  let _ttTimer = null;
+  let _cfgOpen = false;
+  let _explanationOpen = false;
+  let _explanationEl = null;
 
+  // ── Modus-Helpers ──────────────────────────────────────────────────────────
+  function _detectMode()   { return detectLtMode(cfg.ltStart, cfg.ltEnd); }
+  function _getModeTitle() { return ltModeTitle(cfg.ltStart, cfg.ltEnd); }
+
+  function _getModeExplanation() {
+    const m = _detectMode();
+    if (m === 'lt') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket vom Moment der Bereitschaft zur Bearbeitung (Ready4Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert entspricht der Wartezeit aus Kundensicht – inklusive Liegezeiten im Prozess. Ziel: P85 dauerhaft unter dem vereinbarten SLA halten.</div>';
+    if (m === 'ct') return '<div style="padding:8px 14px">Zeigt, wie lange ein Ticket ab dem ersten aktiven Bearbeitungsmoment (In Progress) bis zur Fertigstellung (Resolved) braucht. Dieser Wert spiegelt die reine Teamleistung wider, ohne vorgelagerte Wartezeiten in der Queue.</div>';
+    return '<div style="padding:8px 14px">Die Durchlaufzeit wird mit benutzerdefinierten Start- und Endspalten berechnet (⚙). Wähle „Ready4Progress_first → Resolved" für Lead Time oder „In Progress_first → Resolved" für Cycle Time.</div>';
+  }
+
+  function _updateModeUI() {
+    const mode = _detectMode();
+    if (_titleEl) _titleEl.innerHTML = _getModeTitle();
+    if (_explanationEl) _explanationEl.innerHTML = _getModeExplanation();
+    const ltBtn = document.getElementById('bc-mode-lt');
+    const ctBtn = document.getElementById('bc-mode-ct');
+    if (ltBtn) ltBtn.classList.toggle('p-blue', mode === 'lt');
+    if (ctBtn) ctBtn.classList.toggle('p-blue', mode === 'ct');
+  }
+
+  // ── Panel öffnen / schließen ──────────────────────────────────────────────
+  function _togglePanel() {
+    _cfgOpen ? _closePanel() : _openPanel();
+  }
+
+  function _openPanel() {
+    _cfgOpen = true;
+    const btn   = document.getElementById('bc-cfg-btn');
+    const panel = document.getElementById('bc-cfg-panel');
+    if (btn)   btn.classList.add('p-blue');
+    if (panel) panel.classList.add('open');
+  }
+
+  function _closePanel() {
+    _cfgOpen = false;
+    const btn   = document.getElementById('bc-cfg-btn');
+    const panel = document.getElementById('bc-cfg-panel');
+    if (btn)   btn.classList.remove('p-blue');
+    if (panel) panel.classList.remove('open');
+  }
+
+  // ── Y-Tick-Info aktualisieren ─────────────────────────────────────────────
+  function _updateYTickInfo() {
+    const info = document.getElementById('bc-ytick-info');
+    if (!info) return;
+    if (cfg.yLog) {
+      info.textContent = '(log)';
+      return;
+    }
+    if (cfg.yStep > 0) {
+      const yMax = parseFloat(info.dataset.ymax || '0');
+      if (yMax > 0) {
+        const n = Math.floor(yMax / cfg.yStep) + 1;
+        info.textContent = `≈ ${n} Ticks`;
+      } else {
+        info.textContent = '(auto berechnet)';
+      }
+    } else {
+      info.textContent = '(auto)';
+    }
+  }
+
+  // ── Sync-Helpers ──────────────────────────────────────────────────────────
+  function _syncOutlierControls() {
+    const btn = document.getElementById('bc-hdr-out');
+    if (btn) {
+      btn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
+      btn.classList.toggle('p-blue', cfg.showOutliers);
+    }
+  }
+
+  function _syncBugToggle() {
+    const btn = document.getElementById('bc-bug-toggle');
+    if (btn) {
+      btn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
+      btn.classList.toggle('p-blue', cfg.includeBug);
+    }
+  }
+
+  function _applyBugFilter(rows) {
+    if (cfg.includeBug) return rows;
+    return rows.filter(r => {
+      const t = (r['Issue-Type'] || r['Issue Type'] || r['IssueType'] || r['Type'] || r['issue_type'] || '').trim().toLowerCase();
+      return t !== 'bug';
+    });
+  }
+
+  // ════════════════════════════════════════════════
+  // Header
+  // ════════════════════════════════════════════════
+  function _buildHeader() {
+    [['lt', 'Lead Time'], ['ct', 'Cycle Time']].forEach(([preset, lbl]) => {
+      const btn = document.createElement('button');
+      btn.className     = 'btn-icon';
+      btn.id            = 'bc-mode-' + preset;
+      btn.textContent   = lbl;
+      btn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+      btn.addEventListener('click', () => {
+        if (preset === 'lt') { cfg.ltStart = LT_START_DEFAULT; cfg.ltEnd = LT_END_DEFAULT; }
+        else                 { cfg.ltStart = CT_START_DEFAULT; cfg.ltEnd = LT_END_DEFAULT; }
+        const ltsEl = document.getElementById('bc-ltstart');
+        const lteEl = document.getElementById('bc-ltend');
+        if (ltsEl) ltsEl.value = cfg.ltStart;
+        if (lteEl) lteEl.value = cfg.ltEnd;
+        _updateModeUI();
+        _saveAndRender();
+      });
+      _headerExtraEl.appendChild(btn);
+    });
+
+    const bugBtn = document.createElement('button');
+    bugBtn.className   = 'btn-icon';
+    bugBtn.id          = 'bc-bug-toggle';
+    bugBtn.title       = 'Bug-Issues einschließen';
+    bugBtn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
+    bugBtn.classList.toggle('p-blue', cfg.includeBug);
+    bugBtn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
+    bugBtn.addEventListener('click', () => {
+      cfg.includeBug = !cfg.includeBug;
+      _syncBugToggle();
+      _saveAndRender();
+    });
+    _headerExtraEl.appendChild(bugBtn);
+
+    const modes = [['box','Box'], ['violin','Violin'], ['combo','Kombi']];
+    modes.forEach(([val, lbl]) => {
+      const btn = document.createElement('button');
+      btn.className        = 'btn-icon';
+      btn.dataset.bcMode   = val;
+      btn.textContent      = lbl;
+      btn.style.cssText    = 'font-size:.58rem;padding:.1rem .32rem';
+      btn.classList.toggle('p-blue', cfg.chartMode === val);
+      btn.addEventListener('click', () => {
+        cfg.chartMode = val;
+        _headerExtraEl.querySelectorAll('[data-bc-mode]').forEach(b =>
+          b.classList.toggle('p-blue', b.dataset.bcMode === val)
+        );
+        _saveAndRender();
+      });
+      _headerExtraEl.appendChild(btn);
+    });
+
+    const outBtn = document.createElement('button');
+    outBtn.className   = 'btn-icon';
+    outBtn.id          = 'bc-hdr-out';
+    outBtn.title       = 'Ausreißer ein/aus';
+    outBtn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
+    outBtn.classList.toggle('p-blue', cfg.showOutliers);
+    outBtn.addEventListener('click', () => {
+      cfg.showOutliers = !cfg.showOutliers;
+      _syncOutlierControls();
+      _saveAndRender();
+    });
+    _headerExtraEl.appendChild(outBtn);
+
+    const cfgBtn = document.createElement('button');
+    cfgBtn.className        = 'btn-icon';
+    cfgBtn.id               = 'bc-cfg-btn';
+    cfgBtn.title            = 'Konfiguration';
+    cfgBtn.textContent      = '⚙';
+    cfgBtn.style.marginLeft = '.15rem';
+    cfgBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      _togglePanel();
+    });
+    _headerExtraEl.appendChild(cfgBtn);
+
+    // ── Config-Panel ─────────────────────────────────────────────────────────
+    const panel = document.createElement('div');
+    panel.id        = 'bc-cfg-panel';
+    panel.className = 'sub-panel';
+    Object.assign(panel.style, {
+      position:     'absolute',
+      top:          '0',
+      left:         '0',
+      right:        '0',
+      zIndex:       '50',
+      background:   'var(--bg2)',
+      borderBottom: '1px solid var(--border)',
+      overflowY:    'auto',
+    });
+
+    panel.innerHTML = `
+      <div class="lt-row" style="position:relative">
+        <button id="bc-cfg-close" title="Schließen"
+                style="position:absolute;top:0;right:0;background:none;border:none;
+                       color:var(--dim);cursor:pointer;font-size:.85rem;
+                       padding:.1rem .4rem;line-height:1">×</button>
+        <div class="lt-field">
+          <span class="lt-label">ltStart</span>
+          <select class="lt-select" id="bc-ltstart"></select>
+        </div>
+        <div class="lt-field">
+          <span class="lt-label">ltEnd</span>
+          <select class="lt-select" id="bc-ltend"></select>
+        </div>
+        <div class="lt-field">
+          <span class="lt-label">Iteration</span>
+          <select class="lt-select" id="bc-period">
+            <option value="month">Monat</option>
+            <option value="quarter">Quartal</option>
+          </select>
+        </div>
+        <div class="lt-field">
+          <label style="display:flex;align-items:center;gap:.3rem;font-size:.65rem;
+                        color:var(--dim);cursor:pointer;font-family:var(--mono)">
+            <input type="checkbox" id="bc-smoothing-chk"
+                   style="accent-color:var(--blue);width:11px;height:11px">
+            Glättung
+          </label>
+        </div>
+        <div class="lt-field">
+          <label style="display:flex;align-items:center;gap:.3rem;font-size:.65rem;
+                        color:var(--dim);cursor:pointer;font-family:var(--mono)">
+            <input type="checkbox" id="bc-ylog-chk"
+                   style="accent-color:var(--blue);width:11px;height:11px">
+            Log-Skala
+          </label>
+        </div>
+        <div class="lt-field" style="display:flex;align-items:center;gap:.3rem">
+          <span class="lt-label">Y-Schritt</span>
+          <input type="number" id="bc-ystep" min="0" step="10"
+                 style="width:52px;font-family:var(--mono);font-size:.65rem;
+                        background:var(--bg3,var(--bg2));border:1px solid var(--border);
+                        color:var(--text);border-radius:3px;padding:.1rem .3rem;
+                        text-align:right">
+          <span style="font-family:var(--mono);font-size:.6rem;color:var(--dim)">d</span>
+          <span id="bc-ytick-info"
+                style="font-family:var(--mono);font-size:.6rem;color:var(--dimmer)"></span>
+        </div>
+      </div>`;
+
+    _contentEl.style.position = 'relative';
+    _contentEl.appendChild(panel);
+
+    document.getElementById('bc-cfg-close').addEventListener('click', e => {
+      e.stopPropagation();
+      _closePanel();
+    });
+
+    document.addEventListener('click', e => {
+      if (!_cfgOpen) return;
+      const p = document.getElementById('bc-cfg-panel');
+      const b = document.getElementById('bc-cfg-btn');
+      if (p && !p.contains(e.target) && b && !b.contains(e.target)) {
+        _closePanel();
+      }
+    }, true);
+
+    document.getElementById('bc-period').value = cfg.periodMode;
+    document.getElementById('bc-period').addEventListener('change', e => {
+      cfg.periodMode = e.target.value;
+      _saveAndRender();
+    });
+
+    const smoothChk = document.getElementById('bc-smoothing-chk');
+    smoothChk.checked = cfg.smoothing;
+    smoothChk.addEventListener('change', () => {
+      cfg.smoothing = smoothChk.checked;
+      _saveAndRender();
+    });
+
+    const yLogChk = document.getElementById('bc-ylog-chk');
+    yLogChk.checked = cfg.yLog;
+    yLogChk.addEventListener('change', () => {
+      cfg.yLog = yLogChk.checked;
+      const stepInput = document.getElementById('bc-ystep');
+      if (stepInput) stepInput.disabled = cfg.yLog;
+      _updateYTickInfo();
+      _saveAndRender();
+    });
+
+    const yStepInput = document.getElementById('bc-ystep');
+    yStepInput.value    = cfg.yStep > 0 ? cfg.yStep : '';
+    yStepInput.disabled = cfg.yLog;
+    yStepInput.addEventListener('input', () => {
+      const v = parseFloat(yStepInput.value);
+      cfg.yStep = (isFinite(v) && v > 0) ? v : 0;
+      _updateYTickInfo();
+      _saveAndRender();
+    });
+
+    document.getElementById('bc-ltstart').addEventListener('change', e => {
+      cfg.ltStart = e.target.value;
+      _updateModeUI();
+      _saveAndRender();
+    });
+    document.getElementById('bc-ltend').addEventListener('change', e => {
+      cfg.ltEnd = e.target.value;
+      _updateModeUI();
+      _saveAndRender();
+    });
+  }
+
+  // ════════════════════════════════════════════════
+  // KPI-Bereich
+  // ════════════════════════════════════════════════
+  function _buildKpiArea() {
+    const kpi = document.createElement('div');
+    kpi.id = 'bc-kpi-area';
+    kpi.style.cssText = [
+      'padding:5px 10px 4px', 'flex-shrink:0',
+      'border-bottom:1px solid var(--border)',
+      'background:var(--bg2)',
+    ].join(';');
+
+    kpi.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:2px">
+            <span id="bc-kpi-val"
+                  style="font-size:1.55rem;font-weight:700;line-height:1;color:var(--text)">–</span>
+            <span id="bc-kpi-trend"
+                  style="display:none;font-size:.6rem;font-weight:600;
+                         padding:.12rem .35rem;border-radius:4px;white-space:nowrap"></span>
+          </div>
+          <div id="bc-kpi-sub"
+               style="font-size:.62rem;color:var(--dim);font-family:var(--mono)">–</div>
+        </div>
+        <span id="bc-kpi-n"
+              style="font-family:var(--mono);font-size:.65rem;color:var(--dim);
+                     align-self:center;white-space:nowrap">N = –</span>
+      </div>
+    `;
+
+    const tileEl = document.getElementById('tile-boxchart');
+    tileEl.insertBefore(kpi, tileEl.querySelector('.tile-content'));
+  }
+
+  function _updateKpiArea(latestStats, prevStats) {
+    const valEl   = document.getElementById('bc-kpi-val');
+    const trendEl = document.getElementById('bc-kpi-trend');
+    const subEl   = document.getElementById('bc-kpi-sub');
+    if (!valEl) return;
+
+    if (!latestStats) {
+      valEl.textContent = '–';
+      if (trendEl) trendEl.style.display = 'none';
+      if (subEl)   subEl.textContent = '–';
+      return;
+    }
+
+    valEl.textContent = Math.round(latestStats.med) + 'd';
+
+    if (trendEl && prevStats) {
+      const diff    = latestStats.med - prevStats.med;
+      const absDiff = Math.abs(Math.round(diff));
+      if (absDiff >= 1) {
+        const up = diff > 0;
+        trendEl.style.display    = 'inline-block';
+        trendEl.textContent      = (up ? '▲ +' : '▼ −') + absDiff + 'd ggü. Vorperiode';
+        trendEl.style.color      = up ? 'var(--orange)' : 'var(--green)';
+        trendEl.style.background = up ? 'rgba(251,146,60,.12)' : 'rgba(74,222,128,.1)';
+      } else {
+        trendEl.style.display = 'none';
+      }
+    } else if (trendEl) {
+      trendEl.style.display = 'none';
+    }
+
+    if (subEl) subEl.textContent = `P85 · ${Math.round(latestStats.p85)}d · typischer Fall`;
+  }
+
+  // ════════════════════════════════════════════════
+  // Footer
+  // ════════════════════════════════════════════════
+  function _buildFooter() {
+    _diagEl.style.cssText = [
+      'display:flex', 'align-items:center',
+      'padding:.2rem .58rem',
+      'background:var(--bg2)',
+      'border-top:1px solid var(--border)',
+      'flex-shrink:0',
+      'gap:.4rem',
+      'font-family:var(--mono)',
+      'font-size:11px',
+      'white-space:nowrap',
+      'overflow:hidden',
+    ].join(';');
+
+    const hint = document.createElement('a');
+    hint.textContent = 'Was zeigt diese Ansicht?';
+    hint.style.cssText = 'color:var(--blue);cursor:pointer;text-decoration:none';
+    hint.addEventListener('click', _toggleExplanation);
+
+    const spacer = document.createElement('span');
+    spacer.style.flex = '1';
+
+    const link = document.createElement('a');
+    link.textContent = 'Verteilung ansehen →';
+    link.style.cssText = [
+      'color:var(--blue)', 'cursor:pointer',
+      'text-decoration:none', 'font-weight:500', 'flex-shrink:0',
+    ].join(';');
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const sc = core.load('fhwa_scatter', {});
+      sc.ctStart = cfg.ltStart;
+      sc.ctEnd   = cfg.ltEnd;
+      core.save('fhwa_scatter', sc);
+      core.showPage('scatter');
+    });
+
+    _diagEl.innerHTML = '';
+    _diagEl.appendChild(hint);
+    _diagEl.appendChild(spacer);
+    _diagEl.appendChild(link);
+  }
+
+  // ════════════════════════════════════════════════
+  // Erklärungs-Panel
+  // ════════════════════════════════════════════════
+  function _buildExplanation() {
+    _explanationEl = document.createElement('div');
+    _explanationEl.id = 'bc-explanation';
+    _explanationEl.style.cssText = [
+      'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+      'transition:max-height .22s ease',
+      'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+      'font-size:.63rem', 'color:var(--dim)', 'line-height:1.6',
+      'font-family:var(--mono)',
+    ].join(';');
+    _explanationEl.innerHTML = _getModeExplanation();
+    _contentEl.insertBefore(_explanationEl, _contentEl.firstChild);
+  }
+
+  function _toggleExplanation() {
+    _explanationOpen = !_explanationOpen;
+    if (_explanationEl) {
+      _explanationEl.style.maxHeight = _explanationOpen
+        ? _explanationEl.scrollHeight + 'px'
+        : '0';
+    }
+    const hintEl = _diagEl.querySelector('a');
+    if (hintEl) hintEl.style.opacity = _explanationOpen ? '0.7' : '1';
+    setTimeout(_render, 240);
+  }
+
+  // ════════════════════════════════════════════════
+  // Spalten-Selects
+  // ════════════════════════════════════════════════
+  function _populateColSelects() {
+    const cols = core.state.dateCols;
+    [['bc-ltstart', cfg.ltStart], ['bc-ltend', cfg.ltEnd]].forEach(([id, cur]) => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      sel.innerHTML = cols.map(c =>
+        `<option value="${c}"${c === cur ? ' selected' : ''}>${c}</option>`
+      ).join('');
+    });
+  }
+
+  // ════════════════════════════════════════════════
+  // Event-Handler
+  // ════════════════════════════════════════════════
+  function _onData() {
+    _populateColSelects();
+    _render();
+  }
+
+  // ════════════════════════════════════════════════
+  // Tooltip
+  // ════════════════════════════════════════════════
+  function _createTooltip() {
+    if (_tooltip) return;
+    _tooltip = document.createElement('div');
+    _tooltip.style.cssText = [
+      'position:fixed', 'display:none', 'z-index:9999',
+      'background:var(--bg2)', 'border:1px solid var(--border)',
+      'border-radius:7px', 'padding:.45rem .6rem',
+      'font-family:var(--mono)', 'font-size:.68rem',
+      'color:var(--text)', 'pointer-events:none',
+      'min-width:140px', 'max-width:230px',
+      'box-shadow:0 8px 24px rgba(0,0,0,.45)',
+      'line-height:1.55',
+    ].join(';');
+    _tooltip.addEventListener('mouseenter', () => clearTimeout(_ttTimer));
+    _tooltip.addEventListener('mouseleave', () => {
+      _ttTimer = setTimeout(() => { _tooltip.style.display = 'none'; }, 130);
+    });
+    document.body.appendChild(_tooltip);
+  }
+
+  function _posTt(cx, cy) {
+    _tooltip.style.display = 'block';
+    const tw = _tooltip.offsetWidth  || 200;
+    const th = _tooltip.offsetHeight || 80;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let l = cx + 14, t = cy - th / 2;
+    if (l + tw > vw - 8) l = cx - tw - 14;
+    if (t < 8)           t = 8;
+    if (t + th > vh - 8) t = vh - th - 8;
+    _tooltip.style.left = l + 'px';
+    _tooltip.style.top  = t + 'px';
+  }
+
+  // ════════════════════════════════════════════════
+  // Statistik-Helpers
+  // ════════════════════════════════════════════════
+  function _calcStats(values) { return calcBoxStats(values); }
+
+  function _kde(sorted, bw, nPts) {
+    if (sorted.length < 2) return [];
+    const mn = sorted[0], mx = sorted[sorted.length - 1];
+    if (mn === mx) return [{ x: mn, y: 1 }];
+    const step   = (mx - mn) / (nPts - 1);
+    const norm   = sorted.length * bw * Math.sqrt(2 * Math.PI);
+    const result = [];
+    for (let i = 0; i < nPts; i++) {
+      const x = mn + i * step;
+      let s = 0;
+      for (const v of sorted) {
+        const u = (x - v) / bw;
+        s += Math.exp(-0.5 * u * u);
+      }
+      result.push({ x, y: s / norm });
+    }
+    return result;
+  }
+
+  function _niceYTicks(lo, hi, n, customStep) {
+    const range = hi - lo || 1;
+    let step;
+    if (customStep && customStep > 0) {
+      step = customStep;
+    } else {
+      const raw = range / (n - 1);
+      const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+      step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag;
+    }
+    step = Math.max(1, Math.round(step));
+    const ticks = [];
+    let t = Math.ceil(lo / step) * step;
+    if (t > lo + step * 0.01) ticks.unshift(Math.round(lo));
+    while (t <= hi + step * 0.01) {
+      ticks.push(Math.round(t));
+      t += step;
+    }
+    return [...new Set(ticks)].sort((a, b) => a - b);
+  }
+
+  function _logYTicks(lo, hi) {
+    const ticks = [];
+    const steps = [1, 2, 5];
+    let mag = 1;
+    while (mag <= hi * 10) {
+      for (const s of steps) {
+        const v = s * mag;
+        if (v >= Math.max(1, lo) && v <= hi * 1.05) ticks.push(v);
+      }
+      mag *= 10;
+    }
+    if (!ticks.length) ticks.push(1);
+    return ticks;
+  }
+
+  const DE_MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+  function _periodKey(d, mode) {
+    if (!d) return null;
+    const y = d.getFullYear(), m = d.getMonth();
+    return mode === 'quarter'
+      ? `${y}-Q${Math.floor(m / 3) + 1}`
+      : `${y}-${String(m + 1).padStart(2, '0')}`;
+  }
+
+  function _periodLabel(key, mode) {
+    if (mode === 'quarter') {
+      const [yr, q] = key.split('-');
+      return `${q} ${String(yr).slice(2)}`;
+    }
+    const [yr, mo] = key.split('-');
+    return `${DE_MONTHS[parseInt(mo, 10) - 1]} ${String(yr).slice(2)}`;
+  }
+
+  function _chronoSort(keys) {
+    return [...keys].sort();
+  }
+
+  function _saveAndRender() {
+    core.save(LS_KEY, cfg);
+    _render();
+  }
+
+  // ════════════════════════════════════════════════
+  // Leerzustand
+  // ════════════════════════════════════════════════
+  function _showEmpty(msg) {
+    const panel = document.getElementById('bc-cfg-panel');
+    const exp   = document.getElementById('bc-explanation');
+    _contentEl.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;
+                  height:100%;font-family:var(--mono);font-size:.63rem;
+                  color:var(--dimmer);padding:.5rem;text-align:center">
+        ${msg}
+      </div>`;
+    if (exp) {
+      _contentEl.insertBefore(exp, _contentEl.firstChild);
+      exp.style.maxHeight = _explanationOpen ? exp.scrollHeight + 'px' : '0';
+    }
+    if (panel) _contentEl.appendChild(panel);
+    _updateKpiArea(null, null);
+    const nEl = document.getElementById('bc-kpi-n');
+    if (nEl) nEl.textContent = 'N = –';
+  }
+
+  // ════════════════════════════════════════════════
+  // Haupt-Render
+  // ════════════════════════════════════════════════
+  function _render() {
+    const rows = _applyBugFilter(core.filteredRows());
+    const ltS  = cfg.ltStart;
+    const ltE  = cfg.ltEnd;
+
+    if (!rows.length) {
+      _showEmpty('Keine Daten geladen.');
+      return;
+    }
+
+    if (!(ltS in rows[0]) || !(ltE in rows[0])) {
+      _showEmpty(`Spalten „${ltS}" oder „${ltE}" nicht gefunden.`);
+      return;
+    }
+
+    // ── Daten gruppieren ──────────────────────────────────────────────────────
+    const periodItems = new Map();
+
+    for (const row of rows) {
+      const lt = core.dur(row[ltS], row[ltE]);
+      if (!lt || lt < 1) continue;
+      const endDate = core.toDate(row[ltE]);
+      if (!endDate) continue;
+      const key = _periodKey(endDate, cfg.periodMode);
+      if (!key) continue;
+      if (!periodItems.has(key)) periodItems.set(key, []);
+
+      const issueType = String(
+        row['Issue-Type'] || row['Issue Type'] || row['IssueType'] || row['Type'] || row['issue_type'] || ''
+      );
+
+      periodItems.get(key).push({
+        jiraId: String(row['Jira-ID'] || ''),
+        lt,
+        issueType,
+      });
+    }
+
+    if (!periodItems.size) {
+      _showEmpty('Keine gültigen Lead-Time-Werte.');
+      return;
+    }
+
+    // ── Sortierung & Statistiken ──────────────────────────────────────────────
+    const keys     = _chronoSort([...periodItems.keys()]);
+    const statsMap = new Map();
+    keys.forEach(k => statsMap.set(k, _calcStats(periodItems.get(k).map(it => it.lt))));
+
+    // ── KPI-Bereich ───────────────────────────────────────────────────────────
+    const latestKey = keys[keys.length - 1];
+    const prevKey   = keys.length >= 2 ? keys[keys.length - 2] : null;
+    _updateKpiArea(
+      statsMap.get(latestKey),
+      prevKey ? statsMap.get(prevKey) : null
+    );
+
+    const totalN = [...periodItems.values()].reduce((s, a) => s + a.length, 0);
+    const nEl = document.getElementById('bc-kpi-n');
+    if (nEl) nEl.textContent = 'N = ' + totalN;
+
+    // ── SVG-Dimensionen ───────────────────────────────────────────────────────
+    const W = _contentEl.clientWidth  || 600;
+    const H = _contentEl.clientHeight || 200;
+    if (W < 60 || H < 50) return;
+
+    const C    = core.scatterColors();
+    const isLt = core.isLight();
+
+    const PAD_L = 38, PAD_R = 10, PAD_T = 10, PAD_B = 42;
+    const pW = W - PAD_L - PAD_R;
+    const pH = H - PAD_T - PAD_B;
+    if (pW < 40 || pH < 30) return;
+
+    // ── Y-Skala ───────────────────────────────────────────────────────────────
+    let yMax = 1;
+    keys.forEach(k => {
+      const st = statsMap.get(k);
+      if (!st) return;
+      yMax = Math.max(yMax, st.wUp);
+      if (cfg.showOutliers) {
+        periodItems.get(k).forEach(it => { yMax = Math.max(yMax, it.lt); });
+      }
+    });
+    yMax = Math.ceil(yMax * 1.12) || 10;
+
+    const tickInfoEl = document.getElementById('bc-ytick-info');
+    if (tickInfoEl) {
+      tickInfoEl.dataset.ymax = yMax;
+      if (cfg.yLog) {
+        tickInfoEl.textContent = '(log)';
+      } else if (cfg.yStep > 0) {
+        const n = Math.floor(yMax / cfg.yStep) + 1;
+        tickInfoEl.textContent = `≈ ${n} Ticks`;
+      } else {
+        tickInfoEl.textContent = '(auto)';
+      }
+    }
+
+    let yTicks, yS;
+    if (cfg.yLog) {
+      yTicks = _logYTicks(1, yMax);
+      const logMax = Math.log10(Math.max(1, yMax));
+      yS = v => PAD_T + pH - (Math.log10(Math.max(1, v)) / logMax) * pH;
+    } else {
+      yTicks = _niceYTicks(0, yMax, 5, cfg.yStep > 0 ? cfg.yStep : 0);
+      yS     = v => PAD_T + pH - (Math.max(0, v) / yMax) * pH;
+    }
+
+    // ── X-Skala ───────────────────────────────────────────────────────────────
+    const nP   = keys.length;
+    const colW = pW / nP;
+    const bHW  = Math.max(5, Math.min(24, colW * 0.28));
+    const vHW  = Math.max(7, Math.min(32, colW * 0.38));
+    const outR = Math.max(2, Math.min(5,  colW / 14));
+    const xC   = i => PAD_L + (i + 0.5) * colW;
+
+    // ── Farben ────────────────────────────────────────────────────────────────
+    const amberC   = isLt ? '#d97706' : '#fbbf24';
+    const boxFill  = isLt ? 'rgba(2,132,199,0.15)'  : 'rgba(56,189,248,0.15)';
+    const boxStr   = isLt ? '#0284c7'                : '#38bdf8';
+    const medC     = isLt ? '#0284c7'                : '#38bdf8';
+    const whiskC   = C.axisLabel;
+    const outlFill = isLt ? '#94a3b8'                : '#4d6a88';
+    const outlStr  = isLt ? '#0284c7'                : '#38bdf8';
+    const violinF  = isLt ? 'rgba(2,132,199,0.10)'  : 'rgba(56,189,248,0.10)';
+    const violinS  = isLt ? 'rgba(2,132,199,0.45)'  : 'rgba(56,189,248,0.45)';
+
+    const bw = cfg.smoothing ? BW_ON : BW_OFF;
+
+    const parts = [];
+    parts.push(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`);
+
+    for (const y of yTicks) {
+      const sy  = yS(y);
+      const lbl = String(Math.round(y));
+      parts.push(`<line x1="${PAD_L}" y1="${sy.toFixed(1)}" x2="${(PAD_L+pW).toFixed(1)}" y2="${sy.toFixed(1)}" stroke="${C.gridLine}" stroke-width="1" stroke-dasharray="${cfg.yLog ? '2,3' : 'none'}"/>`);
+      parts.push(`<text x="${(PAD_L-4).toFixed(1)}" y="${(sy+4).toFixed(1)}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="${C.axisLabel}">${lbl}</text>`);
+    }
+
+    parts.push(`<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${(PAD_T+pH).toFixed(1)}" stroke="${C.axisLine}" stroke-width="1"/>`);
+    parts.push(`<line x1="${PAD_L}" y1="${(PAD_T+pH).toFixed(1)}" x2="${(PAD_L+pW).toFixed(1)}" y2="${(PAD_T+pH).toFixed(1)}" stroke="${C.axisLine}" stroke-width="1"/>`);
+
+    keys.forEach((key, i) => {
+      const st  = statsMap.get(key);
+      const cx  = xC(i);
+      const lbl = _periodLabel(key, cfg.periodMode);
+      const n   = st ? st.n : 0;
+
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(PAD_T+pH+13).toFixed(1)}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="${C.axisLabel}">${lbl}</text>`);
+      parts.push(`<text x="${cx.toFixed(1)}" y="${(PAD_T+pH+25).toFixed(1)}" text-anchor="middle" font-family="var(--mono)" font-size="8" fill="${C.nText}">n=${n}</text>`);
+
+      if (!st || n === 0) return;
+
+      const syP25 = yS(st.p25);
+      const syMed = yS(st.med);
+      const syP85 = yS(st.p85);
+      const syWUp = yS(st.wUp);
+      const syWDn = yS(st.wDn);
+
+      // ── 1. Violin ────────────────────────────────────────────────────────────
+      if (cfg.chartMode === 'violin' || cfg.chartMode === 'combo') {
+        const kde = _kde(st.sorted, bw, KDE_POINTS);
+        if (kde.length >= 2) {
+          const maxD = kde.reduce((m, p) => Math.max(m, p.y), 0);
+          if (maxD > 0) {
+            const pts = kde.map(p => ({
+              xR: cx + (p.y / maxD) * vHW,
+              xL: cx - (p.y / maxD) * vHW,
+              sy: yS(p.x),
+            }));
+            let d = `M${pts[0].xR.toFixed(1)},${pts[0].sy.toFixed(1)}`;
+            for (let j = 1; j < pts.length; j++) d += ` L${pts[j].xR.toFixed(1)},${pts[j].sy.toFixed(1)}`;
+            for (let j = pts.length-1; j >= 0; j--) d += ` L${pts[j].xL.toFixed(1)},${pts[j].sy.toFixed(1)}`;
+            d += ' Z';
+            parts.push(`<path d="${d}" fill="${violinF}" stroke="${violinS}" stroke-width="1.2"/>`);
+          }
+        }
+      }
+
+      // ── 2. Box + Whisker ──────────────────────────────────────────────────────
+      if (cfg.chartMode === 'box' || cfg.chartMode === 'combo') {
+        const hw    = cfg.chartMode === 'combo' ? bHW * 0.62 : bHW;
+        const capHW = hw * 0.40;
+        const boxTop = Math.min(syP25, syP85);
+        const boxHt  = Math.abs(syP85 - syP25);
+
+        parts.push(`<rect x="${(cx-hw).toFixed(1)}" y="${boxTop.toFixed(1)}" width="${(hw*2).toFixed(1)}" height="${boxHt.toFixed(1)}" fill="${boxFill}" stroke="${boxStr}" stroke-width="1.4" rx="2"/>`);
+        parts.push(`<line x1="${(cx-hw).toFixed(1)}" y1="${syMed.toFixed(1)}" x2="${(cx+hw).toFixed(1)}" y2="${syMed.toFixed(1)}" stroke="${medC}" stroke-width="2.2"/>`);
+        parts.push(`<line x1="${(cx-hw).toFixed(1)}" y1="${syP85.toFixed(1)}" x2="${(cx+hw).toFixed(1)}" y2="${syP85.toFixed(1)}" stroke="${amberC}" stroke-width="1.5" stroke-dasharray="3,2"/>`);
+
+        parts.push(`<line x1="${cx.toFixed(1)}" y1="${Math.min(syP85,syWUp).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${Math.max(syP85,syWUp).toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
+        parts.push(`<line x1="${(cx-capHW).toFixed(1)}" y1="${syWUp.toFixed(1)}" x2="${(cx+capHW).toFixed(1)}" y2="${syWUp.toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
+
+        parts.push(`<line x1="${cx.toFixed(1)}" y1="${Math.min(syP25,syWDn).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${Math.max(syP25,syWDn).toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
+        parts.push(`<line x1="${(cx-capHW).toFixed(1)}" y1="${syWDn.toFixed(1)}" x2="${(cx+capHW).toFixed(1)}" y2="${syWDn.toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
+      }
+
+      // ── 3. Box-Hit-Area ───────────────────────────────────────────────────────
+      const hitT = (Math.min(syWUp, syP85, syMed, syP25, syWDn) - 4).toFixed(1);
+      const hitB = (Math.max(syWUp, syP85, syMed, syP25, syWDn) + 4).toFixed(1);
+      const hitH = (parseFloat(hitB) - parseFloat(hitT)).toFixed(1);
+      const lblEsc = lbl.replace(/"/g, '&quot;');
+      parts.push(
+        `<rect class="bc-box-hit" ` +
+        `x="${(cx - colW * 0.48).toFixed(1)}" y="${hitT}" ` +
+        `width="${(colW * 0.96).toFixed(1)}" height="${hitH}" ` +
+        `fill="transparent" style="cursor:crosshair" ` +
+        `data-p25="${st.p25.toFixed(1)}" data-med="${st.med.toFixed(1)}" ` +
+        `data-p85="${st.p85.toFixed(1)}" data-wup="${st.wUp.toFixed(1)}" ` +
+        `data-wdn="${st.wDn.toFixed(1)}" data-n="${st.n}" ` +
+        `data-lbl="${lblEsc}"/>`
+      );
+
+      // ── 4. Ausreißer-Kreise ───────────────────────────────────────────────────
+      if (cfg.showOutliers) {
+        periodItems.get(key).forEach((item, idx) => {
+          if (item.lt <= st.wUp && item.lt >= st.wDn) return;
+          const sy    = yS(item.lt);
+          const hash  = (idx * 7919 + key.charCodeAt(0)) % 100;
+          const jitter = ((hash - 50) / 50) * Math.min(bHW * 0.55, colW * 0.25);
+          const ox    = (cx + jitter).toFixed(1);
+          const escId = item.jiraId.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          const escTy = item.issueType.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+          parts.push(
+            `<circle class="bc-out" cx="${ox}" cy="${sy.toFixed(1)}" r="${outR}" ` +
+            `fill="${outlFill}" stroke="${outlStr}" stroke-width="1.2" ` +
+            `data-jira="${escId}" data-lt="${item.lt.toFixed(2)}" ` +
+            `data-type="${escTy}" ` +
+            `style="cursor:pointer;opacity:0.9"/>`
+          );
+        });
+      }
+    });
+
+    parts.push('</svg>');
+    const savedPanel = document.getElementById('bc-cfg-panel');
+    const savedExp   = document.getElementById('bc-explanation');
+    _contentEl.innerHTML = parts.join('');
+    if (savedExp) {
+      _contentEl.insertBefore(savedExp, _contentEl.firstChild);
+      savedExp.style.maxHeight = _explanationOpen ? savedExp.scrollHeight + 'px' : '0';
+    }
+    if (savedPanel) _contentEl.appendChild(savedPanel);
+
+    // ── Tooltip-Delegation ────────────────────────────────────────────────────
+    const svg = _contentEl.querySelector('svg');
+    if (!svg) return;
+
+    svg.addEventListener('mouseover', e => {
+      const outEl = e.target.closest ? e.target.closest('.bc-out')     : null;
+      const boxEl = e.target.closest ? e.target.closest('.bc-box-hit') : null;
+
+      if (outEl) {
+        clearTimeout(_ttTimer);
+        const jiraId  = outEl.dataset.jira || '';
+        const ltVal   = parseFloat(outEl.dataset.lt);
+        const issType = outEl.dataset.type || '';
+        const url     = core.state.urlTemplate
+          ? core.state.urlTemplate.replace('{issueKey}', jiraId)
+          : '';
+        let html = `<div class="tt-title">${jiraId || '—'}</div>`;
+        if (issType) {
+          html += `<div class="tt-row"><span class="tt-lbl">Typ</span><span class="tt-val">${issType}</span></div>`;
+        }
+        const modeLbl = _detectMode() === 'ct' ? 'Cycle Time' : 'Lead Time';
+        html += `<div class="tt-row"><span class="tt-lbl">${modeLbl}</span><span class="tt-val">${core.fmt(ltVal)}</span></div>`;
+        if (url) {
+          const urlEsc = url.replace(/'/g, "\\'");
+          html += `<a class="tt-link" href="#" onclick="window.open('${urlEsc}','_blank');return false;">🔗 In Jira öffnen</a>`;
+        }
+        _tooltip.innerHTML           = html;
+        _tooltip.style.pointerEvents = url ? 'all' : 'none';
+        _posTt(e.clientX, e.clientY);
+
+      } else if (boxEl) {
+        clearTimeout(_ttTimer);
+        const d = boxEl.dataset;
+        let html = `<div class="tt-title">${d.lbl || ''}</div>`;
+        html += `<div class="tt-row"><span class="tt-lbl">Median</span><span class="tt-val">${parseFloat(d.med).toFixed(1)}d</span></div>`;
+        html += `<div class="tt-row"><span class="tt-lbl">P85</span><span class="tt-val">${parseFloat(d.p85).toFixed(1)}d</span></div>`;
+        html += `<div class="tt-row"><span class="tt-lbl">P25</span><span class="tt-val">${parseFloat(d.p25).toFixed(1)}d</span></div>`;
+        html += `<div class="tt-row"><span class="tt-lbl">Whisker&nbsp;↑</span><span class="tt-val">${parseFloat(d.wup).toFixed(1)}d</span></div>`;
+        html += `<div class="tt-row"><span class="tt-lbl">Whisker&nbsp;↓</span><span class="tt-val">${parseFloat(d.wdn).toFixed(1)}d</span></div>`;
+        html += `<div class="tt-row"><span class="tt-lbl">n</span><span class="tt-val">${d.n}</span></div>`;
+        _tooltip.innerHTML           = html;
+        _tooltip.style.pointerEvents = 'none';
+        _posTt(e.clientX, e.clientY);
+      }
+    });
+
+    svg.addEventListener('mousemove', e => {
+      if (_tooltip.style.display === 'block') {
+        _posTt(e.clientX, e.clientY);
+      }
+    });
+
+    svg.addEventListener('mouseout', e => {
+      const leavingOut = e.target.closest && e.target.closest('.bc-out');
+      const leavingBox = e.target.closest && e.target.closest('.bc-box-hit');
+      if (leavingOut || leavingBox) {
+        _ttTimer = setTimeout(() => { _tooltip.style.display = 'none'; }, 120);
+      }
+    });
+  }
+
+  // ── Initialisierung ───────────────────────────────────────────────────────
   _buildHeader();
   _buildKpiArea();
   _buildExplanation();
@@ -5165,935 +6088,6 @@ function init_boxchart() {
   core.on('theme',    _render);
   core.on('resize',   _render);
   core.on('settings', _render);
-}
-
-// ════════════════════════════════════════════════
-// Header: Mode-Buttons + Ausreißer-Toggle + Badge + ⚙
-// ════════════════════════════════════════════════
-function _buildHeader() {
-  // ── Preset-Buttons: Lead Time / Cycle Time ─────────────────────────────
-  [['lt', 'Lead Time'], ['ct', 'Cycle Time']].forEach(([preset, lbl]) => {
-    const btn = document.createElement('button');
-    btn.className     = 'btn-icon';
-    btn.id            = 'bc-mode-' + preset;
-    btn.textContent   = lbl;
-    btn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
-    btn.addEventListener('click', () => {
-      if (preset === 'lt') { cfg.ltStart = LT_START; cfg.ltEnd = LT_END; }
-      else                 { cfg.ltStart = CT_START;  cfg.ltEnd = LT_END; }
-      const ltsEl = document.getElementById('bc-ltstart');
-      const lteEl = document.getElementById('bc-ltend');
-      if (ltsEl) ltsEl.value = cfg.ltStart;
-      if (lteEl) lteEl.value = cfg.ltEnd;
-      _updateModeUI();
-      _saveAndRender();
-    });
-    _headerExtraEl.appendChild(btn);
-  });
-
-  // ── Bug-Toggle: inkl. Bug ───────────────────────────────────────────────
-  const bugBtn = document.createElement('button');
-  bugBtn.className   = 'btn-icon';
-  bugBtn.id          = 'bc-bug-toggle';
-  bugBtn.title       = 'Bug-Issues einschließen';
-  bugBtn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
-  bugBtn.classList.toggle('p-blue', cfg.includeBug);
-  bugBtn.style.cssText = 'font-size:.58rem;padding:.1rem .32rem';
-  bugBtn.addEventListener('click', () => {
-    cfg.includeBug = !cfg.includeBug;
-    _syncBugToggle();
-    _saveAndRender();
-  });
-  _headerExtraEl.appendChild(bugBtn);
-
-  // ── Mode-Buttons: Box / Violin / Kombi ──────────────────────────────────
-  const modes = [['box','Box'], ['violin','Violin'], ['combo','Kombi']];
-  modes.forEach(([val, lbl]) => {
-    const btn = document.createElement('button');
-    btn.className        = 'btn-icon';
-    btn.dataset.bcMode   = val;
-    btn.textContent      = lbl;
-    btn.style.cssText    = 'font-size:.58rem;padding:.1rem .32rem';
-    btn.classList.toggle('p-blue', cfg.chartMode === val);
-    btn.addEventListener('click', () => {
-      cfg.chartMode = val;
-      _headerExtraEl.querySelectorAll('[data-bc-mode]').forEach(b =>
-        b.classList.toggle('p-blue', b.dataset.bcMode === val)
-      );
-      _saveAndRender();
-    });
-    _headerExtraEl.appendChild(btn);
-  });
-
-  // ── Ausreißer-Toggle ────────────────────────────────────────────────────
-  const outBtn = document.createElement('button');
-  outBtn.className   = 'btn-icon';
-  outBtn.id          = 'bc-hdr-out';
-  outBtn.title       = 'Ausreißer ein/aus';
-  outBtn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
-  outBtn.classList.toggle('p-blue', cfg.showOutliers);
-  outBtn.addEventListener('click', () => {
-    cfg.showOutliers = !cfg.showOutliers;
-    _syncOutlierControls();
-    _saveAndRender();
-  });
-  _headerExtraEl.appendChild(outBtn);
-
-  // ── Config-Button ⚙ ─────────────────────────────────────────────────────
-  const cfgBtn = document.createElement('button');
-  cfgBtn.className   = 'btn-icon';
-  cfgBtn.id          = 'bc-cfg-btn';
-  cfgBtn.title       = 'Konfiguration';
-  cfgBtn.textContent = '⚙';
-  cfgBtn.style.marginLeft = '.15rem';
-  cfgBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    _togglePanel();
-  });
-
-  _headerExtraEl.appendChild(cfgBtn);
-
-  // ── Config-Panel (Overlay in contentEl, niemals über Header/KPI) ─────────
-  //    position:absolute in contentEl → Header + KPI bleiben immer frei
-  const panel = document.createElement('div');
-  panel.id        = 'bc-cfg-panel';
-  panel.className = 'sub-panel';
-  Object.assign(panel.style, {
-    position:     'absolute',
-    top:          '0',
-    left:         '0',
-    right:        '0',
-    zIndex:       '50',
-    background:   'var(--bg2)',
-    borderBottom: '1px solid var(--border)',
-    overflowY:    'auto',
-  });
-
-  panel.innerHTML = `
-    <div class="lt-row" style="position:relative">
-      <button id="bc-cfg-close" title="Schließen"
-              style="position:absolute;top:0;right:0;background:none;border:none;
-                     color:var(--dim);cursor:pointer;font-size:.85rem;
-                     padding:.1rem .4rem;line-height:1">×</button>
-      <div class="lt-field">
-        <span class="lt-label">ltStart</span>
-        <select class="lt-select" id="bc-ltstart"></select>
-      </div>
-      <div class="lt-field">
-        <span class="lt-label">ltEnd</span>
-        <select class="lt-select" id="bc-ltend"></select>
-      </div>
-      <div class="lt-field">
-        <span class="lt-label">Iteration</span>
-        <select class="lt-select" id="bc-period">
-          <option value="month">Monat</option>
-          <option value="quarter">Quartal</option>
-        </select>
-      </div>
-      <div class="lt-field">
-        <label style="display:flex;align-items:center;gap:.3rem;font-size:.65rem;
-                      color:var(--dim);cursor:pointer;font-family:var(--mono)">
-          <input type="checkbox" id="bc-smoothing-chk"
-                 style="accent-color:var(--blue);width:11px;height:11px">
-          Glättung
-        </label>
-      </div>
-      <div class="lt-field">
-        <label style="display:flex;align-items:center;gap:.3rem;font-size:.65rem;
-                      color:var(--dim);cursor:pointer;font-family:var(--mono)">
-          <input type="checkbox" id="bc-ylog-chk"
-                 style="accent-color:var(--blue);width:11px;height:11px">
-          Log-Skala
-        </label>
-      </div>
-      <div class="lt-field" style="display:flex;align-items:center;gap:.3rem">
-        <span class="lt-label">Y-Schritt</span>
-        <input type="number" id="bc-ystep" min="0" step="10"
-               style="width:52px;font-family:var(--mono);font-size:.65rem;
-                      background:var(--bg3,var(--bg2));border:1px solid var(--border);
-                      color:var(--text);border-radius:3px;padding:.1rem .3rem;
-                      text-align:right">
-        <span style="font-family:var(--mono);font-size:.6rem;color:var(--dim)">d</span>
-        <span id="bc-ytick-info"
-              style="font-family:var(--mono);font-size:.6rem;color:var(--dimmer)"></span>
-      </div>
-    </div>`;
-
-  // Panel in contentEl (chart area) einhängen – Header/KPI nie überdeckt
-  _contentEl.style.position = 'relative';
-  _contentEl.appendChild(panel);
-
-  // ── × Schließen ──────────────────────────────────────────────────────────
-  document.getElementById('bc-cfg-close').addEventListener('click', e => {
-    e.stopPropagation();
-    _closePanel();
-  });
-
-  // ── Klick außerhalb schließt Panel ───────────────────────────────────────
-  document.addEventListener('click', e => {
-    if (!_cfgOpen) return;
-    const p = document.getElementById('bc-cfg-panel');
-    const b = document.getElementById('bc-cfg-btn');
-    if (p && !p.contains(e.target) && b && !b.contains(e.target)) {
-      _closePanel();
-    }
-  }, true);  // capture phase: sicher auch wenn innere Handler stopPropagation nutzen
-
-  // ── Panel-Steuerelemente ─────────────────────────────────────────────────
-
-  document.getElementById('bc-period').value = cfg.periodMode;
-  document.getElementById('bc-period').addEventListener('change', e => {
-    cfg.periodMode = e.target.value;
-    _saveAndRender();
-  });
-
-  const smoothChk = document.getElementById('bc-smoothing-chk');
-  smoothChk.checked = cfg.smoothing;
-  smoothChk.addEventListener('change', () => {
-    cfg.smoothing = smoothChk.checked;
-    _saveAndRender();
-  });
-
-  // Log-Skala
-  const yLogChk = document.getElementById('bc-ylog-chk');
-  yLogChk.checked = cfg.yLog;
-  yLogChk.addEventListener('change', () => {
-    cfg.yLog = yLogChk.checked;
-    const stepInput = document.getElementById('bc-ystep');
-    if (stepInput) stepInput.disabled = cfg.yLog;
-    _updateYTickInfo();
-    _saveAndRender();
-  });
-
-  // Y-Schrittweite
-  const yStepInput = document.getElementById('bc-ystep');
-  yStepInput.value    = cfg.yStep > 0 ? cfg.yStep : '';
-  yStepInput.disabled = cfg.yLog;
-  yStepInput.addEventListener('input', () => {
-    const v = parseFloat(yStepInput.value);
-    cfg.yStep = (isFinite(v) && v > 0) ? v : 0;
-    _updateYTickInfo();
-    _saveAndRender();
-  });
-
-  document.getElementById('bc-ltstart').addEventListener('change', e => {
-    cfg.ltStart = e.target.value;
-    _updateModeUI();
-    _saveAndRender();
-  });
-  document.getElementById('bc-ltend').addEventListener('change', e => {
-    cfg.ltEnd = e.target.value;
-    _updateModeUI();
-    _saveAndRender();
-  });
-}
-
-// ── Panel öffnen / schließen ──────────────────────────────────────────────
-function _togglePanel() {
-  _cfgOpen ? _closePanel() : _openPanel();
-}
-
-function _openPanel() {
-  _cfgOpen = true;
-  const btn   = document.getElementById('bc-cfg-btn');
-  const panel = document.getElementById('bc-cfg-panel');
-  if (btn)   btn.classList.add('p-blue');
-  if (panel) panel.classList.add('open');
-}
-
-function _closePanel() {
-  _cfgOpen = false;
-  const btn   = document.getElementById('bc-cfg-btn');
-  const panel = document.getElementById('bc-cfg-panel');
-  if (btn)   btn.classList.remove('p-blue');
-  if (panel) panel.classList.remove('open');
-}
-
-// ── Y-Tick-Info aktualisieren (berechnete Anzahl anzeigen) ────────────────
-function _updateYTickInfo() {
-  const info = document.getElementById('bc-ytick-info');
-  if (!info) return;
-  if (cfg.yLog) {
-    info.textContent = '(log)';
-    return;
-  }
-  if (cfg.yStep > 0) {
-    // Schätzung anhand der letzten bekannten yMax (oder Platzhalter)
-    const yMax = parseFloat(info.dataset.ymax || '0');
-    if (yMax > 0) {
-      const n = Math.floor(yMax / cfg.yStep) + 1;
-      info.textContent = `≈ ${n} Ticks`;
-    } else {
-      info.textContent = '(auto berechnet)';
-    }
-  } else {
-    info.textContent = '(auto)';
-  }
-}
-
-// ── Ausreißer-Controls synchronisieren ───────────────────────────────────
-function _syncOutlierControls() {
-  const btn = document.getElementById('bc-hdr-out');
-  if (btn) {
-    btn.textContent = cfg.showOutliers ? 'Ausreisser ●' : 'Ausreisser ○';
-    btn.classList.toggle('p-blue', cfg.showOutliers);
-  }
-}
-
-// ── Bug-Toggle synchronisieren ────────────────────────────────────────────
-function _syncBugToggle() {
-  const btn = document.getElementById('bc-bug-toggle');
-  if (btn) {
-    btn.textContent = cfg.includeBug ? 'inkl. Bug ●' : 'inkl. Bug ○';
-    btn.classList.toggle('p-blue', cfg.includeBug);
-  }
-}
-
-// ── Bug-Filterung (lokaler Button hat Vorrang über globalen Issue-Type-Filter) ──
-function _applyBugFilter(rows) {
-  if (cfg.includeBug) return rows;
-  return rows.filter(r => {
-    const t = (r['Issue-Type'] || r['Issue Type'] || r['IssueType'] || r['Type'] || r['issue_type'] || '').trim().toLowerCase();
-    return t !== 'bug';
-  });
-}
-
-// ════════════════════════════════════════════════
-// KPI-Bereich (zwischen Config-Panel und tile-content)
-// ════════════════════════════════════════════════
-function _buildKpiArea() {
-  const kpi = document.createElement('div');
-  kpi.id = 'bc-kpi-area';
-  kpi.style.cssText = [
-    'padding:5px 10px 4px', 'flex-shrink:0',
-    'border-bottom:1px solid var(--border)',
-    'background:var(--bg2)',
-  ].join(';');
-
-  kpi.innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between">
-      <div>
-        <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:2px">
-          <span id="bc-kpi-val"
-                style="font-size:1.55rem;font-weight:700;line-height:1;color:var(--text)">–</span>
-          <span id="bc-kpi-trend"
-                style="display:none;font-size:.6rem;font-weight:600;
-                       padding:.12rem .35rem;border-radius:4px;white-space:nowrap"></span>
-        </div>
-        <div id="bc-kpi-sub"
-             style="font-size:.62rem;color:var(--dim);font-family:var(--mono)">–</div>
-      </div>
-      <span id="bc-kpi-n"
-            style="font-family:var(--mono);font-size:.65rem;color:var(--dim);
-                   align-self:center;white-space:nowrap">N = –</span>
-    </div>
-  `;
-
-  const tileEl = document.getElementById('tile-boxchart');
-  tileEl.insertBefore(kpi, tileEl.querySelector('.tile-content'));
-}
-
-function _updateKpiArea(latestStats, prevStats) {
-  const valEl   = document.getElementById('bc-kpi-val');
-  const trendEl = document.getElementById('bc-kpi-trend');
-  const subEl   = document.getElementById('bc-kpi-sub');
-  if (!valEl) return;
-
-  if (!latestStats) {
-    valEl.textContent = '–';
-    if (trendEl) trendEl.style.display = 'none';
-    if (subEl)   subEl.textContent = '–';
-    return;
-  }
-
-  valEl.textContent = Math.round(latestStats.med) + 'd';
-
-  if (trendEl && prevStats) {
-    const diff    = latestStats.med - prevStats.med;
-    const absDiff = Math.abs(Math.round(diff));
-    if (absDiff >= 1) {
-      const up = diff > 0;
-      trendEl.style.display    = 'inline-block';
-      trendEl.textContent      = (up ? '▲ +' : '▼ −') + absDiff + 'd ggü. Vorperiode';
-      trendEl.style.color      = up ? 'var(--orange)' : 'var(--green)';
-      trendEl.style.background = up
-        ? 'rgba(251,146,60,.12)' : 'rgba(74,222,128,.1)';
-    } else {
-      trendEl.style.display = 'none';
-    }
-  } else if (trendEl) {
-    trendEl.style.display = 'none';
-  }
-
-  if (subEl) subEl.textContent = `P85 · ${Math.round(latestStats.p85)}d · typischer Fall`;
-}
-
-// ════════════════════════════════════════════════
-// Footer (ersetzt Diag-Bar-Text)
-// ════════════════════════════════════════════════
-function _buildFooter() {
-  _diagEl.style.cssText = [
-    'display:flex', 'align-items:center',
-    'padding:.2rem .58rem',
-    'background:var(--bg2)',
-    'border-top:1px solid var(--border)',
-    'flex-shrink:0',
-    'gap:.4rem',
-    'font-family:var(--mono)',
-    'font-size:11px',
-    'white-space:nowrap',
-    'overflow:hidden',
-  ].join(';');
-
-  const hint = document.createElement('a');
-  hint.textContent = 'Was zeigt diese Ansicht?';
-  hint.style.cssText = 'color:var(--blue);cursor:pointer;text-decoration:none';
-  hint.addEventListener('click', _toggleExplanation);
-
-  const spacer = document.createElement('span');
-  spacer.style.flex = '1';
-
-  const link = document.createElement('a');
-  link.textContent = 'Verteilung ansehen →';
-  link.style.cssText = [
-    'color:var(--blue)', 'cursor:pointer',
-    'text-decoration:none', 'font-weight:500', 'flex-shrink:0',
-  ].join(';');
-  link.addEventListener('click', e => {
-    e.preventDefault();
-    const sc = core.load('fhwa_scatter', {});
-    sc.ctStart = cfg.ltStart;
-    sc.ctEnd   = cfg.ltEnd;
-    core.save('fhwa_scatter', sc);
-    core.showPage('scatter');
-  });
-
-  _diagEl.innerHTML = '';
-  _diagEl.appendChild(hint);
-  _diagEl.appendChild(spacer);
-  _diagEl.appendChild(link);
-}
-
-// ════════════════════════════════════════════════
-// Erklärungs-Panel (aufklappbar, wie Flow Efficiency)
-// ════════════════════════════════════════════════
-function _buildExplanation() {
-  _explanationEl = document.createElement('div');
-  _explanationEl.id = 'bc-explanation';
-  _explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:.63rem', 'color:var(--dim)', 'line-height:1.6',
-    'font-family:var(--mono)',
-  ].join(';');
-  _explanationEl.innerHTML = _getModeExplanation();
-  _contentEl.insertBefore(_explanationEl, _contentEl.firstChild);
-}
-
-function _toggleExplanation() {
-  _explanationOpen = !_explanationOpen;
-  if (_explanationEl) {
-    _explanationEl.style.maxHeight = _explanationOpen
-      ? _explanationEl.scrollHeight + 'px'
-      : '0';
-  }
-  const hintEl = _diagEl.querySelector('a');
-  if (hintEl) hintEl.style.opacity = _explanationOpen ? '0.7' : '1';
-  setTimeout(_render, 240);
-}
-
-// ════════════════════════════════════════════════
-// Spalten-Selects befüllen
-// ════════════════════════════════════════════════
-function _populateColSelects() {
-  const cols = core.state.dateCols;
-  [['bc-ltstart', cfg.ltStart], ['bc-ltend', cfg.ltEnd]].forEach(([id, cur]) => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    sel.innerHTML = cols.map(c =>
-      `<option value="${c}"${c === cur ? ' selected' : ''}>${c}</option>`
-    ).join('');
-  });
-}
-
-// ════════════════════════════════════════════════
-// Event-Handler
-// ════════════════════════════════════════════════
-function _onData() {
-  _populateColSelects();
-  _render();
-}
-
-// ════════════════════════════════════════════════
-// Tooltip
-// ════════════════════════════════════════════════
-function _createTooltip() {
-  if (_tooltip) return;
-  _tooltip = document.createElement('div');
-  _tooltip.style.cssText = [
-    'position:fixed', 'display:none', 'z-index:9999',
-    'background:var(--bg2)', 'border:1px solid var(--border)',
-    'border-radius:7px', 'padding:.45rem .6rem',
-    'font-family:var(--mono)', 'font-size:.68rem',
-    'color:var(--text)', 'pointer-events:none',
-    'min-width:140px', 'max-width:230px',
-    'box-shadow:0 8px 24px rgba(0,0,0,.45)',
-    'line-height:1.55',
-  ].join(';');
-  _tooltip.addEventListener('mouseenter', () => clearTimeout(_ttTimer));
-  _tooltip.addEventListener('mouseleave', () => {
-    _ttTimer = setTimeout(() => { _tooltip.style.display = 'none'; }, 130);
-  });
-  document.body.appendChild(_tooltip);
-}
-
-function _posTt(cx, cy) {
-  _tooltip.style.display = 'block';
-  const tw = _tooltip.offsetWidth  || 200;
-  const th = _tooltip.offsetHeight || 80;
-  const vw = window.innerWidth, vh = window.innerHeight;
-  let l = cx + 14, t = cy - th / 2;
-  if (l + tw > vw - 8) l = cx - tw - 14;
-  if (t < 8)           t = 8;
-  if (t + th > vh - 8) t = vh - th - 8;
-  _tooltip.style.left = l + 'px';
-  _tooltip.style.top  = t + 'px';
-}
-
-// ════════════════════════════════════════════════
-// Statistik-Helpers
-// ════════════════════════════════════════════════
-function _calcStats(values) { return calcBoxStats(values); }
-
-function _kde(sorted, bw, nPts) {
-  if (sorted.length < 2) return [];
-  const mn = sorted[0], mx = sorted[sorted.length - 1];
-  if (mn === mx) return [{ x: mn, y: 1 }];
-  const step   = (mx - mn) / (nPts - 1);
-  const norm   = sorted.length * bw * Math.sqrt(2 * Math.PI);
-  const result = [];
-  for (let i = 0; i < nPts; i++) {
-    const x = mn + i * step;
-    let s = 0;
-    for (const v of sorted) {
-      const u = (x - v) / bw;
-      s += Math.exp(-0.5 * u * u);
-    }
-    result.push({ x, y: s / norm });
-  }
-  return result;
-}
-
-function _niceYTicks(lo, hi, n, customStep) {
-  const range = hi - lo || 1;
-  let step;
-  if (customStep && customStep > 0) {
-    step = customStep;
-  } else {
-    const raw = range / (n - 1);
-    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    step = [1, 2, 5, 10].map(f => f * mag).find(f => f >= raw) || mag;
-  }
-  step = Math.max(1, Math.round(step));
-  const ticks = [];
-  let t = Math.ceil(lo / step) * step;
-  if (t > lo + step * 0.01) ticks.unshift(Math.round(lo));
-  while (t <= hi + step * 0.01) {
-    ticks.push(Math.round(t));
-    t += step;
-  }
-  return [...new Set(ticks)].sort((a, b) => a - b);
-}
-
-// Logarithmische Tick-Positionen (1, 2, 5, 10, 20, 50, 100 …)
-function _logYTicks(lo, hi) {
-  const ticks = [];
-  const steps = [1, 2, 5];
-  let mag = 1;
-  while (mag <= hi * 10) {
-    for (const s of steps) {
-      const v = s * mag;
-      if (v >= Math.max(1, lo) && v <= hi * 1.05) ticks.push(v);
-    }
-    mag *= 10;
-  }
-  if (!ticks.length) ticks.push(1);
-  return ticks;
-}
-
-const DE_MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
-
-function _periodKey(d, mode) {
-  if (!d) return null;
-  const y = d.getFullYear(), m = d.getMonth();
-  return mode === 'quarter'
-    ? `${y}-Q${Math.floor(m / 3) + 1}`
-    : `${y}-${String(m + 1).padStart(2, '0')}`;
-}
-
-function _periodLabel(key, mode) {
-  if (mode === 'quarter') {
-    const [yr, q] = key.split('-');
-    return `${q} ${String(yr).slice(2)}`;
-  }
-  const [yr, mo] = key.split('-');
-  return `${DE_MONTHS[parseInt(mo, 10) - 1]} ${String(yr).slice(2)}`;
-}
-
-// Chronologisch: ältester Monat/Quartal links, neuester rechts
-function _chronoSort(keys) {
-  return [...keys].sort();   // YYYY-MM / YYYY-QN sortieren korrekt als Strings
-}
-
-function _saveAndRender() {
-  core.save(LS_KEY, cfg);
-  _render();
-}
-
-// ════════════════════════════════════════════════
-// Leerzustand in contentEl anzeigen
-// ════════════════════════════════════════════════
-function _showEmpty(msg) {
-  const panel = document.getElementById('bc-cfg-panel');
-  const exp   = document.getElementById('bc-explanation');
-  _contentEl.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;
-                height:100%;font-family:var(--mono);font-size:.63rem;
-                color:var(--dimmer);padding:.5rem;text-align:center">
-      ${msg}
-    </div>`;
-  if (exp) {
-    _contentEl.insertBefore(exp, _contentEl.firstChild);
-    exp.style.maxHeight = _explanationOpen ? exp.scrollHeight + 'px' : '0';
-  }
-  if (panel) _contentEl.appendChild(panel);
-  _updateKpiArea(null, null);
-  const nEl = document.getElementById('bc-kpi-n');
-  if (nEl) nEl.textContent = 'N = –';
-}
-
-// ════════════════════════════════════════════════
-// Haupt-Render
-// ════════════════════════════════════════════════
-function _render() {
-  const rows = _applyBugFilter(core.filteredRows());
-  const ltS  = cfg.ltStart;
-  const ltE  = cfg.ltEnd;
-
-  if (!rows.length) {
-    _showEmpty('Keine Daten geladen.');
-    return;
-  }
-
-  if (!(ltS in rows[0]) || !(ltE in rows[0])) {
-    _showEmpty(`Spalten „${ltS}" oder „${ltE}" nicht gefunden.`);
-    return;
-  }
-
-  // ── Daten gruppieren ──────────────────────────────────────────────────────
-  const periodItems = new Map();
-
-  for (const row of rows) {
-    const lt = core.dur(row[ltS], row[ltE]);
-    if (!lt || lt < 1) continue;
-    const endDate = core.toDate(row[ltE]);
-    if (!endDate) continue;
-    const key = _periodKey(endDate, cfg.periodMode);
-    if (!key) continue;
-    if (!periodItems.has(key)) periodItems.set(key, []);
-
-    // Issue Type: gängige Spaltennamen abdecken
-    const issueType = String(
-      row['Issue-Type'] || row['Issue Type'] || row['IssueType'] || row['Type'] || row['issue_type'] || ''
-    );
-
-    periodItems.get(key).push({
-      jiraId: String(row['Jira-ID'] || ''),
-      lt,
-      issueType,
-    });
-  }
-
-  if (!periodItems.size) {
-    _showEmpty('Keine gültigen Lead-Time-Werte.');
-    return;
-  }
-
-  // ── Sortierung & Statistiken ──────────────────────────────────────────────
-  const keys     = _chronoSort([...periodItems.keys()]);
-  const statsMap = new Map();
-  keys.forEach(k => statsMap.set(k, _calcStats(periodItems.get(k).map(it => it.lt))));
-
-  // ── KPI-Bereich ───────────────────────────────────────────────────────────
-  const latestKey = keys[keys.length - 1];
-  const prevKey   = keys.length >= 2 ? keys[keys.length - 2] : null;
-  _updateKpiArea(
-    statsMap.get(latestKey),
-    prevKey ? statsMap.get(prevKey) : null
-  );
-
-  // ── N gesamt ─────────────────────────────────────────────────────────────
-  const totalN = [...periodItems.values()].reduce((s, a) => s + a.length, 0);
-  const nEl = document.getElementById('bc-kpi-n');
-  if (nEl) nEl.textContent = 'N = ' + totalN;
-
-  // ── SVG-Dimensionen ───────────────────────────────────────────────────────
-  const W = _contentEl.clientWidth  || 600;
-  const H = _contentEl.clientHeight || 200;
-  if (W < 60 || H < 50) return;
-
-  const C    = core.scatterColors();
-  const isLt = core.isLight();
-
-  const PAD_L = 38, PAD_R = 10, PAD_T = 10, PAD_B = 42;
-  const pW = W - PAD_L - PAD_R;
-  const pH = H - PAD_T - PAD_B;
-  if (pW < 40 || pH < 30) return;
-
-  // ── Y-Skala ───────────────────────────────────────────────────────────────
-  let yMax = 1;
-  keys.forEach(k => {
-    const st = statsMap.get(k);
-    if (!st) return;
-    yMax = Math.max(yMax, st.wUp);
-    if (cfg.showOutliers) {
-      periodItems.get(k).forEach(it => { yMax = Math.max(yMax, it.lt); });
-    }
-  });
-  yMax = Math.ceil(yMax * 1.12) || 10;
-
-  // Tick-Info im Panel aktualisieren (zeigt berechnete Tick-Anzahl)
-  const _tickInfoEl = document.getElementById('bc-ytick-info');
-  if (_tickInfoEl) {
-    _tickInfoEl.dataset.ymax = yMax;
-    if (cfg.yLog) {
-      _tickInfoEl.textContent = '(log)';
-    } else if (cfg.yStep > 0) {
-      const n = Math.floor(yMax / cfg.yStep) + 1;
-      _tickInfoEl.textContent = `≈ ${n} Ticks`;
-    } else {
-      _tickInfoEl.textContent = '(auto)';
-    }
-  }
-
-  // Ticks + Skalierfunktion: linear oder logarithmisch
-  let yTicks, yS;
-  if (cfg.yLog) {
-    yTicks = _logYTicks(1, yMax);
-    const logMax = Math.log10(Math.max(1, yMax));
-    yS = v => PAD_T + pH - (Math.log10(Math.max(1, v)) / logMax) * pH;
-  } else {
-    yTicks = _niceYTicks(0, yMax, 5, cfg.yStep > 0 ? cfg.yStep : 0);
-    yS     = v => PAD_T + pH - (Math.max(0, v) / yMax) * pH;
-  }
-
-  // ── X-Skala ───────────────────────────────────────────────────────────────
-  const nP   = keys.length;
-  const colW = pW / nP;
-  const bHW  = Math.max(5, Math.min(24, colW * 0.28));
-  const vHW  = Math.max(7, Math.min(32, colW * 0.38));
-  const outR = Math.max(2, Math.min(5,  colW / 14));
-  const xC   = i => PAD_L + (i + 0.5) * colW;
-
-  // ── Farben ────────────────────────────────────────────────────────────────
-  const amberC   = isLt ? '#d97706' : '#fbbf24';
-  const boxFill  = isLt ? 'rgba(2,132,199,0.15)'  : 'rgba(56,189,248,0.15)';
-  const boxStr   = isLt ? '#0284c7'                : '#38bdf8';
-  const medC     = isLt ? '#0284c7'                : '#38bdf8';
-  const whiskC   = C.axisLabel;
-  const outlFill = isLt ? '#94a3b8'                : '#4d6a88';
-  const outlStr  = isLt ? '#0284c7'                : '#38bdf8';
-  const violinF  = isLt ? 'rgba(2,132,199,0.10)'  : 'rgba(56,189,248,0.10)';
-  const violinS  = isLt ? 'rgba(2,132,199,0.45)'  : 'rgba(56,189,248,0.45)';
-
-  const bw = cfg.smoothing ? BW_ON : BW_OFF;
-
-  const parts = [];
-  parts.push(`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`);
-
-  // Y-Achse: Grid + Labels
-  for (const y of yTicks) {
-    const sy  = yS(y);
-    const lbl = String(Math.round(y));
-    parts.push(`<line x1="${PAD_L}" y1="${sy.toFixed(1)}" x2="${(PAD_L+pW).toFixed(1)}" y2="${sy.toFixed(1)}" stroke="${C.gridLine}" stroke-width="1" stroke-dasharray="${cfg.yLog ? '2,3' : 'none'}"/>`);
-    parts.push(`<text x="${(PAD_L-4).toFixed(1)}" y="${(sy+4).toFixed(1)}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="${C.axisLabel}">${lbl}</text>`);
-  }
-
-  // Achsenlinien
-  parts.push(`<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${(PAD_T+pH).toFixed(1)}" stroke="${C.axisLine}" stroke-width="1"/>`);
-  parts.push(`<line x1="${PAD_L}" y1="${(PAD_T+pH).toFixed(1)}" x2="${(PAD_L+pW).toFixed(1)}" y2="${(PAD_T+pH).toFixed(1)}" stroke="${C.axisLine}" stroke-width="1"/>`);
-
-  // Pro Periode
-  keys.forEach((key, i) => {
-    const st  = statsMap.get(key);
-    const cx  = xC(i);
-    const lbl = _periodLabel(key, cfg.periodMode);
-    const n   = st ? st.n : 0;
-
-    // X-Achse: Perioden-Label + n=X
-    parts.push(`<text x="${cx.toFixed(1)}" y="${(PAD_T+pH+13).toFixed(1)}" text-anchor="middle" font-family="var(--mono)" font-size="9" fill="${C.axisLabel}">${lbl}</text>`);
-    parts.push(`<text x="${cx.toFixed(1)}" y="${(PAD_T+pH+25).toFixed(1)}" text-anchor="middle" font-family="var(--mono)" font-size="8" fill="${C.nText}">n=${n}</text>`);
-
-    if (!st || n === 0) return;
-
-    const syP25 = yS(st.p25);
-    const syMed = yS(st.med);
-    const syP85 = yS(st.p85);
-    const syWUp = yS(st.wUp);
-    const syWDn = yS(st.wDn);
-
-    // ── 1. Violin ────────────────────────────────────────────────────────────
-    if (cfg.chartMode === 'violin' || cfg.chartMode === 'combo') {
-      const kde = _kde(st.sorted, bw, KDE_POINTS);
-      if (kde.length >= 2) {
-        const maxD = kde.reduce((m, p) => Math.max(m, p.y), 0);
-        if (maxD > 0) {
-          const pts = kde.map(p => ({
-            xR: cx + (p.y / maxD) * vHW,
-            xL: cx - (p.y / maxD) * vHW,
-            sy: yS(p.x),
-          }));
-          let d = `M${pts[0].xR.toFixed(1)},${pts[0].sy.toFixed(1)}`;
-          for (let j = 1; j < pts.length; j++) d += ` L${pts[j].xR.toFixed(1)},${pts[j].sy.toFixed(1)}`;
-          for (let j = pts.length-1; j >= 0; j--) d += ` L${pts[j].xL.toFixed(1)},${pts[j].sy.toFixed(1)}`;
-          d += ' Z';
-          parts.push(`<path d="${d}" fill="${violinF}" stroke="${violinS}" stroke-width="1.2"/>`);
-        }
-      }
-    }
-
-    // ── 2. Box + Whisker ──────────────────────────────────────────────────────
-    if (cfg.chartMode === 'box' || cfg.chartMode === 'combo') {
-      const hw    = cfg.chartMode === 'combo' ? bHW * 0.62 : bHW;
-      const capHW = hw * 0.40;
-      const boxTop = Math.min(syP25, syP85);
-      const boxHt  = Math.abs(syP85 - syP25);
-
-      parts.push(`<rect x="${(cx-hw).toFixed(1)}" y="${boxTop.toFixed(1)}" width="${(hw*2).toFixed(1)}" height="${boxHt.toFixed(1)}" fill="${boxFill}" stroke="${boxStr}" stroke-width="1.4" rx="2"/>`);
-      parts.push(`<line x1="${(cx-hw).toFixed(1)}" y1="${syMed.toFixed(1)}" x2="${(cx+hw).toFixed(1)}" y2="${syMed.toFixed(1)}" stroke="${medC}" stroke-width="2.2"/>`);
-      parts.push(`<line x1="${(cx-hw).toFixed(1)}" y1="${syP85.toFixed(1)}" x2="${(cx+hw).toFixed(1)}" y2="${syP85.toFixed(1)}" stroke="${amberC}" stroke-width="1.5" stroke-dasharray="3,2"/>`);
-
-      // Whisker oben
-      parts.push(`<line x1="${cx.toFixed(1)}" y1="${Math.min(syP85,syWUp).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${Math.max(syP85,syWUp).toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
-      parts.push(`<line x1="${(cx-capHW).toFixed(1)}" y1="${syWUp.toFixed(1)}" x2="${(cx+capHW).toFixed(1)}" y2="${syWUp.toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
-
-      // Whisker unten
-      parts.push(`<line x1="${cx.toFixed(1)}" y1="${Math.min(syP25,syWDn).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${Math.max(syP25,syWDn).toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
-      parts.push(`<line x1="${(cx-capHW).toFixed(1)}" y1="${syWDn.toFixed(1)}" x2="${(cx+capHW).toFixed(1)}" y2="${syWDn.toFixed(1)}" stroke="${whiskC}" stroke-width="1.2"/>`);
-    }
-
-    // ── 3. Box-Hit-Area (unsichtbar, für Box-Tooltip) ─────────────────────────
-    //    Liegt im SVG NACH Box/Whisker, ABER VOR den Ausreißer-Kreisen,
-    //    damit Ausreißer-Hover Priorität hat (SVG: spätere Elemente sind oben).
-    const hitT = (Math.min(syWUp, syP85, syMed, syP25, syWDn) - 4).toFixed(1);
-    const hitB = (Math.max(syWUp, syP85, syMed, syP25, syWDn) + 4).toFixed(1);
-    const hitH = (parseFloat(hitB) - parseFloat(hitT)).toFixed(1);
-    const lblEsc = lbl.replace(/"/g, '&quot;');
-    parts.push(
-      `<rect class="bc-box-hit" ` +
-      `x="${(cx - colW * 0.48).toFixed(1)}" y="${hitT}" ` +
-      `width="${(colW * 0.96).toFixed(1)}" height="${hitH}" ` +
-      `fill="transparent" style="cursor:crosshair" ` +
-      `data-p25="${st.p25.toFixed(1)}" data-med="${st.med.toFixed(1)}" ` +
-      `data-p85="${st.p85.toFixed(1)}" data-wup="${st.wUp.toFixed(1)}" ` +
-      `data-wdn="${st.wDn.toFixed(1)}" data-n="${st.n}" ` +
-      `data-lbl="${lblEsc}"/>`
-    );
-
-    // ── 4. Ausreißer-Kreise (oben im Z-Order) ────────────────────────────────
-    if (cfg.showOutliers) {
-      periodItems.get(key).forEach((item, idx) => {
-        if (item.lt <= st.wUp && item.lt >= st.wDn) return;
-        const sy    = yS(item.lt);
-        const hash  = (idx * 7919 + key.charCodeAt(0)) % 100;
-        const jitter = ((hash - 50) / 50) * Math.min(bHW * 0.55, colW * 0.25);
-        const ox    = (cx + jitter).toFixed(1);
-        const escId = item.jiraId.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-        const escTy = item.issueType.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-        parts.push(
-          `<circle class="bc-out" cx="${ox}" cy="${sy.toFixed(1)}" r="${outR}" ` +
-          `fill="${outlFill}" stroke="${outlStr}" stroke-width="1.2" ` +
-          `data-jira="${escId}" data-lt="${item.lt.toFixed(2)}" ` +
-          `data-type="${escTy}" ` +
-          `style="cursor:pointer;opacity:0.9"/>`
-        );
-      });
-    }
-  });
-
-  parts.push('</svg>');
-  const _savedPanel = document.getElementById('bc-cfg-panel');
-  const _savedExp   = document.getElementById('bc-explanation');
-  _contentEl.innerHTML = parts.join('');
-  if (_savedExp) {
-    _contentEl.insertBefore(_savedExp, _contentEl.firstChild);
-    _savedExp.style.maxHeight = _explanationOpen ? _savedExp.scrollHeight + 'px' : '0';
-  }
-  if (_savedPanel) _contentEl.appendChild(_savedPanel);
-
-  // ── Tooltip-Delegation ────────────────────────────────────────────────────
-  const svg = _contentEl.querySelector('svg');
-  if (!svg) return;
-
-  svg.addEventListener('mouseover', e => {
-    const outEl = e.target.closest ? e.target.closest('.bc-out')     : null;
-    const boxEl = e.target.closest ? e.target.closest('.bc-box-hit') : null;
-
-    if (outEl) {
-      // ── Ausreißer-Tooltip ──
-      clearTimeout(_ttTimer);
-      const jiraId   = outEl.dataset.jira || '';
-      const ltVal    = parseFloat(outEl.dataset.lt);
-      const issType  = outEl.dataset.type || '';
-      const url      = core.state.urlTemplate
-        ? core.state.urlTemplate.replace('{issueKey}', jiraId)
-        : '';
-      let html = `<div class="tt-title">${jiraId || '—'}</div>`;
-      if (issType) {
-        html += `<div class="tt-row"><span class="tt-lbl">Typ</span><span class="tt-val">${issType}</span></div>`;
-      }
-      const _modeLbl = _detectMode() === 'ct' ? 'Cycle Time' : 'Lead Time';
-      html += `<div class="tt-row"><span class="tt-lbl">${_modeLbl}</span><span class="tt-val">${core.fmt(ltVal)}</span></div>`;
-      if (url) {
-        const urlEsc = url.replace(/'/g, "\\'");
-        html += `<a class="tt-link" href="#" onclick="window.open('${urlEsc}','_blank');return false;">🔗 In Jira öffnen</a>`;
-      }
-      _tooltip.innerHTML           = html;
-      _tooltip.style.pointerEvents = url ? 'all' : 'none';
-      _posTt(e.clientX, e.clientY);
-
-    } else if (boxEl) {
-      // ── Box-Tooltip ──
-      clearTimeout(_ttTimer);
-      const d = boxEl.dataset;
-      let html = `<div class="tt-title">${d.lbl || ''}</div>`;
-      html += `<div class="tt-row"><span class="tt-lbl">Median</span><span class="tt-val">${parseFloat(d.med).toFixed(1)}d</span></div>`;
-      html += `<div class="tt-row"><span class="tt-lbl">P85</span><span class="tt-val">${parseFloat(d.p85).toFixed(1)}d</span></div>`;
-      html += `<div class="tt-row"><span class="tt-lbl">P25</span><span class="tt-val">${parseFloat(d.p25).toFixed(1)}d</span></div>`;
-      html += `<div class="tt-row"><span class="tt-lbl">Whisker&nbsp;↑</span><span class="tt-val">${parseFloat(d.wup).toFixed(1)}d</span></div>`;
-      html += `<div class="tt-row"><span class="tt-lbl">Whisker&nbsp;↓</span><span class="tt-val">${parseFloat(d.wdn).toFixed(1)}d</span></div>`;
-      html += `<div class="tt-row"><span class="tt-lbl">n</span><span class="tt-val">${d.n}</span></div>`;
-      _tooltip.innerHTML           = html;
-      _tooltip.style.pointerEvents = 'none';
-      _posTt(e.clientX, e.clientY);
-    }
-  });
-
-  svg.addEventListener('mousemove', e => {
-    // Tooltip-Position aktualisieren während Cursor sich bewegt
-    if (_tooltip.style.display === 'block') {
-      _posTt(e.clientX, e.clientY);
-    }
-  });
-
-  svg.addEventListener('mouseout', e => {
-    const leavingOut = e.target.closest && e.target.closest('.bc-out');
-    const leavingBox = e.target.closest && e.target.closest('.bc-box-hit');
-    if (leavingOut || leavingBox) {
-      _ttTimer = setTimeout(() => { _tooltip.style.display = 'none'; }, 120);
-    }
-  });
 }
 window.init_boxchart = init_boxchart;
 })();
@@ -6136,7 +6130,7 @@ function _mlbl(d) {
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
 let _cfg, _contentEl, _diagEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
-let _nBadgeEl, _diagMid, _explanationEl, _expOpen = false;
+let _nBadgeEl, _diagMid, _expPanel;
 let _rawMonths = []; // [{ date:Date, label:string, values:{[squad]:number|null} }]
 
 // ════════════════════════════════════════════════
@@ -6157,21 +6151,11 @@ function init_happiness() {
   // contentEl als Flex-Spalte (damit das Erklärungs-Panel den Chart nach unten drückt)
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
 
-  // Erklärungs-Panel (ausklappbar)
-  _explanationEl = document.createElement('div');
-  _explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
-  ].join(';');
-  _explanationEl.innerHTML =
-    '<div style="padding:8px 14px">' +
+  _expPanel = createExplanationPanel(contentEl,
     'Monatlicher Verlauf des <b style="color:var(--text)">Happiness-Faktors</b> (Skala 1–5) für den gewählten Squad. ' +
     '<b style="color:var(--green)">Grün</b> = gut (≥4), <b style="color:var(--yellow)">Gelb</b> = mittel, ' +
-    '<b style="color:var(--red)">Rot</b> = niedrig (≤2). Grau = kein Wert erhoben.' +
-    '</div>';
-  contentEl.appendChild(_explanationEl);
+    '<b style="color:var(--red)">Rot</b> = niedrig (≤2). Grau = kein Wert erhoben.',
+  );
 
   // SVG-Bereich nimmt den verbleibenden Platz (flex:1)
   const svgWrapEl = document.createElement('div');
@@ -6180,24 +6164,7 @@ function init_happiness() {
   // contentEl-Referenz für _drawChart auf den SVG-Wrapper umleiten
   _contentEl = svgWrapEl;
 
-  // Tooltip: position:fixed weil .tile overflow:hidden hat
-  _ttEl = document.createElement('div');
-  Object.assign(_ttEl.style, {
-    position:     'fixed',
-    display:      'none',
-    pointerEvents:'none',
-    zIndex:       '500',
-    background:   'var(--bg2)',
-    border:       '1px solid var(--border)',
-    borderRadius: '7px',
-    padding:      '.38rem .58rem',
-    fontFamily:   'var(--mono)',
-    fontSize:     '.65rem',
-    color:        'var(--text)',
-    whiteSpace:   'nowrap',
-    boxShadow:    '0 2px 8px rgba(0,0,0,.3)',
-  });
-  document.body.appendChild(_ttEl);
+  _ttEl = createTooltip();
 
   // 3-spaltiger Footer (diagEl)
   _diagEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;overflow:hidden';
@@ -6205,10 +6172,8 @@ function init_happiness() {
   diagLeft.textContent = 'Was zeigt diese Ansicht?';
   diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
   diagLeft.addEventListener('click', () => {
-    _expOpen = !_expOpen;
-    _explanationEl.style.maxHeight = _expOpen ? _explanationEl.scrollHeight + 'px' : '0';
-    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
-    setTimeout(_render, 240);
+    const open = _expPanel.toggle(_render);
+    diagLeft.style.opacity = open ? '0.7' : '1';
   });
   _diagMid = document.createElement('span');
   _diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
@@ -6587,23 +6552,12 @@ function init_wip() {
 
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
 
-  // Erklärungs-Panel (ausklappbar)
-  let _expOpen = false;
-  const explanationEl = document.createElement('div');
-  explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
-  ].join(';');
-  explanationEl.innerHTML =
-    '<div style="padding:8px 14px">' +
+  const expPanel = createExplanationPanel(contentEl,
     'Monatlicher Verlauf des <b style="color:var(--text)">WIP pro Person</b> für den gewählten Squad. ' +
     'Berechnet als aktive Stories ÷ Teamgröße pro Monat. ' +
     'Die Linienpunkte werden <b style="color:var(--green)">grün</b>, <b style="color:var(--yellow)">gelb</b> oder ' +
-    '<b style="color:var(--red)">rot</b> gefärbt – Schwellwerte im ⚙-Panel konfigurierbar.' +
-    '</div>';
-  contentEl.appendChild(explanationEl);
+    '<b style="color:var(--red)">rot</b> gefärbt – Schwellwerte im ⚙-Panel konfigurierbar.',
+  );
 
   // Draw-Wrapper (nimmt den verbleibenden Platz, hält SVG + Tooltip + Settings)
   const drawWrap = document.createElement('div');
@@ -6658,10 +6612,8 @@ function init_wip() {
   diagLeft.textContent = 'Was zeigt diese Ansicht?';
   diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
   diagLeft.addEventListener('click', () => {
-    _expOpen = !_expOpen;
-    explanationEl.style.maxHeight = _expOpen ? explanationEl.scrollHeight + 'px' : '0';
-    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
-    setTimeout(render, 240);
+    const open = expPanel.toggle(render);
+    diagLeft.style.opacity = open ? '0.7' : '1';
   });
   const diagMid = document.createElement('span');
   diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
@@ -6874,7 +6826,7 @@ function init_wip() {
         if (
           ip > 0 && ip <= M &&
           (res === 0 || res >= M) &&
-          rej === 0 &&
+          (rej === 0 || rej >= M) &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)
@@ -6899,7 +6851,7 @@ function init_wip() {
         if (
           ip <= M &&
           (res === 0 || res >= M) &&
-          rej === 0 &&
+          (rej === 0 || rej >= M) &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)
@@ -7077,7 +7029,10 @@ function init_flowefficiency() {
   const diagLeft = document.createElement('a');
   diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
   diagLeft.textContent = 'Was zeigt diese Ansicht?';
-  diagLeft.addEventListener('click', function() { _toggleExplanation(); });
+  diagLeft.addEventListener('click', () => {
+    const open = expPanel.toggle(_renderChart);
+    diagLeft.style.opacity = open ? '0.7' : '1';
+  });
   const diagMid = document.createElement('span');
   diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
   const diagRight = document.createElement('a');
@@ -7089,28 +7044,16 @@ function init_flowefficiency() {
   diagEl.appendChild(diagRight);
 
   // ── SVG + Erklärungs-Panel ────────────────────────
-  let showExplanation = false;
-
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
 
-  const explanationEl = document.createElement('div');
-  explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:13px', 'color:var(--dim)', 'line-height:1.6',
-    'font-family:var(--sans)',
-  ].join(';');
-  explanationEl.innerHTML =
-    '<div style="padding:10px 14px">' +
+  const expPanel = createExplanationPanel(contentEl,
     'Monatlicher Verlauf des Anteils echter Arbeitszeit an der gesamten Lead Time. ' +
     '<strong style="color:var(--text)">Aktive Zeit</strong> = Lead Time minus Warte-Status ' +
     '(Blocked, Ready4Test, Ready4QS, Ready4Review …). ' +
     'Punkte werden <strong style="color:var(--green)">grün</strong> wenn FE% ≥ Ziellinie, ' +
     'sonst <strong style="color:var(--red)">rot</strong>. ' +
-    'Der <strong style="color:var(--text)">Violin-Modus</strong> zeigt zusätzlich die Streuung der Einzelwerte pro Monat.' +
-    '</div>';
-  contentEl.appendChild(explanationEl);
+    'Der <strong style="color:var(--text)">Violin-Modus</strong> zeigt zusätzlich die Streuung der Einzelwerte pro Monat.',
+  );
 
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg   = document.createElementNS(svgNS, 'svg');
@@ -7579,13 +7522,7 @@ function init_flowefficiency() {
     feErrPanel.style.display    = 'none';
   }
 
-  function _toggleExplanation() {
-    showExplanation = !showExplanation;
-    explanationEl.style.maxHeight = showExplanation ? explanationEl.scrollHeight + 'px' : '0';
-    diagLeft.style.opacity = showExplanation ? '0.7' : '1';
-    // Re-render after CSS transition (220ms) so SVG fills the correct remaining height
-    setTimeout(_renderChart, 240);
-  }
+
 
   function _updateModeToggle() {
     headerExtraEl.querySelectorAll('[data-mode]').forEach(btn => {
@@ -7767,7 +7704,7 @@ function init_flowefficiency() {
   function _renderChart() {
     const W  = contentEl.clientWidth  || 500;
     if (W < 20) return;
-    const H  = Math.max(60, contentEl.clientHeight - explanationEl.offsetHeight) || 280;
+    const H  = Math.max(60, contentEl.clientHeight - expPanel.el.offsetHeight) || 280;
     const P  = { t: 18, r: 56, b: 34, l: 40 };
     const cW = W - P.l - P.r;
     const cH = H - P.t - P.b;
@@ -8190,12 +8127,6 @@ function init_saydoratioepics() {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  function _esc(s) {
-    return String(s ?? '')
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
   function positionTooltip(mx, my) {
     const ttW = tooltip.offsetWidth  || 220;
     const ttH = tooltip.offsetHeight || 130;
@@ -8363,7 +8294,7 @@ function init_saydoratioepics() {
     legendItems.forEach(item => {
       parts.push(`<rect x="${lx}" y="${ly - 9}" width="10" height="10" fill="${item.fill}" stroke="${item.stroke}" stroke-width="1" rx="2"/>`);
       lx += 13;
-      parts.push(`<text x="${lx}" y="${ly}" fill="var(--dim)" font-size="${fsSmall}">${_esc(item.label)}</text>`);
+      parts.push(`<text x="${lx}" y="${ly}" fill="var(--dim)" font-size="${fsSmall}">${escHtml(item.label)}</text>`);
       lx += item.label.length * (fsSmall * 0.64) + 6;
     });
 
@@ -8420,7 +8351,7 @@ function init_saydoratioepics() {
       const labelY  = MARGIN_TOP + chartH + 16;
       const rotate  = barW < 60 ? `transform="rotate(-35,${bx + barW / 2},${labelY})"` : '';
       const anchor  = barW < 60 ? 'end' : 'middle';
-      parts.push(`<text x="${bx + barW / 2}" y="${labelY}" text-anchor="${anchor}" fill="var(--dim)" font-size="${fsSmall}" ${rotate} data-idx="${i}">${_esc(d.name)}</text>`);
+      parts.push(`<text x="${bx + barW / 2}" y="${labelY}" text-anchor="${anchor}" fill="var(--dim)" font-size="${fsSmall}" ${rotate} data-idx="${i}">${escHtml(d.name)}</text>`);
     });
 
     parts.push('</svg>');
@@ -8434,7 +8365,7 @@ function init_saydoratioepics() {
     const d = currentData[idx];
     const sdrTxt = d.sdr !== null ? `${d.sdr}%` : '–';
     tooltip.innerHTML =
-      `<div style="font-weight:600;margin-bottom:4px">${_esc(d.name)}</div>` +
+      `<div style="font-weight:600;margin-bottom:4px">${escHtml(d.name)}</div>` +
       `<div style="color:var(--dim);font-size:11px;margin-bottom:6px">${_fmt2(d.start)} – ${_fmt2(d.end)}</div>` +
       `<div style="border-top:1px solid var(--border);padding-top:5px">` +
       `<div>Resolved:&nbsp;<b>${d.resolved}</b></div>` +
@@ -8509,7 +8440,7 @@ function init_montecarlo() {
   });
 
   // ── 3. Header-Controls ───────────────────────
-  const modeToggle = _mkTglGrp([
+  const modeToggle = mkTglGrp([
     { val: 'when',    label: 'Bis wann fertig?' },
     { val: 'howmany', label: 'Wie viele bis X?' },
   ], val => {
@@ -8520,11 +8451,11 @@ function init_montecarlo() {
     _renderInputArea();
   });
 
-  const btnSettings = _mkBtn('⚙ Einstellungen', () => _togglePanel('mc-settings-panel'));
+  const btnSettings = mkBtn('⚙ Einstellungen', () => _togglePanel('mc-settings-panel'));
   [modeToggle, btnSettings].forEach(el => headerExtraEl.appendChild(el));
 
   // ── 4. Einstellungs-Panel ────────────────────
-  const settingsPanel = _mkPanel(); settingsPanel.id = 'mc-settings-panel';
+  const settingsPanel = mkPanel(); settingsPanel.id = 'mc-settings-panel';
   settingsPanel.style.cssText += 'max-width:420px;';
 
   const spTitle = document.createElement('div');
@@ -8560,7 +8491,7 @@ function init_montecarlo() {
 
   // Throughput-Aggregation
   const unitSection = _mkSection('Throughput-Aggregation', 'var(--dim)');
-  const unitToggle = _mkTglGrp([
+  const unitToggle = mkTglGrp([
     { val: 'day',   label: 'Täglich'   },
     { val: 'week',  label: 'Wöchentl.' },
     { val: 'month', label: 'Monatlich' },
@@ -9059,7 +8990,7 @@ function init_montecarlo() {
     return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
   }
 
-  // _mkTglGrp, _mkBtn, _mkPanel werden von core.js importiert (P3.7)
+
 
   function _mkSection(title, color) {
     const s = document.createElement('div'); s.style.cssText = 'margin-bottom:.65rem;';
@@ -9213,20 +9144,11 @@ function sortStagesByBrpEtappen(stages, brpRows, toDateFn) {
 const VID    = 'akzeptanz';
 const LS_KEY = 'fhwa_akzeptanz';
 
-function _esc(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 const CFG_DEF = { dotRadius: 5 };
 
 // ── Modul-State ──────────────────────────────────────────────────────────────
 let _cfg, _contentEl, _svgWrapEl, _diagEl, _diagTextEl, _nBadgeEl, _headerExtraEl, _ttEl, _fmtPanelEl, _tileEl;
-let _explanationEl, _showExplanation = false;
+let _expPanel;
 let _stages   = []; // geordnete Stage-Namen (aus _onData)
 let _epicRows = []; // JiraEpics-Zeilen
 
@@ -9246,24 +9168,7 @@ function init_akzeptanz() {
   _headerExtraEl = headerExtraEl;
   _diagEl        = diagEl;
 
-  // Tooltip: position:fixed weil .tile overflow:hidden hat
-  _ttEl = document.createElement('div');
-  Object.assign(_ttEl.style, {
-    position:      'fixed',
-    display:       'none',
-    pointerEvents: 'none',
-    zIndex:        '500',
-    background:    'var(--bg2)',
-    border:        '1px solid var(--border)',
-    borderRadius:  '7px',
-    padding:       '.38rem .58rem',
-    fontFamily:    'var(--mono)',
-    fontSize:      '.65rem',
-    color:         'var(--text)',
-    whiteSpace:    'nowrap',
-    boxShadow:     '0 2px 8px rgba(0,0,0,.3)',
-  });
-  document.body.appendChild(_ttEl);
+  _ttEl = createTooltip();
 
   // ── Diag-Bar: flex mit „Was zeigt diese Ansicht?"-Link links ──
   _diagEl.style.cssText = 'display:flex;align-items:center;gap:8px;overflow:hidden';
@@ -9276,27 +9181,17 @@ function init_akzeptanz() {
   _diagEl.appendChild(diagLink);
   _diagEl.appendChild(_diagTextEl);
 
-  // ── Erklärungs-Panel (ausklappbar, unterhalb Tile-Header) ──
+  // ── Layout + Erklärungs-Panel ──
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
-  _explanationEl = document.createElement('div');
-  _explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:12px', 'color:var(--dim)', 'line-height:1.6',
-    'font-family:var(--sans)',
-  ].join(';');
-  _explanationEl.innerHTML =
-    '<div style="padding:9px 14px">' +
+  _expPanel = createExplanationPanel(contentEl,
     'Misst die Qualität der Akzeptanzkriterien pro Etappe.' +
     '<br><br>' +
     '<strong style="color:var(--text)">AK-Qualität</strong> = Anteil der Epics, deren ' +
     'Akzeptanzkriterien-Feld mehr als&nbsp;3&nbsp;Wörter enthält – bezogen auf alle Epics ' +
     'des gewählten Squads in dieser Etappe.' +
     '<br><br>' +
-    'Eine hohe Quote deutet auf gut formulierte Anforderungen hin.' +
-    '</div>';
-  contentEl.appendChild(_explanationEl);
+    'Eine hohe Quote deutet auf gut formulierte Anforderungen hin.',
+  );
 
   // ── SVG-Wrapper: permanenter Chart-Bereich (nie überschrieben) ──
   _svgWrapEl = document.createElement('div');
@@ -9311,16 +9206,7 @@ function init_akzeptanz() {
   core.on('resize', _render);
 }
 
-// ════════════════════════════════════════════════
-// Erklärungs-Panel toggle
-// ════════════════════════════════════════════════
-function _toggleExplanation() {
-  _showExplanation = !_showExplanation;
-  _explanationEl.style.maxHeight = _showExplanation
-    ? _explanationEl.scrollHeight + 'px'
-    : '0';
-  setTimeout(_render, 240); // nach CSS-Transition neu rendern
-}
+function _toggleExplanation() { _expPanel.toggle(_render); }
 
 // ════════════════════════════════════════════════
 // Header-Controls: ⚙-Button + Format-Panel
@@ -9496,7 +9382,7 @@ function _render() {
 
   // ── Squad hat keine Epics in JiraEpics ──
   if (!qualities.some(d => d.q !== null)) {
-    _showMsg(`Keine Daten für Squad „${_esc(squadName)}”`);
+    _showMsg(`Keine Daten für Squad „${escHtml(squadName)}”`);
     if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Squad fehlt';
     return;
@@ -9585,7 +9471,7 @@ function _drawChart(squadName, qualities) {
       `<text x="${x}" y="${ty}" text-anchor="middle"
          font-family="var(--mono)" font-size="9"
          fill="${sc.axisLabel}"
-         transform="rotate(-30,${x},${ry})">${_esc(d.stage)}</text>`,
+         transform="rotate(-30,${x},${ry})">${escHtml(d.stage)}</text>`,
     );
   });
 
@@ -9601,8 +9487,8 @@ function _drawChart(squadName, qualities) {
       const N    = grp.length;
       const nQ   = grp.filter(r => wordCount(r['Akzeptanzkriterien']) > 3).length;
       _ttEl.innerHTML =
-        `<div style="font-weight:600;margin-bottom:.25rem;color:var(--blue)">${_esc(d.stage)}</div>` +
-        `<div><span style="color:var(--dim)">Squad&nbsp;</span>${_esc(squadName)}</div>` +
+        `<div style="font-weight:600;margin-bottom:.25rem;color:var(--blue)">${escHtml(d.stage)}</div>` +
+        `<div><span style="color:var(--dim)">Squad&nbsp;</span>${escHtml(squadName)}</div>` +
         `<div><span style="color:var(--dim)">AK-Qualität&nbsp;</span><b>${d.q.toFixed(2)}&thinsp;%</b></div>` +
         `<div><span style="color:var(--dim)">Epics&nbsp;</span>${nQ} von ${N}</div>`;
       _ttEl.style.display = 'block';

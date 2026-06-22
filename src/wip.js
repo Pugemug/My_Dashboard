@@ -1,4 +1,4 @@
-import { core } from './core.js';
+import { core, createExplanationPanel } from './core.js';
 
 export function init() {
 
@@ -19,23 +19,12 @@ export function init() {
 
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
 
-  // Erklärungs-Panel (ausklappbar)
-  let _expOpen = false;
-  const explanationEl = document.createElement('div');
-  explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
-  ].join(';');
-  explanationEl.innerHTML =
-    '<div style="padding:8px 14px">' +
+  const expPanel = createExplanationPanel(contentEl,
     'Monatlicher Verlauf des <b style="color:var(--text)">WIP pro Person</b> für den gewählten Squad. ' +
     'Berechnet als aktive Stories ÷ Teamgröße pro Monat. ' +
     'Die Linienpunkte werden <b style="color:var(--green)">grün</b>, <b style="color:var(--yellow)">gelb</b> oder ' +
-    '<b style="color:var(--red)">rot</b> gefärbt – Schwellwerte im ⚙-Panel konfigurierbar.' +
-    '</div>';
-  contentEl.appendChild(explanationEl);
+    '<b style="color:var(--red)">rot</b> gefärbt – Schwellwerte im ⚙-Panel konfigurierbar.',
+  );
 
   // Draw-Wrapper (nimmt den verbleibenden Platz, hält SVG + Tooltip + Settings)
   const drawWrap = document.createElement('div');
@@ -90,10 +79,8 @@ export function init() {
   diagLeft.textContent = 'Was zeigt diese Ansicht?';
   diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
   diagLeft.addEventListener('click', () => {
-    _expOpen = !_expOpen;
-    explanationEl.style.maxHeight = _expOpen ? explanationEl.scrollHeight + 'px' : '0';
-    diagLeft.style.opacity = _expOpen ? '0.7' : '1';
-    setTimeout(render, 240);
+    const open = expPanel.toggle(render);
+    diagLeft.style.opacity = open ? '0.7' : '1';
   });
   const diagMid = document.createElement('span');
   diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
@@ -306,7 +293,7 @@ export function init() {
         if (
           ip > 0 && ip <= M &&
           (res === 0 || res >= M) &&
-          rej === 0 &&
+          (rej === 0 || rej >= M) &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)
@@ -331,7 +318,7 @@ export function init() {
         if (
           ip <= M &&
           (res === 0 || res >= M) &&
-          rej === 0 &&
+          (rej === 0 || rej >= M) &&
           (r4p === 0 || r4p >= M) &&
           (ana === 0 || ana <= ip) &&
           (r4g === 0 || r4g <= ip)

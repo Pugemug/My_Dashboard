@@ -1464,6 +1464,11 @@ Symptome, die zum Neuschreiben zwingen:
 - Ursache: Nur im Dark-Mode entwickelt; Default-Farbe aus Dark-Palette hardcodiert statt aus `core.palette()`
 - Fix: Default-Wert auf `''` geändert; Fallback `cfg.singleColor || core.palette()[0]` in `_dotColor()` und Color-Picker-Init
 
+**Bug 16: Modul-Level State in `boxchart.js` — Doppel-Init-Risiko und Inkonsistenz**
+- Symptom: Kein sichtbarer Laufzeitfehler, aber der Guard `if (_contentEl) return;` ist ein implizites Indiz — `_contentEl` war eine Modul-Level-Variable statt Closure-State
+- Ursache: `boxchart.js` wurde als einziges Visual mit Modul-Level-`let`-Variablen für den gesamten State entwickelt. Alle anderen Visuals (scatter, heatmap, wipage, …) kapseln State und Hilfsfunktionen als Closure innerhalb von `init()`. Ein versehentlicher zweiter `init()`-Aufruf hätte den gesamten State (cfg, DOM-Refs, Tooltip-Timer) korrumpiert.
+- Fix: Alle State-Variablen und Hilfsfunktionen in den Closure-Scope von `init()` verschoben. Unveränderliche DOM-Refs (`_contentEl` etc.) als `const` deklariert. Guard von `if (_contentEl) return;` auf `let _initialized = false;` am Modul-Level umgestellt — robuster und konsistent mit dem Visual-Template (§ Visual-Template).
+
 ---
 
 ## Workflow-Checklisten
@@ -1681,6 +1686,7 @@ Begründungen für Architektur-Entscheidungen die nicht offensichtlich sind. Wir
 | 2026-06-09 | Dedup-Strategie per Status-Typ (nicht per Datumsintervall) | `Blockiert/Wartend_Zustand` in JiraBlockermanagement ∈ WAIT_STATUS → Episode überspringen (bereits in JiraStories gezählt). Robuster als Intervall-Overlap weil BlockedStart/BlockedEnd oft leer sind | Datumsintervall-Overlap: fragil wenn BlockedStart/End fehlen; Keine Dedup: führt zu doppelter Zählung |
 | 2026-06-09 | Monatliche FE-Aggregation per Median (nicht Durchschnitt) | Robust gegen Ausreißer (einzelne Items mit sehr hoher/niedriger FE verzerren Mittelwert stark) — konsistent mit BoxChart-Logik | Arithmetisches Mittel: anfällig für Ausreißer; Flächen-Ratio: schwerer zu erklären |
 | 2026-06-09 | Sheet-Name `JiraBlockermanagement` statt `BlockedReasons` | Entspricht dem tatsächlichen Excel-Sheet-Namen im Produktivsystem | `BlockedReasons` war Platzhalter-Name in früherer Planung (WebAppEntwickeln.md v4.0) |
+| 2026-06-22 | Closure-State-Muster in allen Visuals (inkl. `boxchart.js`) | `boxchart.js` war das einzige Visual mit Modul-Level-`let`-Variablen. Das führte zu implizitem globalem State der bei einem zweiten `init()`-Aufruf korrumpiert würde. Alle anderen Visuals nutzen Closure-State; `boxchart.js` wurde auf dasselbe Muster gebracht. Doppel-Init-Guard jetzt via `let _initialized = false;` am Modul-Level (statt DOM-Ref-Check). | DOM-Ref-Guard `if (_contentEl) return;`: fragil wenn `_contentEl` aus anderem Grund `null` ist; Modul-Level-State: ermöglicht keine echte Isolation zwischen zwei hypothetischen Instanzen |
 
 ---
 

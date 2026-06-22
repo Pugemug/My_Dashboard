@@ -3,7 +3,7 @@
 // Spec: docs/specs/FlowEfficiency.md v1.2
 // ════════════════════════════════════════════════
 
-import { core } from './core.js';
+import { core, createExplanationPanel } from './core.js';
 import { WAIT_STATUS } from './calc/flowefficiency.calc.js';
 
 export function init() {
@@ -74,7 +74,10 @@ export function init() {
   const diagLeft = document.createElement('a');
   diagLeft.style.cssText = 'font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;cursor:pointer;text-decoration:none;user-select:none';
   diagLeft.textContent = 'Was zeigt diese Ansicht?';
-  diagLeft.addEventListener('click', function() { _toggleExplanation(); });
+  diagLeft.addEventListener('click', () => {
+    const open = expPanel.toggle(_renderChart);
+    diagLeft.style.opacity = open ? '0.7' : '1';
+  });
   const diagMid = document.createElement('span');
   diagMid.style.cssText = 'font-size:11px;color:var(--dim);white-space:nowrap;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis';
   const diagRight = document.createElement('a');
@@ -86,28 +89,16 @@ export function init() {
   diagEl.appendChild(diagRight);
 
   // ── SVG + Erklärungs-Panel ────────────────────────
-  let showExplanation = false;
-
   contentEl.style.cssText = 'position:relative;overflow:hidden;display:flex;flex-direction:column';
 
-  const explanationEl = document.createElement('div');
-  explanationEl.style.cssText = [
-    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
-    'transition:max-height .22s ease',
-    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
-    'font-size:13px', 'color:var(--dim)', 'line-height:1.6',
-    'font-family:var(--sans)',
-  ].join(';');
-  explanationEl.innerHTML =
-    '<div style="padding:10px 14px">' +
+  const expPanel = createExplanationPanel(contentEl,
     'Monatlicher Verlauf des Anteils echter Arbeitszeit an der gesamten Lead Time. ' +
     '<strong style="color:var(--text)">Aktive Zeit</strong> = Lead Time minus Warte-Status ' +
     '(Blocked, Ready4Test, Ready4QS, Ready4Review …). ' +
     'Punkte werden <strong style="color:var(--green)">grün</strong> wenn FE% ≥ Ziellinie, ' +
     'sonst <strong style="color:var(--red)">rot</strong>. ' +
-    'Der <strong style="color:var(--text)">Violin-Modus</strong> zeigt zusätzlich die Streuung der Einzelwerte pro Monat.' +
-    '</div>';
-  contentEl.appendChild(explanationEl);
+    'Der <strong style="color:var(--text)">Violin-Modus</strong> zeigt zusätzlich die Streuung der Einzelwerte pro Monat.',
+  );
 
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg   = document.createElementNS(svgNS, 'svg');
@@ -576,13 +567,7 @@ export function init() {
     feErrPanel.style.display    = 'none';
   }
 
-  function _toggleExplanation() {
-    showExplanation = !showExplanation;
-    explanationEl.style.maxHeight = showExplanation ? explanationEl.scrollHeight + 'px' : '0';
-    diagLeft.style.opacity = showExplanation ? '0.7' : '1';
-    // Re-render after CSS transition (220ms) so SVG fills the correct remaining height
-    setTimeout(_renderChart, 240);
-  }
+
 
   function _updateModeToggle() {
     headerExtraEl.querySelectorAll('[data-mode]').forEach(btn => {
@@ -764,7 +749,7 @@ export function init() {
   function _renderChart() {
     const W  = contentEl.clientWidth  || 500;
     if (W < 20) return;
-    const H  = Math.max(60, contentEl.clientHeight - explanationEl.offsetHeight) || 280;
+    const H  = Math.max(60, contentEl.clientHeight - expPanel.el.offsetHeight) || 280;
     const P  = { t: 18, r: 56, b: 34, l: 40 };
     const cW = W - P.l - P.r;
     const cH = H - P.t - P.b;

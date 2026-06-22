@@ -16,6 +16,20 @@ import {
 export const TARGET_SHEET      = 'JiraStories';
 export const LT_START_DEFAULT  = 'Ready4Progress_first';
 export const LT_END_DEFAULT    = 'Resolved';
+export const CT_START_DEFAULT  = 'In Progress_first';
+
+export function detectLtMode(start, end) {
+  if (start === LT_START_DEFAULT && end === LT_END_DEFAULT) return 'lt';
+  if (start === CT_START_DEFAULT && end === LT_END_DEFAULT) return 'ct';
+  return 'custom';
+}
+
+export function ltModeTitle(start, end) {
+  const m = detectLtMode(start, end);
+  if (m === 'lt') return 'Lead<span class="hl">Time</span>';
+  if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
+  return 'Cycle Time <span class="hl">sonstige</span>';
+}
 
 // ── Default Status-Reihenfolge (globaler Standard für alle Visuals) ──
 // Queue-Status: New → Evaluated → Refinement → Ready4Progress
@@ -82,6 +96,7 @@ const _gridMap    = {};           // { id: {col,row,w,h} }
 const _cardMap    = {};           // { id: { el, defaultGrid, pageId } }
 let   _cardDrag   = null;
 let   _cardResize = null;
+let   _resizeRafPending = false;
 let   _layoutInit = false;        // guard against double-init on second file load
 
 // ════════════════════════════════════════════════
@@ -125,21 +140,21 @@ export const core = {
 
   emit(event) {
     (_listeners[event] || []).forEach(fn => {
-      // eslint-disable-next-line no-console
+       
       try { fn(); } catch (e) { console.error('[core] emit', event, e); }
     });
   },
 
   // ── Storage ────────────────────────────────────
   save(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.warn('[core] localStorage save:', e); }
   },
 
   load(key, def) {
     try {
       const v = localStorage.getItem(key);
       return v != null ? JSON.parse(v) : def;
-    } catch { return def; }
+    } catch (e) { console.warn('[core] localStorage load:', e); return def; }
   },
 
   // ── Globale Status-Reihenfolge ──────────────────
@@ -155,7 +170,7 @@ export const core = {
     try {
       const v = localStorage.getItem('fhwa_status_order');
       if (v) saved = JSON.parse(v);
-    } catch {}
+    } catch (e) { console.warn('[core] localStorage statusOrder load:', e); }
     const base = saved ? [...saved] : [...DEFAULT_STATUS_ORDER];
     if (knownNames && knownNames.length) {
       // Case-insensitive Dedup: verhindert dass z.B. 'In Test' als Extra angehängt
@@ -175,7 +190,7 @@ export const core = {
    * @param {string[]} order
    */
   saveGlobalStatusOrder(order) {
-    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch {}
+    try { localStorage.setItem('fhwa_status_order', JSON.stringify(order)); } catch (e) { console.warn('[core] localStorage statusOrder save:', e); }
     core.emit('statusOrder');
   },
 
@@ -184,10 +199,14 @@ export const core = {
   filteredRows() {
     const s = core.state;
     let rows = s.rows;
-    if (s.squadFilter.length)
-      rows = rows.filter(r => s.squadFilter.indexOf(String(r['Squad'] || '')) >= 0);
-    if (s.issueTypeFilter.length)
-      rows = rows.filter(r => s.issueTypeFilter.indexOf(String(r['Issue-Type'] || '')) >= 0);
+    if (s.squadFilter.length) {
+      const squadSet = new Set(s.squadFilter);
+      rows = rows.filter(r => squadSet.has(String(r['Squad'] || '')));
+    }
+    if (s.issueTypeFilter.length) {
+      const typeSet = new Set(s.issueTypeFilter);
+      rows = rows.filter(r => typeSet.has(String(r['Issue-Type'] || '')));
+    }
     if (s.dateRangeMode !== 'all' && s.dateRangeFrom && s.dateRangeTo) {
       const from = s.dateRangeFrom;
       const to   = s.dateRangeTo;
@@ -467,7 +486,7 @@ function _getColW(id) {
   // Letzter Ausweg: Fensterbreite minus Sidebar
   const sidebar = document.querySelector('.sidebar');
   const sidebarW = sidebar ? sidebar.offsetWidth : 196;
-  return (window.innerWidth - sidebarW) / GRID_COLS;
+  return Math.max(1, (window.innerWidth - sidebarW) / GRID_COLS);
 }
 
 function _applyCardLayout(id) {
@@ -612,7 +631,10 @@ document.addEventListener('mousemove', e => {
     card.style.width  = nw + 'px';
     card.style.height = nh + 'px';
     _updateCanvasH();
-    core.emit('resize');
+    if (!_resizeRafPending) {
+      _resizeRafPending = true;
+      requestAnimationFrame(() => { _resizeRafPending = false; core.emit('resize'); });
+    }
   }
 });
 
@@ -848,7 +870,7 @@ function _loadFile(file) {
     } catch (err) {
       const dp = document.getElementById('data-preview');
       if (dp) {
-        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${_escHtml(err.message)}</div>`;
+        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${escHtml(err.message)}</div>`;
       }
     }
   };
@@ -938,7 +960,7 @@ function _switchToAppScreen() {
 }
 
 // ── HTML-Sonderzeichen escapen (verhindert XSS aus Excel-Daten) ──
-function _escHtml(s) {
+export function escHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -947,19 +969,14 @@ function _escHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-// ── Datencheck-Page befüllen ──
-function _buildDatencheckPage(_sheetNames, _sheets) {
-  const s   = core.state;
-  const rows = s.rows;
-
-  // Fertige / aktive Tickets
+// ── Datencheck-Statistiken berechnen ──
+function _calcDcSummary(rows, s) {
   const finished = rows.filter(r =>
     (r['Resolved'] != null && r['Resolved'] !== '') ||
     (r['Rejected'] != null && r['Rejected'] !== '')
   ).length;
   const active = rows.length - finished;
 
-  // Zeitraum aus allen Datumsspalten
   let minDate = null, maxDate = null;
   rows.forEach(r => {
     s.dateCols.forEach(col => {
@@ -969,15 +986,10 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       if (!maxDate || d > maxDate) maxDate = d;
     });
   });
-  const fmtD = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '–';
-  const totalDays = (minDate && maxDate) ? (maxDate - minDate) / 86400000 : 0;
-  const months    = totalDays > 0 ? Math.round(totalDays / 30.5) : null;
+  const totalDays  = (minDate && maxDate) ? (maxDate - minDate) / 86400000 : 0;
+  const months     = totalDays > 0 ? Math.round(totalDays / 30.5) : null;
+  const throughput = (finished > 0 && totalDays > 0) ? Math.round(finished / totalDays * 30) : null;
 
-  // Durchsatz (fertige Tickets / 30 Tage)
-  const throughput = (finished > 0 && totalDays > 0)
-    ? Math.round(finished / totalDays * 30) : null;
-
-  // Auffällig alt: aktive Tickets deren erster Eintrag > 90 Tage zurückliegt
   let oldCount = 0;
   if (s.states.length > 0) {
     const firstCol = s.states[0].entryCol;
@@ -989,34 +1001,19 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
     });
   }
 
-  // Issue-Typen
-  let issueTypes = [];
-  if (s.hasIssueType) {
-    issueTypes = [...new Set(rows.map(r => r['Issue-Type']).filter(Boolean).map(String))].slice(0, 8);
-  }
+  const issueTypes = s.hasIssueType
+    ? [...new Set(rows.map(r => r['Issue-Type']).filter(Boolean).map(String))].slice(0, 8)
+    : [];
 
-  // State-Pills (leaving-States farbig)
-  const statePills = s.states.map(st => {
-    const isLeaving = st.exitCol !== null;
-    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${_escHtml(st.name)}</span>`;
-  }).join('');
+  return { finished, active, minDate, maxDate, months, throughput, oldCount, issueTypes };
+}
 
-  // Squad-Pills
-  const squadPills = s.allSquads.map(sq =>
-    `<span class="dc-pill">&#127968; ${_escHtml(sq)}</span>`
-  ).join('');
-
-  // Type-Pills
-  const typePills = issueTypes.map(t =>
-    `<span class="dc-pill type">${_escHtml(t)}</span>`
-  ).join('');
-
-  // ── Optionale Sheets ──
+// ── HTML für optionale Sheet-Karten (JiraEpics, Blockermanagement, Happiness) ──
+function _buildDcExtraSheets(s) {
   const epics       = (s.sheets && s.sheets['JiraEpics']) || [];
   const blockerRows = (s.sheets && s.sheets['JiraBlockermanagement']) || [];
   const happRaw     = ((s.sheetsRaw || {})['Happiness Faktor']) || [];
 
-  // JiraEpics-Auswertung
   let epicCard = '';
   if (epics.length > 0) {
     const epicResolved = epics.filter(r => r['Resolved'] != null && r['Resolved'] !== '').length;
@@ -1037,7 +1034,6 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       </div>`;
   }
 
-  // Blockermanagement-Auswertung
   let blockerCard = '';
   if (blockerRows.length > 0) {
     const blockerOpen = blockerRows.filter(r =>
@@ -1059,14 +1055,12 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       </div>`;
   }
 
-  // Happiness-Faktor-Auswertung
   let happCard = '';
   if (happRaw.length > 3) {
     const headerIdx = happRaw.findIndex(row => row.some(c => c === 'Squad'));
     if (headerIdx >= 0) {
-      const header = happRaw[headerIdx];
+      const header   = happRaw[headerIdx];
       const dataRows = happRaw.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim());
-      // Letzte Monatsspalte mit Daten finden
       let lastColIdx = -1, lastColName = '';
       for (let ci = header.length - 1; ci >= 1; ci--) {
         const hasData = dataRows.some(r => r[ci] != null && r[ci] !== '' && !isNaN(parseFloat(r[ci])));
@@ -1074,14 +1068,13 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       }
       if (lastColIdx >= 0) {
         const lastVals = dataRows.map(r => parseFloat(r[lastColIdx])).filter(v => !isNaN(v));
-        const happLast = lastVals.length ? (lastVals.reduce((a, b) => a + b, 0) / lastVals.length) : null;
-        // Gesamt-Durchschnitt über alle Monatsspalten
-        const allVals = [];
+        const happLast = lastVals.length ? lastVals.reduce((a, b) => a + b, 0) / lastVals.length : null;
+        const allVals  = [];
         for (let ci = 1; ci < header.length; ci++) {
           dataRows.forEach(r => { const v = parseFloat(r[ci]); if (!isNaN(v)) allVals.push(v); });
         }
-        const happAvg = allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length) : null;
-        const fmtH = v => v != null ? v.toFixed(1) : '–';
+        const happAvg  = allVals.length ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
+        const fmtH     = v => v != null ? v.toFixed(1) : '–';
         const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
         happCard = `
           <div class="dc-sheet-card">
@@ -1089,7 +1082,7 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
             <div style="display:flex;gap:1.2rem;align-items:flex-end">
               <div>
                 <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
-                <div class="dc-stat-lbl">Letzter Wert &middot; ${_escHtml(lastColName)}</div>
+                <div class="dc-stat-lbl">Letzter Wert &middot; ${escHtml(lastColName)}</div>
               </div>
               <div>
                 <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
@@ -1101,11 +1094,33 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
     }
   }
 
-  const extraSheetsHtml = (epicCard || blockerCard || happCard) ? `
+  if (!epicCard && !blockerCard && !happCard) return '';
+  return `
     <div class="dc-extra-sheets">
       <div class="dc-section-title">Weitere Daten erkannt</div>
       <div class="dc-sheets">${epicCard}${blockerCard}${happCard}</div>
-    </div>` : '';
+    </div>`;
+}
+
+// ── Datencheck-Page befüllen ──
+function _buildDatencheckPage(_sheetNames, _sheets) {
+  const s    = core.state;
+  const rows = s.rows;
+  const { finished, active, minDate, maxDate, months, throughput, oldCount, issueTypes } = _calcDcSummary(rows, s);
+  const fmtD = d => d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '–';
+
+  const statePills = s.states.map(st => {
+    const isLeaving = st.exitCol !== null;
+    return `<span class="dc-pill${isLeaving ? ' leaving' : ''}">${escHtml(st.name)}</span>`;
+  }).join('');
+  const squadPills = s.allSquads.map(sq =>
+    `<span class="dc-pill">&#127968; ${escHtml(sq)}</span>`
+  ).join('');
+  const typePills = issueTypes.map(t =>
+    `<span class="dc-pill type">${escHtml(t)}</span>`
+  ).join('');
+
+  const extraSheetsHtml = _buildDcExtraSheets(s);
 
   const page = document.getElementById('page-datencheck');
   if (!page) return;
@@ -1114,7 +1129,7 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
     <div class="dc-wrap">
       <div class="dc-badge">&#10003; Datei erkannt</div>
       <h2 class="dc-title">Das haben wir in deinem Export gefunden</h2>
-      <div class="dc-sub">${_escHtml(s.fileName)} &middot; Sheet &bdquo;${_escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
+      <div class="dc-sub">${escHtml(s.fileName)} &middot; Sheet &bdquo;${escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
 
       <div class="dc-stats">
         <div class="dc-stat">
@@ -1462,16 +1477,16 @@ function _initDateRangeDD() {
 // Exportiert für alle Visuals – kein Kopieren mehr nötig.
 // ════════════════════════════════════════════════
 
-export function _mkBtn(label, onClick) {
+export function mkBtn(label, onClick) {
   const b = document.createElement('button'); b.className = 'btn-icon'; b.textContent = label;
   b.addEventListener('click', onClick); return b;
 }
 
-export function _mkPanel() {
+export function mkPanel() {
   const p = document.createElement('div'); p.className = 'sub-panel'; return p;
 }
 
-export function _mkTglGrp(buttons, onChange) {
+export function mkTglGrp(buttons, onChange) {
   const wrap = document.createElement('div'); wrap.className = 'tgl-grp';
   buttons.forEach(({ val, label }) => {
     const b = document.createElement('button'); b.className = 'tgl'; b.dataset.val = val; b.textContent = label;
@@ -1481,29 +1496,65 @@ export function _mkTglGrp(buttons, onChange) {
   return wrap;
 }
 
-export function _mkSelect() {
+export function mkSelect() {
   const s = document.createElement('select'); s.className = 'lt-select'; return s;
 }
 
-export function _mkLtField(label, selectEl) {
+export function mkLtField(label, selectEl) {
   const f = document.createElement('div'); f.className = 'lt-field';
   const l = document.createElement('span'); l.className = 'lt-label'; l.textContent = label;
   f.appendChild(l); f.appendChild(selectEl); return f;
 }
 
-export function _mkTTRow(label, val) {
+export function mkTTRow(label, val) {
   const row = document.createElement('div'); row.className = 'tt-row';
   const lb  = document.createElement('span'); lb.className  = 'tt-lbl'; lb.textContent = label;
   const vl  = document.createElement('span'); vl.className  = 'tt-val'; vl.textContent = val;
   row.appendChild(lb); row.appendChild(vl); return row;
 }
 
-export function _posTooltip(tt, cx, cy) {
+export function posTooltip(tt, cx, cy) {
   const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
   let l = cx + 14, t = cy + 14;
   if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
   if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
   tt.style.left = l + 'px'; tt.style.top = t + 'px';
+}
+
+export function createTooltip() {
+  const el = document.createElement('div');
+  Object.assign(el.style, {
+    position: 'fixed', display: 'none', pointerEvents: 'none',
+    zIndex: '500', background: 'var(--bg2)', border: '1px solid var(--border)',
+    borderRadius: '7px', padding: '.38rem .58rem', fontFamily: 'var(--mono)',
+    fontSize: '.65rem', color: 'var(--text)', whiteSpace: 'nowrap',
+    boxShadow: '0 2px 8px rgba(0,0,0,.3)',
+  });
+  document.body.appendChild(el);
+  return el;
+}
+
+export function createExplanationPanel(contentEl, html) {
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'overflow:hidden', 'max-height:0', 'flex-shrink:0',
+    'transition:max-height .22s ease',
+    'background:var(--bg3)', 'border-bottom:1px solid var(--border)',
+    'font-size:11px', 'color:var(--dim)', 'line-height:1.55',
+    'font-family:var(--sans)',
+  ].join(';');
+  el.innerHTML = `<div style="padding:8px 14px">${html}</div>`;
+  contentEl.appendChild(el);
+  let open = false;
+  return {
+    el,
+    toggle(onAfter) {
+      open = !open;
+      el.style.maxHeight = open ? el.scrollHeight + 'px' : '0';
+      if (onAfter) setTimeout(onAfter, 240);
+      return open;
+    },
+  };
 }
 
 // ════════════════════════════════════════════════
@@ -1516,7 +1567,7 @@ export function _posTooltip(tt, cx, cy) {
 // @param {function}    onReorder      – Callback(newOrder: string[]) nach Änderung
 // @param {function}   [decorateItem]  – Optional: extra Styling pro Item (item, name)
 // ════════════════════════════════════════════════
-export function _buildOrderPanel(orderList, stateOrder, onReorder, decorateItem) {
+export function buildOrderPanel(orderList, stateOrder, onReorder, decorateItem) {
   orderList.innerHTML = '';
   let panelDragSrc = null;
   stateOrder.forEach((name, idx) => {

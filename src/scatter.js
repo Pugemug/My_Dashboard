@@ -4,11 +4,8 @@
 // Eigenständiges Visual – abonniert core-Events
 // ════════════════════════════════════════════════
 
-import { core, LT_END_DEFAULT, _mkBtn, _mkPanel, _mkTglGrp, _mkSelect, _mkLtField, _mkTTRow, _posTooltip } from './core.js';
+import { core, LT_START_DEFAULT, LT_END_DEFAULT, CT_START_DEFAULT, detectLtMode, ltModeTitle, mkBtn, mkPanel, mkTglGrp, mkSelect, mkLtField, mkTTRow, posTooltip } from './core.js';
 import { calcCT } from './calc/scatter.calc.js';
-
-const LT_START_DEFAULT = 'Ready4Progress_first';
-const CT_START_DEFAULT = 'In Progress_first';
 
 export function init() {
 
@@ -43,17 +40,8 @@ export function init() {
   const titleEl = cardEl.querySelector('.card-title');
 
   // ── Modus-Helpers (Lead Time / Cycle Time / Sonstige) ───────────────────
-  function _detectMode() {
-    if (cfg.ctStart === LT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'lt';
-    if (cfg.ctStart === CT_START_DEFAULT && cfg.ctEnd === LT_END_DEFAULT) return 'ct';
-    return 'custom';
-  }
-  function _getModeTitle() {
-    const m = _detectMode();
-    if (m === 'lt') return 'Lead<span class="hl">Time</span>';
-    if (m === 'ct') return 'Cycle<span class="hl">Time</span>';
-    return 'Cycle Time <span class="hl">sonstige</span>';
-  }
+  function _detectMode()   { return detectLtMode(cfg.ctStart, cfg.ctEnd); }
+  function _getModeTitle() { return ltModeTitle(cfg.ctStart, cfg.ctEnd); }
   function _updateModeUI() {
     const mode = _detectMode();
     if (titleEl) titleEl.innerHTML = _getModeTitle();
@@ -62,27 +50,27 @@ export function init() {
   }
 
   // ── 3. Header-Controls ───────────────────────
-  const colorToggle = _mkTglGrp([
+  const colorToggle = mkTglGrp([
     { val: 'single',    label: 'Einfarbig' },
     { val: 'issueType', label: 'Typ'       },
     { val: 'heatmap',   label: 'Heatmap'   },
   ], val => { cfg.colorMode = val; saveConfig(); _updateColorToggle(); render(); });
 
-  const intervalToggle = _mkTglGrp([
+  const intervalToggle = mkTglGrp([
     { val: 'week',    label: 'Wo' },
     { val: 'month',   label: 'Mo' },
     { val: 'quarter', label: 'Q'  },
   ], val => { cfg.interval = val; saveConfig(); _updateIntervalToggle(); render(); });
 
   const sep2        = document.createElement('div'); sep2.className = 'tb-sep';
-  const btnSettings = _mkBtn('⚙ Einstellungen', () => _toggleSettings());
+  const btnSettings = mkBtn('⚙ Einstellungen', () => _toggleSettings());
 
-  const ltModeBtn = _mkBtn('Lead Time', () => {
+  const ltModeBtn = mkBtn('Lead Time', () => {
     cfg.ctStart = LT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
     ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
     saveConfig(); _updateModeUI(); render();
   });
-  const ctModeBtn = _mkBtn('Cycle Time', () => {
+  const ctModeBtn = mkBtn('Cycle Time', () => {
     cfg.ctStart = CT_START_DEFAULT; cfg.ctEnd = LT_END_DEFAULT;
     ctStartSel.value = cfg.ctStart; ctEndSel.value = cfg.ctEnd;
     saveConfig(); _updateModeUI(); render();
@@ -94,14 +82,14 @@ export function init() {
 
   // ── 4. Settings-Panel (einheitlich) ──────────
 
-  const settingsPanel = _mkPanel(); settingsPanel.id = 'sc-settings-panel';
+  const settingsPanel = mkPanel(); settingsPanel.id = 'sc-settings-panel';
 
   // Section: ⚙ Berechnungslogik
   const calcTitle = document.createElement('div'); calcTitle.className = 'panel-title'; calcTitle.style.color = 'var(--purple)'; calcTitle.textContent = '⚙ Berechnungslogik';
-  const ctStartSel = _mkSelect(); const ctEndSel = _mkSelect();
+  const ctStartSel = mkSelect(); const ctEndSel = mkSelect();
   const colsRow = document.createElement('div'); colsRow.className = 'sc-row';
-  colsRow.appendChild(_mkLtField('CT Start',           ctStartSel));
-  colsRow.appendChild(_mkLtField('CT Ende (X-Achse)',  ctEndSel));
+  colsRow.appendChild(mkLtField('CT Start',           ctStartSel));
+  colsRow.appendChild(mkLtField('CT Ende (X-Achse)',  ctEndSel));
   ctStartSel.addEventListener('change', () => { cfg.ctStart = ctStartSel.value; saveConfig(); _updateModeUI(); render(); });
   ctEndSel.addEventListener('change',   () => { cfg.ctEnd   = ctEndSel.value;   saveConfig(); _updateModeUI(); render(); });
 
@@ -295,7 +283,7 @@ export function init() {
     [['CT',    item.ct.toFixed(1) + 'd'],
      ['Datum', item.date.toLocaleDateString('de-DE')],
      ...(item.type ? [['Typ', item.type]] : []),
-    ].forEach(([l, v]) => scTTBody.appendChild(_mkTTRow(l, v)));
+    ].forEach(([l, v]) => scTTBody.appendChild(mkTTRow(l, v)));
 
     if (item.url) {
       const lnk = document.createElement('a');
@@ -308,7 +296,7 @@ export function init() {
       scTooltip.style.pointerEvents = 'none';
     }
     scTooltip.style.display = 'block';
-    _posTooltip(scTooltip, e.clientX, e.clientY);
+    posTooltip(scTooltip, e.clientX, e.clientY);
   }
 
   // ════════════════════════════════════════════════
@@ -457,7 +445,7 @@ export function init() {
     svgEl.querySelectorAll('.sc-dot').forEach(dot => {
       const item = items[parseInt(dot.dataset.idx)];
       dot.addEventListener('mouseenter', e => _showTT(e, item));
-      dot.addEventListener('mousemove',  e => _posTooltip(scTooltip, e.clientX, e.clientY));
+      dot.addEventListener('mousemove',  e => posTooltip(scTooltip, e.clientX, e.clientY));
       dot.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 130); });
     });
 
