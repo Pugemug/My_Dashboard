@@ -449,7 +449,12 @@ export const core = {
     const g = core.load('fhwa_global', null);
     if (g && Array.isArray(g.squadFilter))      core.state.squadFilter      = g.squadFilter;
     if (g && Array.isArray(g.issueTypeFilter))  core.state.issueTypeFilter  = g.issueTypeFilter;
-    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate      = g.urlTemplate;
+    const DEFAULT_JIRA_URL = 'https://jira.axa.com/jira/browse/{issueKey}';
+    if (g && typeof g.urlTemplate === 'string' && g.urlTemplate) {
+      core.state.urlTemplate = g.urlTemplate;
+    } else {
+      core.state.urlTemplate = DEFAULT_JIRA_URL;
+    }
     if (g && g.dateRange) {
       core.state.dateRangeMode       = g.dateRange.mode       || 'all';
       core.state.dateRangeCustomFrom = g.dateRange.customFrom || '';

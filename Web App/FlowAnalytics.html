@@ -241,9 +241,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .tile-content svg{display:block;width:100%;height:100%}
 .tile-header{display:flex;align-items:center;gap:.3rem;padding:.28rem .5rem;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;min-height:32px}
 .tile-title{font-size:.72rem;font-weight:700;letter-spacing:-.02em;flex-shrink:0;white-space:nowrap}
+.tile-header{cursor:grab;user-select:none}
+.tile-header:active{cursor:grabbing}
 .tile-title .hl{color:var(--blue)}
 .tile-spacer{flex:1}
 .tile-content{flex:1;overflow:hidden;position:relative;min-height:0}
+/* Tile-Drag (Kachel-Reihenfolge) */
+.tile.tile-dragging{opacity:.35;box-shadow:0 12px 36px rgba(0,0,0,.6)}
+.tile.tile-drag-over{border-color:var(--yellow)!important;background:rgba(251,191,36,.06)}
 
 /* ── CARDS ── */
 .card{position:absolute;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;min-width:220px;min-height:180px}
@@ -590,7 +595,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="settings-section-label">Jira</div>
           <div class="settings-row" id="settings-url-row">
             <span class="settings-label">URL-Template</span>
-            <input class="settings-input" id="settings-url-input" type="text" placeholder="https://jira.company.com/browse/{issueKey}" spellcheck="false"/>
+            <input class="settings-input" id="settings-url-input" type="text" placeholder="https://jira.axa.com/jira/browse/{issueKey}" spellcheck="false"/>
             <span class="settings-hint">{issueKey} wird durch die Jira-ID ersetzt</span>
           </div>
 
@@ -602,6 +607,17 @@ td.td-lt{background:rgba(192,132,252,.04)}
             <span class="settings-label">Kachelgr&ouml;&szlig;e</span>
             <input class="settings-range" id="settings-tile-height" type="range" min="390" max="720" step="10" value="550">
             <span class="settings-hint">Aktuell: <span id="tile-h-display">400 &times; 250</span>&thinsp;px (16&thinsp;:&thinsp;10)</span>
+          </div>
+
+          <hr class="settings-divider"/>
+
+          <!-- Abschnitt: Lieferfähigkeit -->
+          <div class="settings-section-label">Lieferf&auml;higkeit</div>
+          <div class="settings-row">
+            <button class="btn-icon" id="settings-tile-order-reset">&#8617; Kachel-Reihenfolge zur&uuml;cksetzen</button>
+          </div>
+          <div class="settings-row" style="margin-bottom:0">
+            <button class="btn-icon p-orange" id="settings-factory-reset">&#9888; Alle Einstellungen zur&uuml;cksetzen</button>
           </div>
 
           <hr class="settings-divider"/>
@@ -1431,7 +1447,12 @@ const core = {
     const g = core.load('fhwa_global', null);
     if (g && Array.isArray(g.squadFilter))      core.state.squadFilter      = g.squadFilter;
     if (g && Array.isArray(g.issueTypeFilter))  core.state.issueTypeFilter  = g.issueTypeFilter;
-    if (g && typeof g.urlTemplate === 'string') core.state.urlTemplate      = g.urlTemplate;
+    const DEFAULT_JIRA_URL = 'https://jira.axa.com/jira/browse/{issueKey}';
+    if (g && typeof g.urlTemplate === 'string' && g.urlTemplate) {
+      core.state.urlTemplate = g.urlTemplate;
+    } else {
+      core.state.urlTemplate = DEFAULT_JIRA_URL;
+    }
     if (g && g.dateRange) {
       core.state.dateRangeMode       = g.dateRange.mode       || 'all';
       core.state.dateRangeCustomFrom = g.dateRange.customFrom || '';
@@ -9668,6 +9689,116 @@ window.init_akzeptanz = init_akzeptanz;
     if (tileRow) {
       core.on('data', function() {
         tileRow.classList.remove('settings-row--disabled');
+      });
+    }
+  })();
+
+  // ── Kachel-Reihenfolge (Lieferfähigkeit-Page) ──────────────────────────
+  (function() {
+    var TILE_ORDER_KEY     = 'fhwa_tile_order';
+    var DEFAULT_TILE_ORDER = ['boxchart','saydoratioepics','happinessfaktor','flowefficiency','wip','akzeptanz'];
+    var canvas = document.getElementById('tile-canvas-lieferfahigkeit');
+
+    function getTileId(tile) { return tile.id.replace('tile-', ''); }
+
+    function applyTileOrder(order) {
+      if (!canvas) return;
+      var allIds = Array.from(canvas.querySelectorAll('.tile')).map(getTileId);
+      var full   = order.filter(function(id) { return allIds.indexOf(id) >= 0; });
+      allIds.forEach(function(id) { if (full.indexOf(id) < 0) full.push(id); });
+      full.forEach(function(id) {
+        var tile = canvas.querySelector('#tile-' + id);
+        if (tile) canvas.appendChild(tile);
+      });
+    }
+
+    function saveTileOrder() {
+      if (!canvas) return;
+      var order = Array.from(canvas.querySelectorAll('.tile')).map(getTileId);
+      core.save(TILE_ORDER_KEY, order);
+    }
+
+    function initTileDrag() {
+      if (!canvas) return;
+      canvas.querySelectorAll('.tile').forEach(function(t) { t.draggable = true; });
+      var draggedId = null;
+      var mousedownOnHeader = false;
+
+      canvas.addEventListener('mousedown', function(e) {
+        mousedownOnHeader = !!e.target.closest('.tile-header');
+      });
+
+      canvas.addEventListener('dragstart', function(e) {
+        var tile = e.target.closest('.tile'); if (!tile) return;
+        if (!mousedownOnHeader) { e.preventDefault(); return; }
+        mousedownOnHeader = false;
+        draggedId = getTileId(tile);
+        tile.classList.add('tile-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      canvas.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        var tile = e.target.closest('.tile');
+        if (tile && getTileId(tile) !== draggedId) {
+          canvas.querySelectorAll('.tile').forEach(function(t) { t.classList.remove('tile-drag-over'); });
+          tile.classList.add('tile-drag-over');
+        }
+      });
+
+      canvas.addEventListener('dragleave', function(e) {
+        if (!canvas.contains(e.relatedTarget))
+          canvas.querySelectorAll('.tile').forEach(function(t) { t.classList.remove('tile-drag-over'); });
+      });
+
+      canvas.addEventListener('drop', function(e) {
+        e.preventDefault();
+        var targetTile = e.target.closest('.tile');
+        if (!targetTile || !draggedId || getTileId(targetTile) === draggedId) return;
+        var draggedTile = canvas.querySelector('#tile-' + draggedId);
+        if (!draggedTile) return;
+        var tiles = Array.from(canvas.querySelectorAll('.tile'));
+        var di = tiles.indexOf(draggedTile), ti = tiles.indexOf(targetTile);
+        if (di < ti) targetTile.after(draggedTile);
+        else         targetTile.before(draggedTile);
+        saveTileOrder();
+        canvas.querySelectorAll('.tile').forEach(function(t) { t.classList.remove('tile-drag-over'); });
+      });
+
+      canvas.addEventListener('dragend', function() {
+        canvas.querySelectorAll('.tile').forEach(function(t) {
+          t.classList.remove('tile-dragging');
+          t.classList.remove('tile-drag-over');
+        });
+        draggedId = null;
+      });
+    }
+
+    requestAnimationFrame(function() {
+      var saved = core.load(TILE_ORDER_KEY, null);
+      applyTileOrder(saved || DEFAULT_TILE_ORDER);
+      initTileDrag();
+    });
+
+    var orderResetBtn = document.getElementById('settings-tile-order-reset');
+    if (orderResetBtn) {
+      orderResetBtn.addEventListener('click', function() {
+        core.save(TILE_ORDER_KEY, DEFAULT_TILE_ORDER.slice());
+        applyTileOrder(DEFAULT_TILE_ORDER.slice());
+      });
+    }
+
+    var factoryResetBtn = document.getElementById('settings-factory-reset');
+    if (factoryResetBtn) {
+      factoryResetBtn.addEventListener('click', function() {
+        if (!window.confirm('Alle Einstellungen zur\u00fccksetzen?\n\nDies l\u00f6scht alle gespeicherten Konfigurationen und l\u00e4dt die Seite neu.')) return;
+        var toDelete = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.startsWith('fhwa_')) toDelete.push(k);
+        }
+        toDelete.forEach(function(k) { localStorage.removeItem(k); });
+        location.reload();
       });
     }
   })();

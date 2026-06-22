@@ -280,6 +280,85 @@ pf-spacer
 
 ---
 
+## Kachel-Reihenfolge (Lieferfähigkeit-Page)
+
+### Default-Reihenfolge
+
+| Position | Visual-ID | Tile-Titel |
+|---|---|---|
+| 1 | `boxchart` | Lead**Time** |
+| 2 | `saydoratioepics` | Say**Do** Ratio |
+| 3 | `happinessfaktor` | Happiness **Faktor** |
+| 4 | `flowefficiency` | Flow **Efficiency** |
+| 5 | `wip` | **WIP** pro Person |
+| 6 | `akzeptanz` | **Akzeptanz**kriterien |
+
+### Persistenz
+
+localStorage-Key: **`fhwa_tile_order`** — `string[]` mit Visual-IDs in aktueller Reihenfolge.
+
+Default (wenn nicht gesetzt oder unvollständig):
+```js
+['boxchart', 'saydoratioepics', 'happinessfaktor', 'flowefficiency', 'wip', 'akzeptanz']
+```
+
+Beim Initialisieren des Tile-Canvas: gespeicherte Reihenfolge laden → fehlende IDs ans Ende anhängen (Robustheit bei zukünftig neuen Visuals).
+
+### Drag-and-Drop-Mechanik
+
+**Trigger:** Drag startet im gesamten `.tile-header`-Bereich. `draggable="true"` sitzt auf dem `.tile`-Element; ein `mousedown`-Listener merkt ob der Klick im Header war — nur dann wird der Drag zugelassen (zuverlässiger als `getBoundingClientRect()`-Check in `dragstart`).
+
+**HTML5 Drag API:**
+
+| Event | Ziel | Aktion |
+|---|---|---|
+| `dragstart` | `.tile` | Speichert Visual-ID in `draggedId`; setzt Klasse `.tile-dragging` |
+| `dragover` | `.tile` | `preventDefault()` (Drop erlauben); setzt Klasse `.tile-drag-over` auf Zielkachel |
+| `dragleave` | `.tile` | Entfernt `.tile-drag-over` |
+| `drop` | `.tile` | Tauscht Positionen via `insertBefore`/`appendChild` im DOM; speichert neue Reihenfolge in `fhwa_tile_order` |
+| `dragend` | `.tile` | Räumt alle Drag-Klassen auf |
+
+**Visuelles Feedback:**
+- Gezogene Kachel: `.tile-dragging` → `opacity:.35; box-shadow:0 12px 36px rgba(0,0,0,.6)`
+- Zielkachel: `.tile-drag-over` → `border-color:var(--yellow)!important; background:rgba(251,191,36,.06)`
+- Kachel-Header: `cursor:grab` im Ruhezustand; `cursor:grabbing` während Drag (`:active`)
+
+**Neuanordnung:** DOM-Reihenfolge der `.tile`-Elemente in `#tile-canvas-lieferfahigkeit` wird beim Drop aktualisiert. `fhwa_tile_order` wird sofort gespeichert.
+
+### Reset im Settings-Panel (Abschnitt „Lieferfähigkeit")
+
+| Button | ID | Aktion |
+|---|---|---|
+| ↩ Kachel-Reihenfolge zurücksetzen | `#settings-tile-order-reset` | Setzt `fhwa_tile_order` auf Default-Reihenfolge; rendert Tile-Canvas neu |
+| ⚠ Alle Einstellungen zurücksetzen | `#settings-factory-reset` | `window.confirm('Alle Einstellungen zurücksetzen?')` → löscht alle `fhwa_*`-Keys aus `localStorage` → `location.reload()` |
+
+### CSS-Klassen (neu)
+
+| Klasse | Beschreibung |
+|---|---|
+| `.tile-header` | Erhält `cursor:grab; user-select:none; cursor:grabbing` (`:active`) |
+| `.tile.tile-dragging` | Auf der gezogenen Kachel während des Drags |
+| `.tile.tile-drag-over` | Auf der Zielkachel: gelber Rahmen, leichte Gelbfärbung |
+
+```css
+/* Tile-Drag (Kachel-Reihenfolge) */
+.tile-title          { cursor:grab; user-select:none }
+.tile.tile-dragging  { opacity:.35; box-shadow:0 12px 36px rgba(0,0,0,.6) }
+.tile.tile-drag-over { border-color:var(--yellow)!important; background:rgba(251,191,36,.06) }
+```
+
+### Akzeptanzkriterien
+
+1. Beim ersten Öffnen / nach Reset erscheinen Kacheln in Default-Reihenfolge: Lead Time → Say Do → Happiness → Flow Efficiency → WIP → Akzeptanzkriterien
+2. Kachel lässt sich am Titel anfassen und an eine andere Position ziehen (Cursor ändert sich auf `grab`)
+3. Während des Drags: gezogene Kachel transparent; Zielkachel mit gelbem Rahmen hervorgehoben
+4. Nach Drop: neue Reihenfolge sofort sichtbar und überlebt Browser-Reload (`fhwa_tile_order`)
+5. „↩ Kachel-Reihenfolge zurücksetzen" stellt Default-Reihenfolge wieder her; alle anderen Einstellungen unverändert
+6. „⚠ Alle Einstellungen zurücksetzen" öffnet `window.confirm()`; nach Bestätigung: alle `fhwa_*`-Keys gelöscht, Seite neu geladen
+7. Kein JS-Fehler wenn `fhwa_tile_order` fehlt oder nur teilweise gefüllt ist (fehlende IDs werden ans Ende angehängt)
+
+---
+
 ## Issue-Type-Filter
 
 Globaler Filter für die `Issue-Type`-Spalte des JiraStories-Sheets. Wirkt auf alle Visuals die `core.filteredRows()` verwenden. Nicht betroffen: Happiness, Akzeptanzkriterien, SayDoRatioEpics, Blockermanagement (andere Datenquellen).
@@ -676,8 +755,9 @@ Backdrop: `#settings-backdrop` (`position:fixed; inset:0; background:rgba(0,0,0,
 
 | Abschnitt | Element-IDs | Inhalt |
 |---|---|---|
-| **Jira** | `#settings-url-input` | URL-Template; setzt `core.state.urlTemplate`, emittiert `'settings'` |
+| **Jira** | `#settings-url-input` | URL-Template; **Default: `https://jira.axa.com/jira/browse/{issueKey}`** (wird vorgebefüllt wenn `fhwa_global.urlTemplate` leer oder nicht gesetzt ist); setzt `core.state.urlTemplate`, emittiert `'settings'` |
 | **Darstellung** | `#settings-tile-height`, `#tile-h-display`, `#settings-tile-row` | Kachelgröße-Slider (390–720 px, 16:10); `fhwa_tileHeight`; disabled bis Datei geladen |
+| **Lieferfähigkeit** | `#settings-tile-order-reset`, `#settings-factory-reset` | Zwei Buttons: „↩ Kachel-Reihenfolge zurücksetzen" (`#settings-tile-order-reset`) → setzt `fhwa_tile_order` auf Default-Reihenfolge und rendert Tile-Canvas neu. „⚠ Alle Einstellungen zurücksetzen" (`#settings-factory-reset`) → `window.confirm()` → löscht alle `fhwa_*`-Keys aus localStorage → `location.reload()`. |
 | **Status-Reihenfolge** | `#settings-order-list`, `#settings-order-reset` | Drag&Drop-Liste + ▲▼ + „↩ Standard"-Button; liest/schreibt `core.loadGlobalStatusOrder()` / `core.saveGlobalStatusOrder()`; Extra-Status mit `.o-extra` markiert; aktualisiert sich bei `statusOrder`-Event |
 
 ---
@@ -1063,4 +1143,5 @@ th.th-extra { color:var(--orange); opacity:.9 }
 | 2026-06-19 | 2.4 | Issue-Type-Filter implementiert: `#issuetype-dropdown` (shared, `position:fixed`), `.btn-issuetype-trigger` auf 5 Pages aktiv. `core.state.issueTypeFilter` + `allIssueTypes`. `filteredRows()` filtert Squad + Issue-Type. `fhwa_global` um `issueTypeFilter` erweitert. Filter-Reset setzt beide Filter zurück. Neue Sektion „Issue-Type-Filter" + Backlog-Eintrag entfernt. |
 | 2026-06-20 | 2.7 | **Zeitraum-Filter implementiert:** `#daterange-dropdown` (shared, `position:fixed`), `.btn-daterange-trigger` auf allen Pages außer Blocker + Monte. `core.state.dateRangeMode/From/To/CustomFrom/CustomTo`. Modi: `'all'`, `'last30'`, `'last90'`, `'last180'`, `'q0'`–`'q3'` (4 Quartale dynamisch), `'custom'` (Von/Bis-Input + Übernehmen). `filteredRows()` filtert JiraStories nach Resolved/Rejected-Datum (aktive Tickets immer sichtbar). JiraEpics-Visuals + Happiness-Visual wenden Filter selbst an. `fhwa_global` um `dateRange: { mode, customFrom, customTo }` erweitert. Filter-Reset setzt alle 3 Filter zurück. Neue CSS-Klassen: `.dr-mode-list`, `.dr-opt`, `.dr-divider`, `.dr-custom`, `.dr-custom-row`. Neue Sektion „Zeitraum-Filter" + Backlog-Eintrag entfernt. |
 | 2026-06-20 | 2.6 | **Squad-Filter Button-Text:** `_updateSquadBtn()` auf gleiche Logik wie Issue-Type-Filter umgestellt: 1 Name / 2 Namen / N/M (vorher immer N/M). |
+| 2026-06-22 | 2.8 | **Kachel-Reihenfolge & Drag-and-Drop (Lieferfähigkeit-Page):** Default-Reihenfolge definiert (Lead Time → Say Do → Happiness → Flow Efficiency → WIP → Akzeptanzkriterien). Drag-Trigger = `.tile-title`; Ghost + `.tile-drag-over`-Platzhalter. Persistenz via `fhwa_tile_order`. Neuer Abschnitt „Lieferfähigkeit" im Settings-Panel mit zwei Buttons: „↩ Kachel-Reihenfolge zurücksetzen" + „⚠ Alle Einstellungen zurücksetzen" (mit `window.confirm` + `location.reload()`). **Jira-URL-Default:** `https://jira.axa.com/jira/browse/{issueKey}` vorgebefüllt. Neue CSS-Klassen: `.tile-title` (cursor:grab), `.tile.tile-dragging`, `.tile.tile-drag-over`. |
 | 2026-06-20 | 2.5 | **Upload-Screen: Komplett neu gestalten.** `.hint-box` wird durch `.sheet-nav` mit 5 Tabs (JiraStories / JiraEpics / BRP Etappen / Blockermanagement / Happiness Faktor) ersetzt. Neue CSS-Klassen: `.sheet-nav`, `.sheet-tabs`, `.sheet-tab`, `.tab-badge.req/.opt`, `.sheet-tab-content`. **Datencheck-Page: Zentrierungs-Fix** (`.dc-wrap` + `margin:0 auto`). **Neue optionale Sheets-Sektion** (`.dc-extra-sheets` mit `.dc-sheet-card` je Sheet): JiraEpics (Epic-Anzahl + Status-Verteilung) · Blockermanagement (offene + Gesamt-Episoden) · Happiness Faktor (letzter Wert + Ø). Neue CSS-Klassen: `.dc-extra-sheets`, `.dc-section-title`, `.dc-sheets`, `.dc-sheet-card`, `.dc-sheet-card-title`, `.dc-sheet-pills`, `.dc-pill.resolved/.rejected/.uncalled/.alert`. **Browser-Back-Bug** (kein Neuladen nach Browser-Zurück) als separater Bugfix in core.js dokumentiert – nicht Teil dieser Spec. |

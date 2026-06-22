@@ -241,9 +241,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .tile-content svg{display:block;width:100%;height:100%}
 .tile-header{display:flex;align-items:center;gap:.3rem;padding:.28rem .5rem;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;min-height:32px}
 .tile-title{font-size:.72rem;font-weight:700;letter-spacing:-.02em;flex-shrink:0;white-space:nowrap}
+.tile-header{cursor:grab;user-select:none}
+.tile-header:active{cursor:grabbing}
 .tile-title .hl{color:var(--blue)}
 .tile-spacer{flex:1}
 .tile-content{flex:1;overflow:hidden;position:relative;min-height:0}
+/* Tile-Drag (Kachel-Reihenfolge) */
+.tile.tile-dragging{opacity:.35;box-shadow:0 12px 36px rgba(0,0,0,.6)}
+.tile.tile-drag-over{border-color:var(--yellow)!important;background:rgba(251,191,36,.06)}
 
 /* ── CARDS ── */
 .card{position:absolute;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;min-width:220px;min-height:180px}
@@ -590,7 +595,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="settings-section-label">Jira</div>
           <div class="settings-row" id="settings-url-row">
             <span class="settings-label">URL-Template</span>
-            <input class="settings-input" id="settings-url-input" type="text" placeholder="https://jira.company.com/browse/{issueKey}" spellcheck="false"/>
+            <input class="settings-input" id="settings-url-input" type="text" placeholder="https://jira.axa.com/jira/browse/{issueKey}" spellcheck="false"/>
             <span class="settings-hint">{issueKey} wird durch die Jira-ID ersetzt</span>
           </div>
 
@@ -602,6 +607,17 @@ td.td-lt{background:rgba(192,132,252,.04)}
             <span class="settings-label">Kachelgr&ouml;&szlig;e</span>
             <input class="settings-range" id="settings-tile-height" type="range" min="390" max="720" step="10" value="550">
             <span class="settings-hint">Aktuell: <span id="tile-h-display">400 &times; 250</span>&thinsp;px (16&thinsp;:&thinsp;10)</span>
+          </div>
+
+          <hr class="settings-divider"/>
+
+          <!-- Abschnitt: Lieferfähigkeit -->
+          <div class="settings-section-label">Lieferf&auml;higkeit</div>
+          <div class="settings-row">
+            <button class="btn-icon" id="settings-tile-order-reset">&#8617; Kachel-Reihenfolge zur&uuml;cksetzen</button>
+          </div>
+          <div class="settings-row" style="margin-bottom:0">
+            <button class="btn-icon p-orange" id="settings-factory-reset">&#9888; Alle Einstellungen zur&uuml;cksetzen</button>
           </div>
 
           <hr class="settings-divider"/>
@@ -889,6 +905,121 @@ td.td-lt{background:rgba(192,132,252,.04)}
   })();
 
   // ── Lieferfähigkeit Filter-Reset wird jetzt in core.js via .squad-filter-reset behandelt ──
+
+  // ── Kachel-Reihenfolge (Lieferfähigkeit-Page) ──────────────────────────
+  (function() {
+    const TILE_ORDER_KEY     = 'fhwa_tile_order';
+    const DEFAULT_TILE_ORDER = ['boxchart','saydoratioepics','happinessfaktor','flowefficiency','wip','akzeptanz'];
+    const canvas = document.getElementById('tile-canvas-lieferfahigkeit');
+
+    function getTileId(tile) { return tile.id.replace('tile-', ''); }
+
+    function applyTileOrder(order) {
+      if (!canvas) return;
+      const allIds = Array.from(canvas.querySelectorAll('.tile')).map(getTileId);
+      const full   = [...order.filter(id => allIds.includes(id))];
+      allIds.forEach(id => { if (!full.includes(id)) full.push(id); });
+      full.forEach(id => {
+        const tile = canvas.querySelector('#tile-' + id);
+        if (tile) canvas.appendChild(tile);
+      });
+    }
+
+    function saveTileOrder() {
+      if (!canvas) return;
+      const order = Array.from(canvas.querySelectorAll('.tile')).map(getTileId);
+      core.save(TILE_ORDER_KEY, order);
+    }
+
+    function initTileDrag() {
+      if (!canvas) return;
+      canvas.querySelectorAll('.tile').forEach(t => { t.draggable = true; });
+      let draggedId        = null;
+      let mousedownOnHeader = false;
+
+      // mousedown merkt sich ob der Klick im Tile-Header war
+      canvas.addEventListener('mousedown', e => {
+        mousedownOnHeader = !!e.target.closest('.tile-header');
+      });
+
+      canvas.addEventListener('dragstart', e => {
+        const tile = e.target.closest('.tile'); if (!tile) return;
+        if (!mousedownOnHeader) { e.preventDefault(); return; }
+        mousedownOnHeader = false;
+        draggedId = getTileId(tile);
+        tile.classList.add('tile-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      canvas.addEventListener('dragover', e => {
+        e.preventDefault();
+        const tile = e.target.closest('.tile');
+        if (tile && getTileId(tile) !== draggedId) {
+          canvas.querySelectorAll('.tile').forEach(t => t.classList.remove('tile-drag-over'));
+          tile.classList.add('tile-drag-over');
+        }
+      });
+
+      canvas.addEventListener('dragleave', e => {
+        if (!canvas.contains(e.relatedTarget))
+          canvas.querySelectorAll('.tile').forEach(t => t.classList.remove('tile-drag-over'));
+      });
+
+      canvas.addEventListener('drop', e => {
+        e.preventDefault();
+        const targetTile = e.target.closest('.tile');
+        if (!targetTile || !draggedId || getTileId(targetTile) === draggedId) return;
+        const draggedTile = canvas.querySelector('#tile-' + draggedId);
+        if (!draggedTile) return;
+        const tiles = Array.from(canvas.querySelectorAll('.tile'));
+        const di = tiles.indexOf(draggedTile), ti = tiles.indexOf(targetTile);
+        if (di < ti) targetTile.after(draggedTile);
+        else         targetTile.before(draggedTile);
+        saveTileOrder();
+        canvas.querySelectorAll('.tile').forEach(t => t.classList.remove('tile-drag-over'));
+      });
+
+      canvas.addEventListener('dragend', () => {
+        canvas.querySelectorAll('.tile').forEach(t => {
+          t.classList.remove('tile-dragging');
+          t.classList.remove('tile-drag-over');
+        });
+        draggedId = null;
+      });
+    }
+
+    // Tiles sind nach init()-Aufrufen im DOM → Reihenfolge im nächsten Frame anwenden
+    requestAnimationFrame(() => {
+      const saved = core.load(TILE_ORDER_KEY, null);
+      applyTileOrder(saved || DEFAULT_TILE_ORDER);
+      initTileDrag();
+    });
+
+    // Settings: Kachel-Reihenfolge zurücksetzen
+    const orderResetBtn = document.getElementById('settings-tile-order-reset');
+    if (orderResetBtn) {
+      orderResetBtn.addEventListener('click', () => {
+        core.save(TILE_ORDER_KEY, [...DEFAULT_TILE_ORDER]);
+        applyTileOrder([...DEFAULT_TILE_ORDER]);
+      });
+    }
+
+    // Settings: Alle Einstellungen zurücksetzen
+    const factoryResetBtn = document.getElementById('settings-factory-reset');
+    if (factoryResetBtn) {
+      factoryResetBtn.addEventListener('click', () => {
+        if (!window.confirm('Alle Einstellungen zurücksetzen?\n\nDies löscht alle gespeicherten Konfigurationen (Reihenfolge, Filter, Farben usw.) und lädt die Seite neu.')) return;
+        const toDelete = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('fhwa_')) toDelete.push(k);
+        }
+        toDelete.forEach(k => localStorage.removeItem(k));
+        location.reload();
+      });
+    }
+
+  })();
 
   // ── Sheet-Navigator (Upload-Screen) Tab-Switching ──
   (function() {

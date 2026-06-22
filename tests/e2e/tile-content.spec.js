@@ -272,3 +272,104 @@ test.describe('Akzeptanzkriterien – Inhalts-Prüfung', () => {
   });
 
 });
+
+// ── Kachel-Reihenfolge (Lieferfähigkeit) ─────────────────────────────────────
+
+test.describe('Kachel-Reihenfolge – Lieferfähigkeit', () => {
+
+  const DEFAULT_ORDER  = ['boxchart', 'saydoratioepics', 'happinessfaktor', 'flowefficiency', 'wip', 'akzeptanz'];
+  const TILE_ORDER_KEY = 'fhwa_tile_order';
+
+  async function getTileOrder(page) {
+    return page.locator('#tile-canvas-lieferfahigkeit .tile').evaluateAll(
+      els => els.map(el => el.id.replace('tile-', ''))
+    );
+  }
+
+  /** Navigiert zur App, setzt den gewünschten localStorage-Wert und geht durch den Upload-Flow. */
+  async function navigateWithOrder(page, order) {
+    await page.goto(APP_PATH);
+    await page.waitForLoadState('domcontentloaded');
+    if (order === null) {
+      await page.evaluate(k => localStorage.removeItem(k), TILE_ORDER_KEY);
+    } else {
+      await page.evaluate(([k, v]) => localStorage.setItem(k, v), [TILE_ORDER_KEY, JSON.stringify(order)]);
+    }
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('#file-input').setInputFiles(FIXTURE);
+    await expect(page.locator('#page-datencheck')).toBeVisible({ timeout: 5000 });
+    await page.locator('.btn-cta').click();
+    await expect(page.locator('#tile-canvas-lieferfahigkeit')).toBeVisible({ timeout: 5000 });
+  }
+
+  test('Standard-Reihenfolge wird ohne gespeicherten Wert angewendet', async ({ page }) => {
+    await navigateWithOrder(page, null);
+    const order = await getTileOrder(page);
+    expect(order).toEqual(DEFAULT_ORDER);
+  });
+
+  test('Gespeicherte Reihenfolge wird nach Reload wiederhergestellt', async ({ page }) => {
+    const custom = ['wip', 'boxchart', 'saydoratioepics', 'happinessfaktor', 'flowefficiency', 'akzeptanz'];
+    await navigateWithOrder(page, custom);
+    const order = await getTileOrder(page);
+    expect(order).toEqual(custom);
+  });
+
+  test('"Kachel-Reihenfolge zurücksetzen" stellt Standard her und aktualisiert localStorage', async ({ page }) => {
+    const custom = ['wip', 'flowefficiency', 'boxchart', 'saydoratioepics', 'happinessfaktor', 'akzeptanz'];
+    await navigateWithOrder(page, custom);
+    expect(await getTileOrder(page)).toEqual(custom);
+
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#settings-panel')).toBeVisible();
+    await page.locator('#settings-tile-order-reset').click();
+
+    expect(await getTileOrder(page)).toEqual(DEFAULT_ORDER);
+    const saved = await page.evaluate(k => localStorage.getItem(k), TILE_ORDER_KEY);
+    expect(JSON.parse(saved)).toEqual(DEFAULT_ORDER);
+  });
+
+  test('Alle 6 Tiles sind mit draggable="true" markiert', async ({ page }) => {
+    await navigateToTiles(page);
+    const tiles = page.locator('#tile-canvas-lieferfahigkeit .tile');
+    expect(await tiles.count()).toBe(6);
+    for (let i = 0; i < 6; i++) {
+      expect(await tiles.nth(i).getAttribute('draggable')).toBe('true');
+    }
+  });
+
+});
+
+// ── Settings-Panel: Jira URL Default ─────────────────────────────────────────
+
+test.describe('Settings-Panel – Jira URL Default', () => {
+
+  test('URL-Eingabe zeigt Default-URL wenn kein Wert gespeichert', async ({ page }) => {
+    await page.goto(APP_PATH);
+    await page.waitForLoadState('domcontentloaded');
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('fhwa_global');
+      if (raw) {
+        try {
+          const g = JSON.parse(raw);
+          delete g.urlTemplate;
+          localStorage.setItem('fhwa_global', JSON.stringify(g));
+        } catch (_) {}
+      }
+    });
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('#file-input').setInputFiles(FIXTURE);
+    await expect(page.locator('#page-datencheck')).toBeVisible({ timeout: 5000 });
+    await page.locator('.btn-cta').click();
+    await expect(page.locator('#tile-canvas-lieferfahigkeit')).toBeVisible({ timeout: 5000 });
+
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#settings-panel')).toBeVisible();
+
+    const value = await page.locator('#settings-url-input').inputValue();
+    expect(value).toBe('https://jira.axa.com/jira/browse/{issueKey}');
+  });
+
+});

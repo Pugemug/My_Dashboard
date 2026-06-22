@@ -1040,10 +1040,11 @@ export function init() {
 |---|---|---|
 | `fhwa_layout2` | core.js | `{ [visualId]: { col, row, w, h } }` für alle Cards |
 | `fhwa_activePage` | core.js | zuletzt aktive Page-ID |
-| `fhwa_global` | core.js | squadFilter[], issueTypeFilter[], urlTemplate |
+| `fhwa_global` | core.js | squadFilter[], issueTypeFilter[], urlTemplate (Default: `https://jira.axa.com/jira/browse/{issueKey}`), dateRange |
 | `fhwa_theme` | core.js | `'dark'` \| `'light'` |
 | `fhwa_status_order` | core.js | `string[]` — globale Status-Reihenfolge (Default: `DEFAULT_STATUS_ORDER`, 17 Einträge) |
 | `fhwa_tileHeight` | index.html | Kachelbreite in px (390–720, Default 550) · Höhe wird als 16:10 abgeleitet |
+| `fhwa_tile_order` | index.html | `string[]` — Reihenfolge der Tile-IDs auf der Lieferfähigkeit-Page (Default: `['boxchart','saydoratioepics','happinessfaktor','flowefficiency','wipkpi','akzeptanz']`) |
 | `fhwa_heatmap` | heatmap.js | metric, filter, ltStart, ltEnd, hiddenGlobal[] (Default: `['Rejected','Resume']`) — **kein stateOrder mehr** |
 | `fhwa_scatter` | scatter.js | colorMode, interval, ctStart, ctEnd, dotSize, singleColor, typeColors, P50/70/85/95 show+color |
 | `fhwa_wipage` | wipage.js | rollingDays, statusAgeDays, alertColor, dotSize, showBands, excludeList (Default: `'Rejected, Resume'`) — **kein stateOrder mehr** |
