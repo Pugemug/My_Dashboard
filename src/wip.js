@@ -143,26 +143,6 @@ export function init() {
     return MONTH_NAMES[m - 1] + ' ' + y;
   }
 
-  function parseToYYYYMM(val) {
-    if (!val) return 0;
-    if (val instanceof Date) {
-      return isNaN(val) ? 0 : val.getFullYear() * 100 + (val.getMonth() + 1);
-    }
-    const s = String(val).trim();
-    if (!s) return 0;
-    const datePart = s.split(' ')[0];
-    if (datePart.includes('.')) {
-      const p = datePart.split('.');
-      if (p.length >= 3) {
-        const y = parseInt(p[2]), m = parseInt(p[1]);
-        if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12 && y > 1900) return y * 100 + m;
-      }
-    }
-    const iso = datePart.match(/^(\d{4})-(\d{2})/);
-    if (iso) return parseInt(iso[1]) * 100 + parseInt(iso[2]);
-    return 0;
-  }
-
   function quarterToMonths(header) {
     const m = String(header).match(/^(\d{4})_0?(\d)$/);
     if (!m) return [];
@@ -214,6 +194,14 @@ export function init() {
     }
     const squadName = filter[0];
     const rows = core.filteredRows();
+
+    // Stichtag für Monat M: gleicher Kalendertag wie heute in Monat M
+    // (bei Monaten mit weniger Tagen: letzter Tag des Monats)
+    const today = new Date();
+    function refDateForMonth(M) {
+      const y = Math.floor(M / 100), mo = M % 100;
+      return new Date(y, mo - 1, Math.min(today.getDate(), new Date(y, mo, 0).getDate()));
+    }
 
     // ── SquadDaten lesen ────────────────────────────────────────────────────────
     const sheetsRaw  = core.state.sheetsRaw || {};
@@ -267,9 +255,8 @@ export function init() {
         ym = m === 12 ? (y + 1) * 100 + 1 : y * 100 + m + 1;
       }
     } else {
-      const now   = new Date();
-      const nowYM = now.getFullYear() * 100 + (now.getMonth() + 1);
-      let winY = now.getFullYear(), winM = now.getMonth() + 1 - 11;
+      const nowYM = today.getFullYear() * 100 + (today.getMonth() + 1);
+      let winY = today.getFullYear(), winM = today.getMonth() + 1 - 11;
       if (winM <= 0) { winY--; winM += 12; }
       const windowStart = winY * 100 + winM;
       for (let ym = windowStart; ; ) {
@@ -280,23 +267,29 @@ export function init() {
       }
     }
 
-    // ── WIP pro Monat berechnen ─────────────────────────────────────────────────
+    // ── Datumsfelder pro Item vorberechnen (einmal, nicht pro Monat) ────────────
+    const itemDates = rows.map(item => ({
+      ip:  core.toDate(item['In Progress']),
+      res: core.toDate(item['Resolved']),
+      rej: core.toDate(item['Rejected']),
+      r4p: core.toDate(item['Ready4Production']),
+      ana: core.toDate(item['Analysed']),
+      r4g: core.toDate(item['Ready4Progress']),
+      id:  item['Jira-ID'] ?? item['Jira-Id'] ?? item,
+    }));
+
+    // ── WIP pro Monat berechnen (Stichtag-Logik: gleicher Tag wie heute) ────────
     const dataPoints = allMonths.map(M => {
+      const ref = refDateForMonth(M);
       let wipCount = 0;
-      rows.forEach(item => {
-        const ip  = parseToYYYYMM(item['In Progress']);
-        const res = parseToYYYYMM(item['Resolved']);
-        const rej = parseToYYYYMM(item['Rejected']);
-        const r4p = parseToYYYYMM(item['Ready4Production']);
-        const ana = parseToYYYYMM(item['Analysed']);
-        const r4g = parseToYYYYMM(item['Ready4Progress']);
+      itemDates.forEach(({ ip, res, rej, r4p, ana, r4g }) => {
         if (
-          ip > 0 && ip <= M &&
-          (res === 0 || res >= M) &&
-          (rej === 0 || rej >= M) &&
-          (r4p === 0 || r4p >= M) &&
-          (ana === 0 || ana <= ip) &&
-          (r4g === 0 || r4g <= ip)
+          ip !== null && ip <= ref &&
+          (res === null || res >= ref) &&
+          (rej === null || rej >= ref) &&
+          (r4p === null || r4p >= ref) &&
+          (ana === null || ana <= ip) &&
+          (r4g === null || r4g <= ip)
         ) wipCount++;
       });
       const teamSize     = teamSizeByMonth[M] || 1;
@@ -306,23 +299,18 @@ export function init() {
 
     // ── N: einzigartige Stories die in mind. 1 Monat als WIP zählen ────────────
     const wipIds = new Set();
-    rows.forEach(item => {
-      const ip  = parseToYYYYMM(item['In Progress']);
+    itemDates.forEach(({ ip, res, rej, r4p, ana, r4g, id }) => {
       if (!ip) return;
-      const res = parseToYYYYMM(item['Resolved']);
-      const rej = parseToYYYYMM(item['Rejected']);
-      const r4p = parseToYYYYMM(item['Ready4Production']);
-      const ana = parseToYYYYMM(item['Analysed']);
-      const r4g = parseToYYYYMM(item['Ready4Progress']);
       for (const M of allMonths) {
+        const ref = refDateForMonth(M);
         if (
-          ip <= M &&
-          (res === 0 || res >= M) &&
-          (rej === 0 || rej >= M) &&
-          (r4p === 0 || r4p >= M) &&
-          (ana === 0 || ana <= ip) &&
-          (r4g === 0 || r4g <= ip)
-        ) { wipIds.add(item['Jira-ID'] ?? item['Jira-Id'] ?? item); break; }
+          ip <= ref &&
+          (res === null || res >= ref) &&
+          (rej === null || rej >= ref) &&
+          (r4p === null || r4p >= ref) &&
+          (ana === null || ana <= ip) &&
+          (r4g === null || r4g <= ip)
+        ) { wipIds.add(id); break; }
       }
     });
     const nStories = wipIds.size;
@@ -339,7 +327,7 @@ export function init() {
     const cH = pH - mT - mB;
 
     const maxVal = dataPoints.length
-      ? Math.max(...dataPoints.map(d => d.wipPerPerson), cfg.threshYellow + 1)
+      ? Math.max(...dataPoints.map(d => d.wipPerPerson))
       : cfg.threshYellow + 2;
     const yMax = Math.ceil(maxVal + 0.5);
 

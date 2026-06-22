@@ -158,30 +158,46 @@ startYYYYMM = nowYYYYMM − 11 Monate  (inklusiv, d.h. 12 Datenpunkte)
 `allMonths` = die 12 YYYYMM-Werte von startYYYYMM bis nowYYYYMM (chronologisch).
 Für jeden Monat in `allMonths` gilt: `teamSize = teamSizeByMonth[month] || 1`.
 
-### WIP-Formel pro Monat M (als YYYYMM-Integer)
-Ein Item zählt als WIP in Monat M wenn **alle** folgenden Bedingungen erfüllt sind:
+### Stichtag pro Monat
+```
+today        = aktuelles Datum (z.B. 20.06.2026)
+refDate(M)   = Datum mit Tag=today.getDate(), Monat=M, Jahr aus M
+               (Ausnahme: Monat M hat weniger Tage → letzter Tag des Monats)
+
+Beispiel (heute = 20.06.2026):
+  M = Jun 2026 → refDate = 20.06.2026
+  M = Mai 2026 → refDate = 20.05.2026
+  M = Feb 2026 → refDate = 20.02.2026
+```
+
+### WIP-Formel pro Monat M (Stichtag-Logik)
+Ein Item zählt als WIP zum Stichtag refDate(M) wenn **alle** folgenden Bedingungen erfüllt sind:
 
 ```
-ip  = parseToYYYYMM(item['In Progress'])
-res = parseToYYYYMM(item['Resolved'])
-rej = parseToYYYYMM(item['Rejected'])
-r4p = parseToYYYYMM(item['Ready4Production'])
-ana = parseToYYYYMM(item['Analysed'])
-r4g = parseToYYYYMM(item['Ready4Progress'])
+ip  = core.toDate(item['In Progress'])   // Date | null
+res = core.toDate(item['Resolved'])
+rej = core.toDate(item['Rejected'])
+r4p = core.toDate(item['Ready4Production'])
+ana = core.toDate(item['Analysed'])
+r4g = core.toDate(item['Ready4Progress'])
+ref = refDate(M)
 
 Bedingung:
-  ip > 0                         // wurde überhaupt gestartet
-  && ip <= M                     // war schon in Progress bis M
-  && (res === 0 || res >= M)     // noch nicht resolved ODER in/nach M resolved
-  && (rej === 0 || rej >= M)     // noch nicht rejected ODER in/nach M rejected
-  && (r4p === 0 || r4p >= M)     // noch nicht Ready4Production ODER in/nach M
-  && (ana === 0 || ana <= ip)    // Analysed vor/bei Start (0 = toleriert)
-  && (r4g === 0 || r4g <= ip)    // Ready4Progress vor/bei Start (0 = toleriert)
+  ip !== null                    // wurde überhaupt gestartet
+  && ip <= ref                   // war spätestens am Stichtag in Progress
+  && (res === null || res >= ref) // noch nicht resolved am Stichtag
+  && (rej === null || rej >= ref) // noch nicht rejected am Stichtag
+  && (r4p === null || r4p >= ref) // noch nicht Ready4Production am Stichtag
+  && (ana === null || ana <= ip)  // Analysed vor/bei Start (null = toleriert)
+  && (r4g === null || r4g <= ip)  // Ready4Progress vor/bei Start (null = toleriert)
 ```
+
+**Semantik:** Snapshot – es zählen nur Items, die **am Stichtag noch aktiv** waren.
+Ein Item, das z.B. am 10. Juni resolved wurde, zählt für Juni (Stichtag 20.06.) **nicht**.
 
 ### WIP pro Person
 ```
-wipCount(M)     = Anzahl Items die obige Bedingung für Monat M erfüllen
+wipCount(M)     = Anzahl Items die obige Bedingung für Stichtag refDate(M) erfüllen
 teamSize(M)     = Squadgröße aus SquadDaten für das Quartal das M enthält
                   (Fallback: 1 wenn leer oder Squad nicht gefunden)
 wipPerPerson(M) = Math.round(wipCount(M) / teamSize(M) * 100) / 100
@@ -203,11 +219,12 @@ colorFor(v):
 ### Edge Cases
 | Situation | Verhalten |
 |---|---|
-| `In Progress` leer/ungültig (ip=0) | Item wird nicht gezählt |
+| `In Progress` leer/ungültig (ip=null) | Item wird nicht gezählt |
 | Teamgröße = 0 oder leer | Fallback teamSize = 1 |
-| `Analysed` oder `Ready4Progress` leer (=0) | Bedingung gilt als erfüllt |
+| `Analysed` oder `Ready4Progress` leer (null) | Bedingung gilt als erfüllt |
 | Squad-Name nicht in SquadDaten | Monate aus Header-Zeile, Teamgröße = 1 für alle Monate, Diag-Hinweis |
 | SquadDaten-Sheet fehlt | Teamgröße = 1, kein Abbruch |
+| Monat kürzer als today.getDate() (z.B. Feb, heute = 31.) | refDate = letzter Tag des Monats |
 | Math.max() auf leerem Array | Abgesichert: `values.length ? Math.max(...values) : 0` |
 
 ---
@@ -274,3 +291,4 @@ localStorage-Key: `fhwa_wip`
 | 2026-06-09 | 1.1 | Bugfix: Header-Suche auf `row.some()` umgestellt (war `row[1]`); Squad-Fallback liefert jetzt Monate aus Header-Zeile mit Teamgröße=1 | Oliver |
 | 2026-06-11 | 1.2 | Zeitraum fest auf letzte 12 Monate (inkl. aktueller Monat) begrenzt; SquadDaten-Sheet nicht mehr für Monatsgenerierung benötigt; Fallback Teamgröße=1 für nicht abgedeckte Monate | Oliver |
 | 2026-06-19 | 1.3 | Titel mit hl-Span; Erklärungs-Panel; 3-spaltiger Footer mit „Was zeigt diese Ansicht?" links; N-Format auf `N = X` vereinheitlicht | Oliver |
+| 2026-06-22 | 1.4 | WIP-Bedingung auf Stichtag-Logik umgestellt: `core.toDate()` statt YYYYMM-Integer; refDate(M) = gleicher Tag wie heute in Monat M → entspricht Excel-Formel | Oliver |

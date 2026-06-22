@@ -80,7 +80,7 @@ describe('calcAkQuality', () => {
 describe('sortStagesByBrpEtappen', () => {
   const toDate = s => s ? new Date(s) : null;
 
-  it('sortiert chronologisch nach Startdatum', () => {
+  it('sortiert chronologisch aufsteigend nach Startdatum (älteste links)', () => {
     const stages  = ['Eta2', 'Eta1', 'Eta3'];
     const brpRows = [
       { Etappe: 'Eta1', Startdatum: '2025-01-01' },
@@ -90,13 +90,13 @@ describe('sortStagesByBrpEtappen', () => {
     expect(sortStagesByBrpEtappen(stages, brpRows, toDate)).toEqual(['Eta1', 'Eta2', 'Eta3']);
   });
 
-  it('stellt unbekannte Stages alphabetisch ans Ende', () => {
+  it('blendet Stages aus die nicht im BRP-Sheet sind', () => {
     const stages  = ['Eta2', 'Eta1', 'Unbekannt', 'AndereStage'];
     const brpRows = [
       { Etappe: 'Eta1', Startdatum: '2025-01-01' },
       { Etappe: 'Eta2', Startdatum: '2025-04-01' },
     ];
-    expect(sortStagesByBrpEtappen(stages, brpRows, toDate)).toEqual(['Eta1', 'Eta2', 'AndereStage', 'Unbekannt']);
+    expect(sortStagesByBrpEtappen(stages, brpRows, toDate)).toEqual(['Eta1', 'Eta2']);
   });
 
   it('gibt alphabetische Reihenfolge zurück wenn brpRows leer', () => {

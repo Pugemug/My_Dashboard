@@ -66,9 +66,8 @@ Für jede Kombination (Stage, Squad):
 - Wenn `N === 0`: kein Datenpunkt → Lücke in der Linie
 
 ### Stage-Reihenfolge
-1. `BRP Etappen`-Sheet vorhanden: Stages nach `Startdatum` aufsteigend sortieren (älteste Etappe links)
-2. Stages aus `JiraEpics` die nicht in `BRP Etappen` vorkommen: ans Ende, alphabetisch sortiert
-3. `BRP Etappen`-Sheet fehlt: alle Stages aus `JiraEpics` alphabetisch sortieren
+1. `BRP Etappen`-Sheet vorhanden: nur Stages anzeigen die im BRP-Sheet stehen, nach `Startdatum` aufsteigend sortiert (älteste Etappe links, neueste rechts); Stages aus `JiraEpics` ohne BRP-Eintrag werden ignoriert
+2. `BRP Etappen`-Sheet fehlt: alle Stages aus `JiraEpics` alphabetisch sortieren (älteste links)
 
 ### Squad-Filter
 Globaler Filter via `core.state.squadFilter`.
@@ -157,15 +156,15 @@ Kein Datenpunkt wenn N_total = 0.
 ```
 stagesInBrp = BRP_Etappen
   .filter(r => r['Etappe'] && r['Startdatum'])
-  .sort by core.toDate(r['Startdatum']) ascending
+  .sort by core.toDate(r['Startdatum']) ascending   // älteste links
   .map(r => r['Etappe'])
 
 stagesOnly = unique(JiraEpics.map(r => r['Stage']).filter(Boolean))
 
 knownStages   = stagesInBrp.filter(s => stagesOnly.includes(s))
-unknownStages = stagesOnly.filter(s => !stagesInBrp.includes(s)).sort()
+// Stages ohne BRP-Eintrag werden ignoriert
 
-finalOrder = [...knownStages, ...unknownStages]
+finalOrder = knownStages
 ```
 
 ### Edge Cases

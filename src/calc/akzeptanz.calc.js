@@ -36,6 +36,10 @@ export function calcAkQuality(epics, stage, squad) {
 export function sortStagesByBrpEtappen(stages, brpRows, toDateFn) {
   const stagesSet = new Set(stages);
 
+  if (!brpRows.length) {
+    return [...stages].sort();
+  }
+
   const dated = [];
   const seen  = new Set();
   brpRows
@@ -47,6 +51,5 @@ export function sortStagesByBrpEtappen(stages, brpRows, toDateFn) {
       if (!seen.has(e.name)) { seen.add(e.name); dated.push(e.name); }
     });
 
-  const unknown = stages.filter(s => !seen.has(s)).sort();
-  return [...dated, ...unknown];
+  return dated;
 }

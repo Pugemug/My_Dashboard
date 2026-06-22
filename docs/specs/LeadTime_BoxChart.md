@@ -1,7 +1,7 @@
 # LeadTime BoxChart (boxchart.js) – Spezifikation
 
-**Version:** 1.9  
-**Datum:** 2026-06-20  
+**Version:** 2.0  
+**Datum:** 2026-06-22  
 **Status:** Implementiert
 
 ---
@@ -108,6 +108,7 @@ Das Panel öffnet sich `position:absolute` innerhalb von `contentEl` (Chart-Bere
 | Glättung-Checkbox | `#bc-smoothing-chk` | Violin KDE-Glättung ein/aus |
 | Y-Schritt-Input | `#bc-ystep` | Schrittweite Y-Achse in Tagen (0 = auto); Tick-Anzahl wird live daneben angezeigt (`#bc-ytick-info`) |
 | Log-Skala-Checkbox | `#bc-ylog-chk` | Logarithmische Y-Skala; deaktiviert Y-Schritt-Input |
+| Monate-Input | `#bc-months` | Rolling-Window in Monaten (1–60, Default 12); steuert wie weit zurück Daten angezeigt werden |
 | × Schließen | `#bc-cfg-close` | Schließt das Config-Panel |
 
 > Ansicht (Box/Violin/Kombi) und Ausreißer sind **nicht** im ⚙-Panel — sie befinden sich direkt im Tile-Header.
@@ -217,6 +218,21 @@ function _applyBugFilter(rows) {
 
 Issue-Type-Spalte: Fallback-Reihenfolge `Issue Type` → `IssueType` → `Type` → `issue_type` (identisch zum Ausreißer-Tooltip in Block B).
 
+### Rejected-Ausschluss
+Items mit gesetztem `Rejected`-Feld werden übersprungen — identisch zu `flowefficiency.js`. Das verhindert, dass Items mit gleichzeitig gesetztem `Resolved` und `Rejected` (Datenfehler in der Quelle) in Lead Time gezählt werden, während Flow Efficiency sie ausschließt.
+
+### Rolling-Window-Filter
+Vor der Gruppierung wird ein Zeitfenster (default 12 Monate) angewendet:
+
+```javascript
+const now    = new Date();
+const cutoff = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
+// ...
+if (endDate < cutoff) continue;
+```
+
+Entspricht exakt der Cutoff-Logik in `flowefficiency.js`, damit beide Visuals dieselbe Datenbasis zeigen.
+
 ### Durchlaufzeit pro Item
 `lt = core.dur(row[ltStartCol], row[ltEndCol])` — Items mit `lt < 1` oder `null` werden übersprungen.
 
@@ -274,6 +290,7 @@ localStorage-Key: `fhwa_boxchart`
 | `ltStart` | string | `"Ready4Progress_first"` | Lead-Time Startspalte |
 | `ltEnd` | string | `"Resolved"` | Lead-Time Endspalte |
 | `includeBug` | bool | `false` | Bug-Issues einschließen (lokaler Button hat Vorrang über globalen Issue-Type-Filter) |
+| `months` | number | `12` | Rolling-Window in Monaten (1–60); identisch zu `cfg.months` in `flowefficiency.js` für konsistente X-Achse und N-Wert |
 
 ### Migration
 Beim ersten Laden wird ein gespeicherter `bandwidth`-Wert (Altformat) automatisch in `smoothing: true/false` konvertiert (`bandwidth > 2 → true`) und aus localStorage entfernt. Fehlende `yStep`/`yLog`-Werte werden mit Defaults befüllt.

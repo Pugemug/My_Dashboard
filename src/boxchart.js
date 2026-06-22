@@ -26,6 +26,7 @@ const DEFAULT_CFG = {
   yStep:        0,
   yLog:         false,
   includeBug:   false,
+  months:       12,
 };
 
 let _initialized = false;
@@ -296,6 +297,14 @@ export function init() {
           <span id="bc-ytick-info"
                 style="font-family:var(--mono);font-size:.6rem;color:var(--dimmer)"></span>
         </div>
+        <div class="lt-field" style="display:flex;align-items:center;gap:.3rem">
+          <span class="lt-label">Monate</span>
+          <input type="number" id="bc-months" min="1" max="60"
+                 style="width:52px;font-family:var(--mono);font-size:.65rem;
+                        background:var(--bg3,var(--bg2));border:1px solid var(--border);
+                        color:var(--text);border-radius:3px;padding:.1rem .3rem;
+                        text-align:right">
+        </div>
       </div>`;
 
     _contentEl.style.position = 'relative';
@@ -345,6 +354,14 @@ export function init() {
       const v = parseFloat(yStepInput.value);
       cfg.yStep = (isFinite(v) && v > 0) ? v : 0;
       _updateYTickInfo();
+      _saveAndRender();
+    });
+
+    const monthsInput = document.getElementById('bc-months');
+    monthsInput.value = cfg.months;
+    monthsInput.addEventListener('input', () => {
+      const v = parseInt(monthsInput.value, 10);
+      cfg.months = (Number.isFinite(v) && v >= 1) ? v : 12;
       _saveAndRender();
     });
 
@@ -692,12 +709,16 @@ export function init() {
 
     // ── Daten gruppieren ──────────────────────────────────────────────────────
     const periodItems = new Map();
+    const now    = new Date();
+    const cutoff = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
 
     for (const row of rows) {
+      if (row['Rejected'] != null && row['Rejected'] !== '') continue;
       const lt = core.dur(row[ltS], row[ltE]);
       if (!lt || lt < 1) continue;
       const endDate = core.toDate(row[ltE]);
       if (!endDate) continue;
+      if (endDate < cutoff) continue;
       const key = _periodKey(endDate, cfg.periodMode);
       if (!key) continue;
       if (!periodItems.has(key)) periodItems.set(key, []);
