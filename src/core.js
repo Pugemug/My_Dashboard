@@ -290,6 +290,7 @@ export const core = {
    * Container-Größe rendern.
    */
   showPage(pageId) {
+    core.emit('page');
     document.querySelectorAll('.page').forEach(p => { p.style.display = 'none'; });
     const page = document.getElementById('page-' + pageId);
     if (page) page.style.display = page.classList.contains('page-flex') ? 'flex' : 'block';
@@ -417,9 +418,15 @@ export const core = {
     const headerExtraEl = document.createElement('div');
     headerExtraEl.style.cssText = 'display:contents';
 
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'btn-icon tile-expand-btn';
+    expandBtn.title = 'Vergrößern';
+    expandBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3.5V1H3.5"/><path d="M9 6.5V9H6.5"/><path d="M6.5 1H9V3.5"/><path d="M3.5 9H1V6.5"/></svg>';
+
     header.appendChild(titleEl);
     header.appendChild(spacer);
     header.appendChild(headerExtraEl);
+    header.appendChild(expandBtn);
     tileEl.appendChild(header);
 
     // ── Content area ──
@@ -1520,9 +1527,9 @@ export function mkTTRow(label, val) {
 
 export function posTooltip(tt, cx, cy) {
   const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
-  let l = cx + 14, t = cy + 14;
-  if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
-  if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
+  let l = cx + 8, t = cy + 8;
+  if (l + tw > window.innerWidth  - 6) l = cx - tw - 8; if (l < 6) l = 6;
+  if (t + th > window.innerHeight - 6) t = cy - th - 8; if (t < 6) t = 6;
   tt.style.left = l + 'px'; tt.style.top = t + 'px';
 }
 

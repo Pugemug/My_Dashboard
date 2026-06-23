@@ -1,12 +1,12 @@
 # Testautomatisierung – Flow Analytics Dashboard
 
-**Version:** 1.3  
-**Datum:** 2026-06-15  
+**Version:** 1.4  
+**Datum:** 2026-06-23  
 **Status:** Bestätigt – Phase 1 ✅ und Phase 2 (Option A) ✅ abgeschlossen  
 
 ---
 
-## Aktueller Implementierungsstand (2026-06-15)
+## Aktueller Implementierungsstand (2026-06-23)
 
 ### Was heute existiert
 
@@ -21,10 +21,12 @@
 | `tests/unit/montecarlo.calc.test.js` | ✅ echte Imports | Importiert aus `src/calc/montecarlo.calc.js` (14 Tests) |
 | `tests/e2e/app.load.spec.js` | ✅ existiert | Upload-Screen sichtbar, keine JS-Fehler beim Start |
 | `tests/e2e/data.upload.spec.js` | ✅ implementiert | Datei-Upload + alle Tiles rendern, Leerdatei-Test |
-| `tests/e2e/scatter.spec.js` | 📋 geplant | CycleTime Scatterplot E2E |
-| `tests/e2e/wipage.spec.js` | 📋 geplant | WIPAge E2E |
-| `tests/e2e/heatmap.spec.js` | 📋 geplant | FlowHeatmap E2E |
-| `tests/e2e/montecarlo.spec.js` | 📋 geplant | MonteCarlo E2E |
+| `tests/e2e/tile-content.spec.js` | ✅ implementiert | Tile-Inhalte, Kachel-Reihenfolge, Vollbild-Modus (7 neue Tests) |
+| `tests/e2e/pages-content.spec.js` | ✅ implementiert | Blocker, Heatmap, Scatter, WIPAge, Monte Carlo Pages |
+| `tests/e2e/scatter.spec.js` | 📋 geplant | CycleTime Scatterplot E2E (vertieft) |
+| `tests/e2e/wipage.spec.js` | 📋 geplant | WIPAge E2E (vertieft) |
+| `tests/e2e/heatmap.spec.js` | 📋 geplant | FlowHeatmap E2E (vertieft) |
+| `tests/e2e/montecarlo.spec.js` | 📋 geplant | MonteCarlo E2E (vertieft) |
 
 ### Bekannte strukturelle Schwäche – Copy-Paste-Anti-Pattern
 

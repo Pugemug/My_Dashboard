@@ -23,6 +23,7 @@ export function init() {
     show85: true,  color85: '#fbbf24',
     show95: true,  color95: '#f87171',
   });
+  if (!cfg.typeColors) cfg.typeColors = {};  // Migration: ältere gespeicherte Configs ohne typeColors
 
   let   _typeMap   = {};          // auto-assigned type → color
   let   _renderTO  = null;        // debounce timer
@@ -157,7 +158,7 @@ export function init() {
   document.body.appendChild(scTooltip);
 
   scTooltip.addEventListener('mouseenter', () => { clearTimeout(_scHideTimer); _scHideTimer = null; });
-  scTooltip.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 130); });
+  scTooltip.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 500); });
 
   // ══════════════════════════════════════════════
   // Toggle updaters
@@ -446,7 +447,7 @@ export function init() {
       const item = items[parseInt(dot.dataset.idx)];
       dot.addEventListener('mouseenter', e => _showTT(e, item));
       dot.addEventListener('mousemove',  e => posTooltip(scTooltip, e.clientX, e.clientY));
-      dot.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 130); });
+      dot.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 500); });
     });
 
     diagEl.textContent = `n=${items.length} · CT: ${cfg.ctStart || '?'} → ${cfg.ctEnd} · P50: ${P.p50 ? P.p50.toFixed(1)+'d' : '–'} · P85: ${P.p85 ? P.p85.toFixed(1)+'d' : '–'} · Farbe: ${cfg.colorMode} · Intervall: ${cfg.interval}`;

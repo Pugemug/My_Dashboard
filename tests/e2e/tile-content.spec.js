@@ -341,6 +341,83 @@ test.describe('Kachel-Reihenfolge – Lieferfähigkeit', () => {
 
 });
 
+// ── Tile-Vollbild-Modus ───────────────────────────────────────────────────────
+
+test.describe('Tile-Vollbild – Expand/Collapse', () => {
+
+  const TILE_IDS = ['boxchart', 'saydoratioepics', 'happinessfaktor', 'flowefficiency', 'wip', 'akzeptanz'];
+
+  test('Jede Tile hat einen sichtbaren ⤢-Button', async ({ page }) => {
+    await navigateToTiles(page);
+    for (const id of TILE_IDS) {
+      await expect(page.locator(`#tile-${id} .tile-expand-btn`)).toBeVisible();
+    }
+  });
+
+  test('Klick auf ⤢ öffnet Modal (Panel + Backdrop sichtbar)', async ({ page }) => {
+    await navigateToTiles(page);
+    await page.locator('#tile-boxchart .tile-expand-btn').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeVisible();
+    await expect(page.locator('#tile-fullscreen-backdrop')).toBeVisible();
+  });
+
+  test('Vollbild-Header zeigt Kachel-Titel (nicht leer)', async ({ page }) => {
+    await navigateToTiles(page);
+    await page.locator('#tile-boxchart .tile-expand-btn').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeVisible();
+    const title = await page.locator('#tile-fullscreen-title').textContent();
+    expect(title.trim().length).toBeGreaterThan(0);
+  });
+
+  test('Header-Controls (Tabs, ⚙, ?) sind im Vollbild sichtbar', async ({ page }) => {
+    await navigateToTiles(page);
+    // Flow Efficiency hat Linie/Violin-Tabs + ⚙ + ?
+    await page.locator('#tile-flowefficiency .tile-expand-btn').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeVisible();
+    const headerBtns = page.locator('#tile-fullscreen-content .tile-header .btn-icon:not(.tile-expand-btn)');
+    expect(await headerBtns.count()).toBeGreaterThan(0);
+    await expect(headerBtns.first()).toBeVisible();
+  });
+
+  test('Schließen per ×-Button: Modal versteckt, Tile zurück im Canvas', async ({ page }) => {
+    await navigateToTiles(page);
+    await page.locator('#tile-boxchart .tile-expand-btn').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeVisible();
+    await page.locator('#tile-fullscreen-close').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeHidden();
+    await expect(page.locator('#tile-canvas-lieferfahigkeit #tile-boxchart')).toBeVisible();
+  });
+
+  test('Schließen per Backdrop-Klick außerhalb des Panels', async ({ page }) => {
+    await navigateToTiles(page);
+    await page.locator('#tile-boxchart .tile-expand-btn').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeVisible();
+    // Klick in obere linke Ecke – das Panel beginnt erst bei 5%/5%
+    await page.locator('#tile-fullscreen-backdrop').click({ position: { x: 10, y: 10 } });
+    await expect(page.locator('#tile-fullscreen-panel')).toBeHidden();
+  });
+
+  test('Sidebar-Navigation schließt das Vollbild-Modal automatisch', async ({ page }) => {
+    await navigateToTiles(page);
+    await page.locator('#tile-boxchart .tile-expand-btn').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeVisible();
+    await page.locator('.sidebar-link[data-page="scatter"]').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeHidden();
+  });
+
+  test('Kein JS-Fehler beim Öffnen und Schließen des Vollbilds', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await navigateToTiles(page);
+    await page.locator('#tile-boxchart .tile-expand-btn').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeVisible();
+    await page.locator('#tile-fullscreen-close').click();
+    await expect(page.locator('#tile-fullscreen-panel')).toBeHidden();
+    expect(errors).toHaveLength(0);
+  });
+
+});
+
 // ── Settings-Panel: Jira URL Default ─────────────────────────────────────────
 
 test.describe('Settings-Panel – Jira URL Default', () => {

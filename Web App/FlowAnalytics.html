@@ -370,6 +370,22 @@ td.td-lt{background:rgba(192,132,252,.04)}
 .tt-link{display:block;color:var(--blue);font-size:.65rem;margin-top:.3rem;padding-top:.3rem;border-top:1px solid var(--border);cursor:pointer;text-decoration:none}
 .tt-link:hover{color:var(--text)}
 
+/* ── TILE FULLSCREEN ── */
+#tile-fullscreen-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;display:none}
+#tile-fullscreen-backdrop.open{display:block}
+#tile-fullscreen-panel{position:fixed;top:5%;left:5%;width:90%;height:90%;background:var(--bg2);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 56px rgba(0,0,0,.7);z-index:601;display:none;flex-direction:column;overflow:hidden}
+#tile-fullscreen-panel.open{display:flex}
+.tile-fullscreen-header{display:flex;align-items:center;gap:.4rem;padding:.3rem .55rem;border-bottom:1px solid var(--border);flex-shrink:0;min-height:36px}
+#tile-fullscreen-title{font-size:.82rem;font-weight:700;flex:1;letter-spacing:-.02em}
+#tile-fullscreen-title .hl{color:var(--blue)}
+.tile-fullscreen-content{flex:1;overflow:hidden;position:relative;min-height:0;display:flex;flex-direction:column}
+.tile-fullscreen-content svg{display:block;width:100%;height:100%}
+.tile-fullscreen-content .tile{border:none;border-radius:0;flex:1;width:100%;min-height:0}
+.tile-fullscreen-content .tile-title{display:none}
+.tile-fullscreen-content .tile-spacer{display:none}
+.tile-fullscreen-content .tile-expand-btn{display:none}
+.tile-fullscreen-content .tile-header{justify-content:flex-end}
+
 /* ── MISC ── */
 .state-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 2rem;gap:.4rem;text-align:center}
 .state-msg h3{color:var(--text);font-size:.88rem}.state-msg p{color:var(--dim);font-size:.7rem;font-family:var(--mono)}
@@ -517,6 +533,16 @@ td.td-lt{background:rgba(192,132,252,.04)}
       </div>
       <button id="dr-apply">&#10003; &Uuml;bernehmen</button>
     </div>
+  </div>
+
+  <!-- Tile-Vollbild Modal (shared, einmalig) -->
+  <div id="tile-fullscreen-backdrop"></div>
+  <div id="tile-fullscreen-panel">
+    <div class="tile-fullscreen-header">
+      <span id="tile-fullscreen-title"></span>
+      <button class="settings-close-btn" id="tile-fullscreen-close" title="Schlie&szlig;en">&#x2715;</button>
+    </div>
+    <div class="tile-fullscreen-content" id="tile-fullscreen-content"></div>
   </div>
 
   <!-- App-Body: Sidebar + Main-Content (kein globaler Topbar mehr) -->
@@ -906,11 +932,11 @@ function calcHeatmapT(cellValue, gMax) {
 
 const MAX_LOOP_GUARD = 10_000;
 
-/** Variationskoeffizient CV = σ/μ. Gibt null für leeres Array oder μ=0. */
+/** Variationskoeffizient CV = σ/μ. Gibt Infinity für leeres Array oder μ=0. */
 function calcCV(samples) {
-  if (!samples.length) return null;
+  if (!samples.length) return Infinity;
   const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
-  if (mean === 0) return null;
+  if (mean === 0) return Infinity;
   const variance = samples.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / samples.length;
   return Math.sqrt(variance) / mean;
 }
@@ -1288,6 +1314,7 @@ const core = {
    * Container-Größe rendern.
    */
   showPage(pageId) {
+    core.emit('page');
     document.querySelectorAll('.page').forEach(p => { p.style.display = 'none'; });
     const page = document.getElementById('page-' + pageId);
     if (page) page.style.display = page.classList.contains('page-flex') ? 'flex' : 'block';
@@ -1415,9 +1442,15 @@ const core = {
     const headerExtraEl = document.createElement('div');
     headerExtraEl.style.cssText = 'display:contents';
 
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'btn-icon tile-expand-btn';
+    expandBtn.title = 'Vergrößern';
+    expandBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 3.5V1H3.5"/><path d="M9 6.5V9H6.5"/><path d="M6.5 1H9V3.5"/><path d="M3.5 9H1V6.5"/></svg>';
+
     header.appendChild(titleEl);
     header.appendChild(spacer);
     header.appendChild(headerExtraEl);
+    header.appendChild(expandBtn);
     tileEl.appendChild(header);
 
     // ── Content area ──
@@ -2518,9 +2551,9 @@ function mkTTRow(label, val) {
 
 function posTooltip(tt, cx, cy) {
   const tw = tt.offsetWidth || 160, th = tt.offsetHeight || 130;
-  let l = cx + 14, t = cy + 14;
-  if (l + tw > window.innerWidth  - 6) l = cx - tw - 14; if (l < 6) l = 6;
-  if (t + th > window.innerHeight - 6) t = cy - th - 14; if (t < 6) t = 6;
+  let l = cx + 8, t = cy + 8;
+  if (l + tw > window.innerWidth  - 6) l = cx - tw - 8; if (l < 6) l = 6;
+  if (t + th > window.innerHeight - 6) t = cy - th - 8; if (t < 6) t = 6;
   tt.style.left = l + 'px'; tt.style.top = t + 'px';
 }
 
@@ -3941,6 +3974,7 @@ function init_scatter() {
     show85: true,  color85: '#fbbf24',
     show95: true,  color95: '#f87171',
   });
+  if (!cfg.typeColors) cfg.typeColors = {};  // Migration: ältere gespeicherte Configs ohne typeColors
 
   let   _typeMap   = {};          // auto-assigned type → color
   let   _renderTO  = null;        // debounce timer
@@ -4075,7 +4109,7 @@ function init_scatter() {
   document.body.appendChild(scTooltip);
 
   scTooltip.addEventListener('mouseenter', () => { clearTimeout(_scHideTimer); _scHideTimer = null; });
-  scTooltip.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 130); });
+  scTooltip.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 500); });
 
   // ══════════════════════════════════════════════
   // Toggle updaters
@@ -4364,7 +4398,7 @@ function init_scatter() {
       const item = items[parseInt(dot.dataset.idx)];
       dot.addEventListener('mouseenter', e => _showTT(e, item));
       dot.addEventListener('mousemove',  e => posTooltip(scTooltip, e.clientX, e.clientY));
-      dot.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 130); });
+      dot.addEventListener('mouseleave', () => { _scHideTimer = setTimeout(() => { scTooltip.style.display = 'none'; }, 500); });
     });
 
     diagEl.textContent = `n=${items.length} · CT: ${cfg.ctStart || '?'} → ${cfg.ctEnd} · P50: ${P.p50 ? P.p50.toFixed(1)+'d' : '–'} · P85: ${P.p85 ? P.p85.toFixed(1)+'d' : '–'} · Farbe: ${cfg.colorMode} · Intervall: ${cfg.interval}`;
@@ -4627,7 +4661,7 @@ function init_wipage() {
 
   let _hideTimer = null;
   function _showTt() { if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; } }
-  function _hideTt() { _hideTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 120); }
+  function _hideTt() { _hideTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 500); }
   tooltip.addEventListener('mouseenter', _showTt);
   tooltip.addEventListener('mouseleave', _hideTt);
 
@@ -5043,10 +5077,10 @@ function init_wipage() {
   function _posTooltip(cx, cy) {
     const tw = tooltip.offsetWidth  || 180;
     const th = tooltip.offsetHeight || 140;
-    let l = cx + 14, t = cy + 14;
-    if (l + tw > window.innerWidth  - 6) l = cx - tw - 14;
+    let l = cx + 8, t = cy + 8;
+    if (l + tw > window.innerWidth  - 6) l = cx - tw - 8;
     if (l < 6) l = 6;
-    if (t + th > window.innerHeight - 6) t = cy - th - 14;
+    if (t + th > window.innerHeight - 6) t = cy - th - 8;
     if (t < 6) t = 6;
     tooltip.style.left = l + 'px';
     tooltip.style.top  = t + 'px';
@@ -9816,6 +9850,69 @@ window.init_akzeptanz = init_akzeptanz;
   })();
 
   // Filter-Reset aller Pages wird von core.js via .squad-filter-reset behandelt.
+
+  // ── Tile-Vollbild-Modus ──────────────────────────────────────────
+  (function() {
+    var backdrop  = document.getElementById('tile-fullscreen-backdrop');
+    var panel     = document.getElementById('tile-fullscreen-panel');
+    var closeBtn  = document.getElementById('tile-fullscreen-close');
+    var titleEl   = document.getElementById('tile-fullscreen-title');
+    var fsContent = document.getElementById('tile-fullscreen-content');
+    var expandedTileEl   = null;
+    var originalParentEl = null;
+    var originalNextSib  = null;
+
+    function openFullscreen(tileEl) {
+      var titleSrc = tileEl.querySelector('.tile-title');
+      if (expandedTileEl && expandedTileEl !== tileEl) closeFullscreen();
+      expandedTileEl   = tileEl;
+      originalParentEl = tileEl.parentElement;
+      originalNextSib  = tileEl.nextSibling;
+      titleEl.innerHTML = titleSrc ? titleSrc.innerHTML : '';
+      fsContent.appendChild(tileEl);
+      panel.classList.add('open');
+      backdrop.classList.add('open');
+      document.querySelectorAll('body>div').forEach(function(el) {
+        if (el.style.position === 'fixed') {
+          var z = parseInt(el.style.zIndex, 10);
+          if (!isNaN(z) && z < 700) { el.dataset.prevZ = el.style.zIndex; el.style.zIndex = '700'; }
+        }
+      });
+      core.emit('resize');
+    }
+
+    function closeFullscreen() {
+      if (!expandedTileEl) return;
+      document.querySelectorAll('body>div[data-prev-z]').forEach(function(el) {
+        el.style.zIndex = el.dataset.prevZ; delete el.dataset.prevZ;
+      });
+      if (originalNextSib) {
+        originalParentEl.insertBefore(expandedTileEl, originalNextSib);
+      } else {
+        originalParentEl.appendChild(expandedTileEl);
+      }
+      expandedTileEl   = null;
+      originalParentEl = null;
+      originalNextSib  = null;
+      panel.classList.remove('open');
+      backdrop.classList.remove('open');
+      core.emit('resize');
+    }
+
+    if (closeBtn) closeBtn.addEventListener('click', closeFullscreen);
+    if (backdrop) backdrop.addEventListener('click', closeFullscreen);
+    core.on('page', closeFullscreen);
+
+    requestAnimationFrame(function() {
+      document.querySelectorAll('.tile-expand-btn').forEach(function(btn) {
+        var tileEl = btn.closest('.tile');
+        if (tileEl) btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          openFullscreen(tileEl);
+        });
+      });
+    });
+  })();
 
 
 </script>

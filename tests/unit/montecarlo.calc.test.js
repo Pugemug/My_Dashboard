@@ -15,12 +15,12 @@ describe('Variationskoeffizient (CV)', () => {
     expect(calcCV([1, 5, 10, 3, 8])).toBeGreaterThan(0);
   });
 
-  it('gibt null für leeres Array zurück', () => {
-    expect(calcCV([])).toBeNull();
+  it('gibt Infinity für leeres Array zurück', () => {
+    expect(calcCV([])).toBe(Infinity);
   });
 
-  it('gibt null zurück wenn Mittelwert = 0', () => {
-    expect(calcCV([0, 0, 0])).toBeNull();
+  it('gibt Infinity zurück wenn Mittelwert = 0', () => {
+    expect(calcCV([0, 0, 0])).toBe(Infinity);
   });
 
   it('CV < 0.5 = stabiles Team (grüne Ampel)', () => {

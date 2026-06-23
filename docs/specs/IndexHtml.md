@@ -1,7 +1,7 @@
 # index.html – Spezifikation
 
-**Version:** 2.7  
-**Datum:** 2026-06-20  
+**Version:** 3.0  
+**Datum:** 2026-06-23  
 **Status:** Teilweise implementiert · Abschnitte §3 (Upload-Screen) und §4 (Datencheck-Page) ausstehend
 
 ---
@@ -26,6 +26,8 @@ Es gibt keinen Build-Schritt. Die Datei wird direkt im Browser geöffnet (ShareP
     #squad-dropdown         position:fixed – shared Squad-Dropdown (alle Pages)
     #issuetype-dropdown     position:fixed – shared Issue-Type-Dropdown (alle Pages außer Blocker)
     #daterange-dropdown     position:fixed – shared Zeitraum-Dropdown (alle Pages außer Blocker + Monte)
+    #tile-fullscreen-backdrop  position:fixed – Backdrop für Tile-Vollbild-Modal (z-index:600)
+    #tile-fullscreen-panel     position:fixed – 90 % × 90 %-Modal; enthält .tile-fullscreen-header + .tile-fullscreen-content (z-index:601)
     .app-body               Sidebar + Main-Content (kein globaler Topbar)
       .sidebar              Persistente linke Navigation
         .sidebar-logo       FlowAnalytics
@@ -356,6 +358,185 @@ Beim Initialisieren des Tile-Canvas: gespeicherte Reihenfolge laden → fehlende
 5. „↩ Kachel-Reihenfolge zurücksetzen" stellt Default-Reihenfolge wieder her; alle anderen Einstellungen unverändert
 6. „⚠ Alle Einstellungen zurücksetzen" öffnet `window.confirm()`; nach Bestätigung: alle `fhwa_*`-Keys gelöscht, Seite neu geladen
 7. Kein JS-Fehler wenn `fhwa_tile_order` fehlt oder nur teilweise gefüllt ist (fehlende IDs werden ans Ende angehängt)
+
+---
+
+## Tile-Vollbild-Modus
+
+Jede Kachel auf der Lieferfähigkeitsseite bekommt einen Vollbild-Button im Header. Klick öffnet ein zentriertes Modal-Overlay mit 90 % Breite × 90 % Höhe des Viewports.
+
+### Schaltfläche im Tile-Header
+
+| Element | Attribut | Wert |
+|---|---|---|
+| Button | Klasse | `btn-icon tile-expand-btn` |
+| Symbol | Text | `⤢` |
+| Position | im `headerExtraEl` | rechts neben anderen Controls, vor dem letzten Element |
+| Titel | `title`-Attribut | `"Vergrößern"` |
+
+`core.createTile()` gibt `headerExtraEl` bereits zurück — jedes Visual ergänzt den Button selbst beim `init()`.
+
+### Modal-Overlay (einmalig im DOM, geteilt)
+
+Das Modal wird einmalig in `index.html` unterhalb von `#daterange-dropdown` erzeugt und von allen Tiles geteilt.
+
+```
+#tile-fullscreen-backdrop          position:fixed; inset:0; z-index:600; background:rgba(0,0,0,.55)
+#tile-fullscreen-panel             position:fixed; top:5%; left:5%; width:90%; height:90%; z-index:601
+  .tile-fullscreen-header          Flex-Zeile: Tile-Titel links, ×-Button rechts
+    #tile-fullscreen-title         Kachel-Titel (aus .tile-title kopiert via innerHTML)
+    #tile-fullscreen-close         ×-Schließen-Button (.settings-close-btn)
+  .tile-fullscreen-content         flex:1; display:flex; flex-direction:column — hier landet das gesamte .tile-Element
+```
+
+### Öffnen / Schließen
+
+**Öffnen:**
+1. Nutzer klickt `⤢`-Button eines Tiles.
+2. Das **gesamte `.tile`-Element** (inkl. `.tile-header` mit Tabs/Buttons und `.tile-content`) wird in `.tile-fullscreen-content` verschoben (`appendChild`). `originalParentEl` und `originalNextSib` werden für die Rückplatzierung gespeichert.
+3. Tile-Titel wird in `#tile-fullscreen-title` kopiert (`.innerHTML`).
+4. Modal (`#tile-fullscreen-panel` + `#tile-fullscreen-backdrop`) wird sichtbar (Klasse `.open`).
+5. Alle `position:fixed`-Elemente am `<body>` (Visual-Sub-Panels: Einstellungen, Hilfe, Datenfehler) mit z-index < 700 werden per JS auf z-index 700 angehoben (gespeichert via `el.dataset.prevZ`), damit sie bei Bedarf über dem Modal erscheinen.
+6. `core.emit('resize')` — das Visual rendert neu mit der größeren Content-Fläche.
+
+**Schließen** (per `×`-Button, Backdrop-Klick oder Seitennavigation):
+1. Per JS gespeicherte z-Indices der Sub-Panels werden wiederhergestellt (`el.dataset.prevZ`).
+2. Das `.tile`-Element wird via `originalParentEl.insertBefore(tileEl, originalNextSib)` an seine ursprüngliche Position zurückgesetzt.
+3. Modal wird ausgeblendet (`.open` entfernt).
+4. `core.emit('resize')` — das Visual rendert neu auf Original-Tile-Größe.
+
+**Navigation schließt Modal automatisch:** `core.showPage()` feuert `core.emit('page')`; der Fullscreen-IIFE hört mit `core.on('page', closeFullscreen)` darauf.
+
+**Zustand (Bootstrap-IIFE):**
+```js
+let expandedTileEl   = null;  // das verschobene .tile-Element
+let originalParentEl = null;  // ursprünglicher Parent-Container
+let originalNextSib  = null;  // nächstes Geschwister für exakte Rückplatzierung
+```
+
+### CSS-Klassen
+
+| Klasse | Beschreibung |
+|---|---|
+| `.tile-expand-btn` | Vollbild-Button im Tile-Header (erbt `.btn-icon`); kein zusätzliches Styling nötig |
+| `#tile-fullscreen-backdrop` | `position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:600; display:none` |
+| `#tile-fullscreen-backdrop.open` | `display:block` |
+| `#tile-fullscreen-panel` | `position:fixed; top:5%; left:5%; width:90%; height:90%; background:var(--bg2); border:1px solid var(--border); border-radius:12px; box-shadow:0 20px 56px rgba(0,0,0,.7); z-index:601; display:none; flex-direction:column; overflow:hidden` |
+| `#tile-fullscreen-panel.open` | `display:flex` |
+| `.tile-fullscreen-header` | `display:flex; align-items:center; gap:.4rem; padding:.3rem .55rem; border-bottom:1px solid var(--border); flex-shrink:0; min-height:36px` |
+| `#tile-fullscreen-title` | `font-size:.82rem; font-weight:700; flex:1; letter-spacing:-.02em` |
+| `.tile-fullscreen-content` | `flex:1; overflow:hidden; position:relative; min-height:0; display:flex; flex-direction:column` |
+| `.tile-fullscreen-content .tile` | `border:none; border-radius:0; flex:1; width:100%; min-height:0` — Tile füllt Modal-Content vollständig |
+| `.tile-fullscreen-content .tile-title` | `display:none` — Titel steht schon in `.tile-fullscreen-header` |
+| `.tile-fullscreen-content .tile-spacer` | `display:none` |
+| `.tile-fullscreen-content .tile-expand-btn` | `display:none` |
+| `.tile-fullscreen-content .tile-header` | `justify-content:flex-end` — Tabs/Buttons rechtsbündig (kein Spacer mehr sichtbar) |
+
+```css
+#tile-fullscreen-backdrop        { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:600; display:none }
+#tile-fullscreen-backdrop.open   { display:block }
+#tile-fullscreen-panel           { position:fixed; top:5%; left:5%; width:90%; height:90%; background:var(--bg2); border:1px solid var(--border); border-radius:12px; box-shadow:0 20px 56px rgba(0,0,0,.7); z-index:601; display:none; flex-direction:column; overflow:hidden }
+#tile-fullscreen-panel.open      { display:flex }
+.tile-fullscreen-header          { display:flex; align-items:center; gap:.4rem; padding:.3rem .55rem; border-bottom:1px solid var(--border); flex-shrink:0; min-height:36px }
+#tile-fullscreen-title           { font-size:.82rem; font-weight:700; flex:1; letter-spacing:-.02em }
+.tile-fullscreen-content         { flex:1; overflow:hidden; position:relative; min-height:0; display:flex; flex-direction:column }
+.tile-fullscreen-content svg     { display:block; width:100%; height:100% }
+.tile-fullscreen-content .tile   { border:none; border-radius:0; flex:1; width:100%; min-height:0 }
+.tile-fullscreen-content .tile-title       { display:none }
+.tile-fullscreen-content .tile-spacer      { display:none }
+.tile-fullscreen-content .tile-expand-btn  { display:none }
+.tile-fullscreen-content .tile-header      { justify-content:flex-end }
+```
+
+### Z-Index-Hierarchie
+
+| Ebene | z-index | Element |
+|---|---|---|
+| Visual Sub-Panels (normal) | 300–401 | Einstellungs-Backdrop/-Panel, Hilfe-Modal, Datenfehler-Modal |
+| Fullscreen-Backdrop | 600 | `#tile-fullscreen-backdrop` (CSS-Klasse) |
+| Fullscreen-Panel | 601 | `#tile-fullscreen-panel` (CSS-Klasse) |
+| Sub-Panels wenn Vollbild offen | 700 | via JS (`el.dataset.prevZ` speichert Original; gilt nur für inline-`position:fixed`-Elemente mit z-index < 700) |
+
+### Akzeptanzkriterien
+
+1. Jede der 6 Kacheln hat einen `⤢`-Button im Header (sichtbar, klickbar).
+2. Klick öffnet das Modal: 90 % × 90 % des Viewports, zentriert, dunkler Backdrop.
+3. Das Visual füllt das Modal vollständig aus — inkl. Header-Controls (Tabs, Modus-Buttons, ⚙, ?) rechtsbündig im Modal-Header der Kachel sichtbar.
+4. Schließen per `×`-Button rechts oben und per Klick auf den Backdrop.
+5. Nach dem Schließen: Kachel zeigt das Visual wieder korrekt in Original-Größe und Position.
+6. `resize`-Event wird beim Öffnen und beim Schließen gefeuert (Visual rendert neu, kein Skalierungsartefakt).
+7. Nur ein Vollbild gleichzeitig möglich (zweites Öffnen schließt das vorherige implizit).
+8. Modal überlebt Theme-Wechsel (kein weißer/schwarzer Fleck).
+9. Navigation (Seitenklick in Sidebar, „Verteilung ansehen →") schließt das Modal automatisch.
+10. Sub-Panels (Einstellungen, Hilfe, Datenfehler) öffnen sich über dem Vollbild-Modal, nicht darunter.
+
+---
+
+## Tooltip-Verbesserung: Verzögertes Ausblenden + Maus-Nähe
+
+Betrifft alle Visuals die `positionTooltip()` nutzen und einen klickbaren Link (`tt-link`) im Tooltip zeigen: **CycleTime Scatterplot** und **WIPAge Chart**.
+
+### Problem
+
+Der Tooltip mit Jira-Link blendet sich aus bevor der Nutzer darauf klicken kann, weil:
+1. `pointer-events:none` am Tooltip verhindert das Hovern auf den Tooltip selbst
+2. Der Tooltip wird bei `mouseout`/`mouseleave` sofort ausgeblendet (kein Delay)
+
+### Lösung
+
+Zwei Maßnahmen kombiniert:
+
+**Maßnahme A – Verzögertes Ausblenden (500 ms):**
+- Bei `mouseleave` des Datenpunkts startet ein `setTimeout` über 500 ms
+- Betritt die Maus in dieser Zeit den Tooltip selbst (`mouseenter` auf dem Tooltip), wird der Timer gecancelt
+- Verlässt die Maus den Tooltip, wird er sofort ausgeblendet
+
+**Maßnahme B – Maus-nähere Positionierung:**
+- `positionTooltip()` in `core.js` positioniert den Tooltip mit **8 px Offset** zur aktuellen Mausposition (bisher: größerer Abstand)
+- Der Tooltip folgt der Maus direkt; es gibt keinen Sprung
+
+### Technische Umsetzung (core.js)
+
+**`positionTooltip(tooltip, e, container)`:**
+- Maus-Offset: `x = e.clientX - containerRect.left + 8`, `y = e.clientY - containerRect.top + 8`
+- Overflow-Prüfung (boundary-safe): bleibt erhalten — Tooltip flipped wenn er über den Containerrand geht
+
+**Tooltip-Element:**
+- `pointer-events:auto` (statt `none`)
+- `mouseenter`-Listener: `clearTimeout(tooltipHideTimer)`
+- `mouseleave`-Listener: Tooltip sofort ausblenden (`tooltip.style.opacity = '0'` o.ä.)
+
+**Datenpunkt-Hover (`mouseleave`):**
+- `tooltipHideTimer = setTimeout(() => { tooltip.style.display = 'none' }, 500)`
+
+**Datenpunkt-Hover (`mousemove`/`mouseenter`):**
+- `clearTimeout(tooltipHideTimer)`, Tooltip anzeigen, `positionTooltip()` aufrufen
+
+**Lokale Variable:** `let tooltipHideTimer = null` innerhalb jedes Visual-Scopes (nicht global).
+
+### CSS-Änderung
+
+```css
+/* Alt */
+/* Kein explizites pointer-events auf dem Tooltip → Browser-Default ist auto, aber Tooltip wurde bisher per display:none sofort versteckt */
+
+/* Neu: Tooltip muss pointer-events:auto tragen damit mouseenter/mouseleave greifen */
+/* Wird direkt am Tooltip-Element per JS gesetzt: tooltip.style.pointerEvents = 'auto' */
+/* ODER als CSS-Klasse: */
+.tt-hoverable { pointer-events: auto; }
+```
+
+**Hinweis:** Ob `pointer-events` per CSS-Klasse oder direkt gesetzt wird, ist Implementierungsdetail — Hauptsache es ist im Visual-Code konsistent.
+
+### Akzeptanzkriterien
+
+1. Tooltip bleibt nach Maus-Verlassen eines Datenpunkts mindestens 500 ms sichtbar.
+2. Bewegt die Maus sich in dieser Zeit auf den Tooltip, bleibt er offen.
+3. Verlässt die Maus den Tooltip, schließt er sich sofort.
+4. Jira-Link im Tooltip ist anklickbar ohne Zeitdruck.
+5. Tooltip bleibt boundary-safe (kein Abschneiden an den Rändern).
+6. Kein JS-Fehler wenn Maus schnell über viele Punkte fährt (Timer wird korrekt gecleant).
+7. Betrifft: CycleTime Scatterplot + WIPAge Chart (Blockermanagement ist nicht betroffen).
 
 ---
 
@@ -1145,3 +1326,4 @@ th.th-extra { color:var(--orange); opacity:.9 }
 | 2026-06-20 | 2.6 | **Squad-Filter Button-Text:** `_updateSquadBtn()` auf gleiche Logik wie Issue-Type-Filter umgestellt: 1 Name / 2 Namen / N/M (vorher immer N/M). |
 | 2026-06-22 | 2.8 | **Kachel-Reihenfolge & Drag-and-Drop (Lieferfähigkeit-Page):** Default-Reihenfolge definiert (Lead Time → Say Do → Happiness → Flow Efficiency → WIP → Akzeptanzkriterien). Drag-Trigger = `.tile-title`; Ghost + `.tile-drag-over`-Platzhalter. Persistenz via `fhwa_tile_order`. Neuer Abschnitt „Lieferfähigkeit" im Settings-Panel mit zwei Buttons: „↩ Kachel-Reihenfolge zurücksetzen" + „⚠ Alle Einstellungen zurücksetzen" (mit `window.confirm` + `location.reload()`). **Jira-URL-Default:** `https://jira.axa.com/jira/browse/{issueKey}` vorgebefüllt. Neue CSS-Klassen: `.tile-title` (cursor:grab), `.tile.tile-dragging`, `.tile.tile-drag-over`. |
 | 2026-06-20 | 2.5 | **Upload-Screen: Komplett neu gestalten.** `.hint-box` wird durch `.sheet-nav` mit 5 Tabs (JiraStories / JiraEpics / BRP Etappen / Blockermanagement / Happiness Faktor) ersetzt. Neue CSS-Klassen: `.sheet-nav`, `.sheet-tabs`, `.sheet-tab`, `.tab-badge.req/.opt`, `.sheet-tab-content`. **Datencheck-Page: Zentrierungs-Fix** (`.dc-wrap` + `margin:0 auto`). **Neue optionale Sheets-Sektion** (`.dc-extra-sheets` mit `.dc-sheet-card` je Sheet): JiraEpics (Epic-Anzahl + Status-Verteilung) · Blockermanagement (offene + Gesamt-Episoden) · Happiness Faktor (letzter Wert + Ø). Neue CSS-Klassen: `.dc-extra-sheets`, `.dc-section-title`, `.dc-sheets`, `.dc-sheet-card`, `.dc-sheet-card-title`, `.dc-sheet-pills`, `.dc-pill.resolved/.rejected/.uncalled/.alert`. **Browser-Back-Bug** (kein Neuladen nach Browser-Zurück) als separater Bugfix in core.js dokumentiert – nicht Teil dieser Spec. |
+| 2026-06-23 | 2.9 | **Tile-Vollbild-Modus:** `⤢`-Button (`tile-expand-btn`) im Header aller 6 Tiles. Shared Modal-Overlay (`#tile-fullscreen-backdrop` + `#tile-fullscreen-panel`) einmalig im DOM. Öffnen: `tile-content` wird via `appendChild` ins Modal verschoben + `resize`-Event. Schließen: `tile-content` zurück ins Tile + `resize`-Event. `expandedTileId` als Bootstrap-Variable. Neue CSS-Klassen: `#tile-fullscreen-backdrop`, `#tile-fullscreen-panel`, `.tile-fullscreen-header`, `#tile-fullscreen-title`, `.tile-fullscreen-content`. **Tooltip-Verbesserung (Scatter + WIPAge):** Verzögertes Ausblenden (500 ms `setTimeout` nach `mouseleave` Datenpunkt) + `pointer-events:auto` auf Tooltip + `mouseenter`/`mouseleave` am Tooltip-Element (`clearTimeout` / sofort schließen). Maus-Offset in `positionTooltip()` auf 8 px reduziert. |

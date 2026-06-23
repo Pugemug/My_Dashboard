@@ -210,7 +210,7 @@ export function init() {
 
   let _hideTimer = null;
   function _showTt() { if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; } }
-  function _hideTt() { _hideTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 120); }
+  function _hideTt() { _hideTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 500); }
   tooltip.addEventListener('mouseenter', _showTt);
   tooltip.addEventListener('mouseleave', _hideTt);
 
@@ -626,10 +626,10 @@ export function init() {
   function _posTooltip(cx, cy) {
     const tw = tooltip.offsetWidth  || 180;
     const th = tooltip.offsetHeight || 140;
-    let l = cx + 14, t = cy + 14;
-    if (l + tw > window.innerWidth  - 6) l = cx - tw - 14;
+    let l = cx + 8, t = cy + 8;
+    if (l + tw > window.innerWidth  - 6) l = cx - tw - 8;
     if (l < 6) l = 6;
-    if (t + th > window.innerHeight - 6) t = cy - th - 14;
+    if (t + th > window.innerHeight - 6) t = cy - th - 8;
     if (t < 6) t = 6;
     tooltip.style.left = l + 'px';
     tooltip.style.top  = t + 'px';

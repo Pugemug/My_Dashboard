@@ -2,11 +2,11 @@
 
 const MAX_LOOP_GUARD = 10_000;
 
-/** Variationskoeffizient CV = σ/μ. Gibt null für leeres Array oder μ=0. */
+/** Variationskoeffizient CV = σ/μ. Gibt Infinity für leeres Array oder μ=0. */
 export function calcCV(samples) {
-  if (!samples.length) return null;
+  if (!samples.length) return Infinity;
   const mean = samples.reduce((s, v) => s + v, 0) / samples.length;
-  if (mean === 0) return null;
+  if (mean === 0) return Infinity;
   const variance = samples.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / samples.length;
   return Math.sqrt(variance) / mean;
 }
