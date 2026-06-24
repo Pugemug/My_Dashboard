@@ -909,6 +909,8 @@ export function init() {
       ? (core.isLight() ? '#dc2626' : '#f87171')
       : (core.isLight() ? '#16a34a' : '#4ade80');
 
+    const trueWait = Object.values(d.breakdown).reduce(function(s, v) { return s + v; }, 0);
+
     const bRows = Object.keys(d.breakdown)
       .sort(function(a, b) { return d.breakdown[b] - d.breakdown[a]; })
       .map(function(s) {
@@ -949,10 +951,10 @@ export function init() {
         '<span style="font-weight:600">' + d.ltAvg.toFixed(1) + 'd</span></div>' +
       '<div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:2px">' +
         '<span style="color:var(--dim)">Aktive Zeit</span>' +
-        '<span style="font-weight:600">' + (d.ltAvg * d.fe / 100).toFixed(1) + 'd</span></div>' +
+        '<span style="font-weight:600">' + (d.ltAvg - trueWait).toFixed(1) + 'd</span></div>' +
       '<div style="display:flex;justify-content:space-between;gap:14px">' +
         '<span style="color:var(--dim)">Wartezeit</span>' +
-        '<span style="font-weight:600">' + (d.ltAvg * (1 - d.fe / 100)).toFixed(1) + 'd</span></div>' +
+        '<span style="font-weight:600">' + trueWait.toFixed(1) + 'd</span></div>' +
       violinExtra +
       (bRows
         ? '<div style="border-top:1px solid var(--border);margin:5px 0"></div>' +

@@ -154,7 +154,7 @@ Füllfarben der fachlichen Elemente (aktive Zeit = grün, Warten = amber, FE = l
 
 | Aktion | Verhalten |
 |---|---|
-| **Hover auf Punkt/Violin** | Tooltip mit Monat, FE% (Median, N), Ø Lead Time, Ø Aktive Zeit, Ø Wartezeit, Wartezeit-Breakdown nach `Blockiert/Wartend_Zustand` |
+| **Hover auf Punkt/Violin** | Tooltip mit Monat, FE% (Median, N), Ø Lead Time, Ø Aktive Zeit, Ø Wartezeit, Wartezeit-Breakdown nach `Blockiert/Wartend_Zustand`. **Ø Wartezeit = Summe der Breakdown-Mittelwerte** (wahrer Mittelwert über alle N Items); **Ø Aktive Zeit = Ø Lead Time − Ø Wartezeit**. Damit stimmt die Summe der Breakdown-Zeilen exakt mit der angezeigten Wartezeit überein. |
 | **Violin-Modus Hover** | Tooltip zusätzlich: Min, Max, IQR der FE%-Einzelwerte |
 | **Mode-Toggle [Linie\|Violin]** | Wechsel zwischen Linienchart und Violin-Chart, State wird in cfg gespeichert |
 | **⚙-Button** | Öffnet per-tile Settings-Panel (Overlay, zentriert) |
@@ -343,3 +343,4 @@ Persistenz: `core.save('fhwa_flowefficiency', cfg)` / `core.load('fhwa_floweffic
 | 1.2 | 2026-06-11 | Drei Erweiterungen (Block C): (1) ?-Button im Tile-Header → Hilfe-Modal mit vollständiger Erklärung inkl. SVG-Grafiken, Theme-adaptiv; (2) Diag-Leiste 3-spaltig (Erklärungstext · Zähler · „Flow analysieren →" Link zur Heatmap); (3) Akzeptanzkriterien Block G erweitert |
 | 1.3 | 2026-06-19 | Datenfehler-Link in der Fußzeile (Block C): „K Datenfehler ausgeschlossen" wird zu klickbarem Link → öffnet Fehler-Modal (640px, scrollbar) mit Tabelle: Jira-ID (verlinkbar), Issue-Type, Fehlerkonstellation inkl. Wartezeit-Breakdown; klickbare Spaltenheader zur Sortierung |
 | 1.4 | 2026-06-20 | Header-Angleichung an Lead Time (Block C, Block F): Modus-Buttons [Linie]\[Violin] als einzelne `btn-icon`-Buttons (statt Segmented-Control), aktiver Modus via `p-blue`-Klasse; N-Badge aus Header entfernt → N = X als SVG-Text oben rechts im Chart |
+| 1.5 | 2026-06-24 | Tooltip-Korrektur (Block C): Ø Wartezeit und Ø Aktive Zeit werden jetzt aus den wahren Mittelwerten des Breakdowns berechnet (`trueWait = Σ breakdown-Werte`) statt aus der Median-Schätzung (`ltAvg × (1−medianFE%)`). Damit stimmt die Summe der Breakdown-Zeilen exakt mit der angezeigten Wartezeit überein. |
