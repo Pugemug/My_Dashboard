@@ -11,8 +11,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_PATH  = `file://${path.resolve(__dirname, '../../Web App/FlowAnalytics.html')}`;
-const FIXTURE   = path.resolve(__dirname, '../fixtures/testdata.xlsx');
+const APP_PATH      = `file://${path.resolve(__dirname, '../../Web App/FlowAnalytics.html')}`;
+const FIXTURE       = path.resolve(__dirname, '../fixtures/testdata.xlsx');
+const FIXTURE_SINGLE = path.resolve(__dirname, '../fixtures/testdata-single-squad.xlsx');
 
 async function navigateToTiles(page) {
   await page.goto(APP_PATH);
@@ -414,6 +415,57 @@ test.describe('Tile-Vollbild – Expand/Collapse', () => {
     await page.locator('#tile-fullscreen-close').click();
     await expect(page.locator('#tile-fullscreen-panel')).toBeHidden();
     expect(errors).toHaveLength(0);
+  });
+
+});
+
+// ── 1-Squad-Sonderfall ───────────────────────────────────────────────────────
+
+async function navigateToTilesSingleSquad(page) {
+  await page.goto(APP_PATH);
+  await page.waitForLoadState('domcontentloaded');
+  await page.locator('#file-input').setInputFiles(FIXTURE_SINGLE);
+  await expect(page.locator('#page-datencheck')).toBeVisible({ timeout: 5000 });
+  await page.locator('.btn-cta').click();
+  await expect(page.locator('#tile-canvas-lieferfahigkeit')).toBeVisible({ timeout: 5000 });
+}
+
+test.describe('1-Squad-Sonderfall – Auto-Setzung des Squad-Filters', () => {
+
+  test('Filter-Button zeigt Squad-Namen statt "Alle"', async ({ page }) => {
+    await navigateToTilesSingleSquad(page);
+    const text = await page.locator('#btn-squad').textContent();
+    expect(text).toContain('Squad-X');
+    expect(text).not.toContain('Alle');
+  });
+
+  test('Filter-Button trägt die Klasse pf-active', async ({ page }) => {
+    await navigateToTilesSingleSquad(page);
+    await expect(page.locator('#btn-squad')).toHaveClass(/pf-active/);
+  });
+
+  test('WIP-Tile: kein "genau einen Squad"-Hinweis ohne manuelle Auswahl', async ({ page }) => {
+    await navigateToTilesSingleSquad(page);
+    const diag = await page.locator('#tile-wip .diag-bar').textContent();
+    expect(diag).not.toContain('genau einen Squad');
+  });
+
+  test('WIP-Tile: SVG-Chart wird ohne manuelle Squad-Auswahl gezeichnet', async ({ page }) => {
+    await navigateToTilesSingleSquad(page);
+    await page.waitForSelector('#tile-wip svg', { timeout: 5000 });
+    await expect(page.locator('#tile-wip svg')).toBeVisible();
+  });
+
+  test('Happiness-Tile: SVG-Chart wird ohne manuelle Squad-Auswahl gezeichnet', async ({ page }) => {
+    await navigateToTilesSingleSquad(page);
+    await page.waitForSelector('#tile-happinessfaktor svg', { timeout: 5000 });
+    await expect(page.locator('#tile-happinessfaktor svg')).toBeVisible();
+  });
+
+  test('Akzeptanz-Tile: kein "Kein Squad"-Hinweis ohne manuelle Auswahl', async ({ page }) => {
+    await navigateToTilesSingleSquad(page);
+    const diag = await page.locator('#tile-akzeptanz .diag-bar').textContent();
+    expect(diag).not.toContain('Kein Squad');
   });
 
 });

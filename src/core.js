@@ -919,6 +919,9 @@ function _processData(rows) {
     s.allSquads = [];
   }
   s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.includes(sq));
+  if (s.allSquads.length === 1 && s.squadFilter.length === 0) {
+    s.squadFilter = [s.allSquads[0]];
+  }
 
   // Issue Types (global filter list)
   if (s.hasIssueType) {
@@ -1229,7 +1232,8 @@ function _onSquadFilterChange() {
   const checked = [];
   document.querySelectorAll('#squad-opts input[type=checkbox]')
     .forEach(cb => { if (cb.checked) checked.push(cb.id.replace('sqcb_', '')); });
-  core.state.squadFilter = checked.length === core.state.allSquads.length ? [] : checked;
+  const allChecked = checked.length === core.state.allSquads.length;
+  core.state.squadFilter = (allChecked && core.state.allSquads.length > 1) ? [] : checked;
   _updateSquadBtn();
   _saveGlobal();
   core.emit('filter');
@@ -1240,7 +1244,7 @@ function _updateSquadBtn() {
   const m = core.state.allSquads.length;
   const a = f.length;
   let text;
-  if (!a || a === m) {
+  if (!a || (a === m && m > 1)) {
     text = 'SQUADS Alle \u25bd';
   } else if (a === 1) {
     text = `SQUADS ${f[0]} \u25bd`;
@@ -1249,7 +1253,7 @@ function _updateSquadBtn() {
   } else {
     text = `SQUADS ${a}/${m} \u25bd`;
   }
-  const isActive = a > 0 && a < m;
+  const isActive = a > 0 && (a < m || m === 1);
   document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
     btn.textContent = text;
     btn.classList.toggle('pf-active', isActive);

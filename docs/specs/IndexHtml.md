@@ -263,10 +263,49 @@ pf-spacer
 
 | Zustand | Anzeige |
 |---|---|
-| Alle ausgewählt / keine Restriction | `SQUADS Alle ▽` (kein `pf-active`) |
-| 1 Squad ausgewählt | `SQUADS {name} ▽` + `pf-active` |
+| Alle ausgewählt / keine Restriction (N>1 Squads) | `SQUADS Alle ▽` (kein `pf-active`) |
+| 1 von N>1 Squads ausgewählt | `SQUADS {name} ▽` + `pf-active` |
 | 2 Squads ausgewählt | `SQUADS {name1}, {name2} ▽` + `pf-active` |
 | ≥3 Squads (nicht alle) | `SQUADS N/M ▽` + `pf-active` |
+| Sonderfall: genau 1 Squad in den Daten | `SQUADS {name} ▽` + `pf-active` |
+
+### Squad-Filter – Sonderfall: Nur 1 Squad in den Daten
+
+Visuals wie Happiness Index, WIP KPI und Akzeptanzkriterien benötigen einen aktiv gesetzten Squad-Filter (nicht `[]`). Wenn die Excel-Datei nur einen einzigen Squad enthält, würde `squadFilter = []` (= „alle") diese Visuals in den Fehlerzustand versetzen.
+
+**Automatische Setzung in `_processData()` (core.js):**
+
+Nach dem Filtern von `squadFilter` auf vorhandene Squads wird geprüft:
+```js
+if (s.allSquads.length === 1 && s.squadFilter.length === 0) {
+  s.squadFilter = [s.allSquads[0]];
+}
+```
+Damit ist beim Laden einer Datei mit nur 1 Squad immer `squadFilter = [squad]` gesetzt — ohne Nutzeraktion.
+
+**`_onSquadFilterChange()` – kein Kollaps wenn m=1:**
+
+Wenn alle Checkboxen angehakt sind, wird normalerweise `squadFilter = []` gesetzt (= „Alle"-Modus). Bei m=1 wird stattdessen `squadFilter = [squad]` beibehalten:
+```js
+const allChecked = checked.length === core.state.allSquads.length;
+core.state.squadFilter = (allChecked && core.state.allSquads.length > 1) ? [] : checked;
+```
+
+**`_updateSquadBtn()` – Unterscheidung „1 von 1" vs. „alle von N":**
+
+Die Bedingung `a === m` (alle ausgewählt → „Alle") greift nur noch wenn `m > 1`:
+```js
+if (!a || (a === m && m > 1)) { text = 'SQUADS Alle ▽'; }
+```
+Wenn m=1 und a=1: fällt in den `a === 1`-Zweig → zeigt Squad-Name mit `pf-active`.
+
+**Akzeptanzkriterien:**
+1. Datei mit nur 1 Squad laden → Happiness Index, WIP KPI und Akzeptanzkriterien rendern direkt ohne Fehlermeldung
+2. Filter-Button zeigt den Squad-Namen blau markiert (`pf-active`)
+3. Dropdown bleibt öffenbar; zeigt die 1 Option als angehakte Checkbox
+4. „Keine"-Button deselektiert → Visuals zeigen Fehlermeldung; „Alle"-Button selektiert erneut → Visuals rendern
+5. Nach Browser-Reload bleibt der Squad-Filter korrekt gesetzt (`fhwa_global`)
+6. „Filter zurücksetzen" setzt auf `[squad]` zurück (nicht auf `[]`)
 
 **Issue-Type-Filter:** `.btn-issuetype-trigger` trägt Klasse `.pf-filter-chip`. Aktiv-Zustand: `.pf-active`. Text-Update durch `_updateIssueTypeBtn()` in core.js (Logik siehe § Issue-Type-Filter).
 

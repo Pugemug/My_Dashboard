@@ -150,3 +150,43 @@ ws_empty.append(headers)
 empty_path = os.path.join(out_dir, 'testdata-empty.xlsx')
 wb_empty.save(empty_path)
 print(f'OK testdata-empty.xlsx: {os.path.abspath(empty_path)}')
+
+# ── Einzelner-Squad-Testdatensatz (testdata-single-squad.xlsx) ────────────
+# Testet den Sonderfall: nur 1 Squad → Auto-Setzung des Squad-Filters
+wb_single = Workbook()
+ws_sq = wb_single.active
+ws_sq.title = 'JiraStories'
+ws_sq.append(headers)
+
+# 5 abgeschlossene Items für Squad-X
+for i in range(5):
+    start = d(2024, 3, 1) + timedelta(days=i * 4)
+    ct = 4 + i
+    ws_sq.append([
+        f'SX-{i+1:03d}', 'Story', 'Squad-X', 'Resolved',
+        start, start,
+        start + timedelta(days=1), start + timedelta(days=1),
+        start + timedelta(days=ct), start + timedelta(days=ct),
+        start + timedelta(days=ct+1), start + timedelta(days=ct+1),
+        start + timedelta(days=ct+2), start + timedelta(days=ct+2),
+        start + timedelta(days=ct+2), None
+    ])
+
+# 1 aktives WIP-Item (für WIP-Tile)
+ws_sq.append(['SX-006', 'Bug', 'Squad-X', 'In Progress',
+    d(2024, 5, 1), d(2024, 5, 1),
+    d(2024, 5, 2), d(2024, 5, 2),
+    None, None, None, None, None, None,
+    None, None
+])
+
+# Happiness Faktor Sheet (nur Squad-X)
+ws_hf_sq = wb_single.create_sheet('Happiness Faktor')
+ws_hf_sq.append(['Flow Analytics – Happiness Export'])
+ws_hf_sq.append(['Stand: 2024-06-01'])
+ws_hf_sq.append(['Schlüsselwert', 'Squad', 'Jan 2024', 'Feb 2024', 'Mrz 2024', 'Apr 2024'])
+ws_hf_sq.append([1, 'Squad-X', 4, 3, 4, 5])
+
+single_path = os.path.join(out_dir, 'testdata-single-squad.xlsx')
+wb_single.save(single_path)
+print(f'OK testdata-single-squad.xlsx: {os.path.abspath(single_path)}')
