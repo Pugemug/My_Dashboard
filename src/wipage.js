@@ -257,8 +257,8 @@ export function init() {
     let baseRows = core.state.rows;
     const sf = core.state.squadFilter;
     const itf = core.state.issueTypeFilter;
-    if (sf.length)  baseRows = baseRows.filter(r => sf.includes(String(r['Squad'] || '')));
-    if (itf.length) baseRows = baseRows.filter(r => itf.includes(String(r['Issue-Type'] || '')));
+    if (sf !== null)  baseRows = baseRows.filter(r => sf.includes(String(r['Squad'] || '')));
+    if (itf !== null) baseRows = baseRows.filter(r => itf.includes(String(r['Issue-Type'] || '')));
     const drActive = core.state.dateRangeMode !== 'all' && core.state.dateRangeFrom && core.state.dateRangeTo;
     const drFrom   = core.state.dateRangeFrom;
     const drTo     = core.state.dateRangeTo;

@@ -80,12 +80,12 @@ function render() {
   if (!canvas) return;
 
   const allRows = core.state.sheets['JiraBlockermanagement'] ?? [];
-  const activeSquads = core.state.squadFilter ?? [];
+  const sf = core.state.squadFilter;  // null = alle, [] = keine
 
   // Squad-Filter
-  const rows = allRows.filter(r =>
-    activeSquads.length === 0 || activeSquads.includes(r['Squad'])
-  );
+  const rows = sf === null
+    ? allRows
+    : allRows.filter(r => sf.includes(r['Squad']));
 
   // Episode-Count-Map (issues.key + Squad → Anzahl Episoden), ungefiltert global
   const countMap = new Map();

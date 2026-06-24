@@ -119,8 +119,8 @@ export const core = {
     allIssueTypes:   [],
     hasSquad:        false,
     hasIssueType:    false,
-    squadFilter:         [],   // [] = alle aktiv
-    issueTypeFilter:     [],   // [] = alle aktiv
+    squadFilter:         null,  // null = alle aktiv, [] = keine, [...] = nur diese
+    issueTypeFilter:     null,  // null = alle aktiv, [] = keine, [...] = nur diese
     dateRangeMode:       'all',
     dateRangeCustomFrom: '',
     dateRangeCustomTo:   '',
@@ -199,11 +199,11 @@ export const core = {
   filteredRows() {
     const s = core.state;
     let rows = s.rows;
-    if (s.squadFilter.length) {
+    if (s.squadFilter !== null) {
       const squadSet = new Set(s.squadFilter);
       rows = rows.filter(r => squadSet.has(String(r['Squad'] || '')));
     }
-    if (s.issueTypeFilter.length) {
+    if (s.issueTypeFilter !== null) {
       const typeSet = new Set(s.issueTypeFilter);
       rows = rows.filter(r => typeSet.has(String(r['Issue-Type'] || '')));
     }
@@ -454,8 +454,8 @@ export const core = {
 
     // Load saved global state
     const g = core.load('fhwa_global', null);
-    if (g && Array.isArray(g.squadFilter))      core.state.squadFilter      = g.squadFilter;
-    if (g && Array.isArray(g.issueTypeFilter))  core.state.issueTypeFilter  = g.issueTypeFilter;
+    if (g && (Array.isArray(g.squadFilter) || g.squadFilter === null))         core.state.squadFilter      = g.squadFilter;
+    if (g && (Array.isArray(g.issueTypeFilter) || g.issueTypeFilter === null)) core.state.issueTypeFilter  = g.issueTypeFilter;
     const DEFAULT_JIRA_URL = 'https://jira.axa.com/jira/browse/{issueKey}';
     if (g && typeof g.urlTemplate === 'string' && g.urlTemplate) {
       core.state.urlTemplate = g.urlTemplate;
@@ -749,7 +749,7 @@ function _initSidebarButtons() {
       }
       document.querySelectorAll('.btn-squad-trigger').forEach(b => {
         b.classList.toggle('p-blue',    open);
-        b.classList.toggle('pf-active', open || core.state.squadFilter.length > 0);
+        b.classList.toggle('pf-active', open || (core.state.squadFilter !== null && (core.state.squadFilter.length === 0 || core.state.squadFilter.length < core.state.allSquads.length)));
       });
     });
   });
@@ -780,7 +780,7 @@ function _initSidebarButtons() {
       }
       document.querySelectorAll('.btn-issuetype-trigger').forEach(b => {
         b.classList.toggle('p-blue',    open);
-        b.classList.toggle('pf-active', open || (core.state.issueTypeFilter.length > 0 && core.state.issueTypeFilter.length < core.state.allIssueTypes.length));
+        b.classList.toggle('pf-active', open || (core.state.issueTypeFilter !== null && (core.state.issueTypeFilter.length === 0 || core.state.issueTypeFilter.length < core.state.allIssueTypes.length)));
       });
     });
   });
@@ -918,8 +918,10 @@ function _processData(rows) {
   } else {
     s.allSquads = [];
   }
-  s.squadFilter = (s.squadFilter || []).filter(sq => s.allSquads.includes(sq));
-  if (s.allSquads.length === 1 && s.squadFilter.length === 0) {
+  if (s.squadFilter !== null) {
+    s.squadFilter = s.squadFilter.filter(sq => s.allSquads.includes(sq));
+  }
+  if (s.allSquads.length === 1 && (s.squadFilter === null || s.squadFilter.length === 0)) {
     s.squadFilter = [s.allSquads[0]];
   }
 
@@ -930,7 +932,9 @@ function _processData(rows) {
   } else {
     s.allIssueTypes = [];
   }
-  s.issueTypeFilter = (s.issueTypeFilter || []).filter(t => s.allIssueTypes.includes(t));
+  if (s.issueTypeFilter !== null) {
+    s.issueTypeFilter = s.issueTypeFilter.filter(t => s.allIssueTypes.includes(t));
+  }
 
   // Date columns (used by visuals for LT/CT column selects)
   s.dateCols = cols.filter(c =>
@@ -1217,7 +1221,7 @@ function _buildSquadDD() {
     const cb  = document.createElement('input');
     cb.type   = 'checkbox';
     cb.id     = 'sqcb_' + sq;
-    cb.checked = core.state.squadFilter.length === 0 || core.state.squadFilter.includes(sq);
+    cb.checked = core.state.squadFilter === null || core.state.squadFilter.includes(sq);
     cb.addEventListener('change', _onSquadFilterChange);
     const lbl      = document.createElement('label');
     lbl.htmlFor    = 'sqcb_' + sq;
@@ -1233,19 +1237,21 @@ function _onSquadFilterChange() {
   document.querySelectorAll('#squad-opts input[type=checkbox]')
     .forEach(cb => { if (cb.checked) checked.push(cb.id.replace('sqcb_', '')); });
   const allChecked = checked.length === core.state.allSquads.length;
-  core.state.squadFilter = (allChecked && core.state.allSquads.length > 1) ? [] : checked;
+  core.state.squadFilter = (allChecked && core.state.allSquads.length > 1) ? null : checked;
   _updateSquadBtn();
   _saveGlobal();
   core.emit('filter');
 }
 
 function _updateSquadBtn() {
-  const f = core.state.squadFilter;
+  const f = core.state.squadFilter;  // null = alle
   const m = core.state.allSquads.length;
-  const a = f.length;
+  const a = f === null ? m : f.length;
   let text;
-  if (!a || (a === m && m > 1)) {
+  if (f === null || (a === m && m > 1)) {
     text = 'SQUADS Alle \u25bd';
+  } else if (a === 0) {
+    text = 'SQUADS Keine \u25bd';
   } else if (a === 1) {
     text = `SQUADS ${f[0]} \u25bd`;
   } else if (a === 2) {
@@ -1253,7 +1259,7 @@ function _updateSquadBtn() {
   } else {
     text = `SQUADS ${a}/${m} \u25bd`;
   }
-  const isActive = a > 0 && (a < m || m === 1);
+  const isActive = f !== null && (f.length === 0 || f.length < m);
   document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
     btn.textContent = text;
     btn.classList.toggle('pf-active', isActive);
@@ -1275,7 +1281,7 @@ function _buildIssueTypeDD() {
     const cb  = document.createElement('input');
     cb.type   = 'checkbox';
     cb.id     = 'itcb_' + t;
-    cb.checked = core.state.issueTypeFilter.length === 0 || core.state.issueTypeFilter.includes(t);
+    cb.checked = core.state.issueTypeFilter === null || core.state.issueTypeFilter.includes(t);
     cb.addEventListener('change', _onIssueTypeFilterChange);
     const lbl      = document.createElement('label');
     lbl.htmlFor    = 'itcb_' + t;
@@ -1290,19 +1296,21 @@ function _onIssueTypeFilterChange() {
   const checked = [];
   document.querySelectorAll('#issuetype-opts input[type=checkbox]')
     .forEach(cb => { if (cb.checked) checked.push(cb.id.replace('itcb_', '')); });
-  core.state.issueTypeFilter = checked.length === core.state.allIssueTypes.length ? [] : checked;
+  core.state.issueTypeFilter = checked.length === core.state.allIssueTypes.length ? null : checked;
   _updateIssueTypeBtn();
   _saveGlobal();
   core.emit('filter');
 }
 
 function _updateIssueTypeBtn() {
-  const f = core.state.issueTypeFilter;
+  const f = core.state.issueTypeFilter;  // null = alle
   const m = core.state.allIssueTypes.length;
-  const a = f.length;
+  const a = f === null ? m : f.length;
   let text;
-  if (!a || a === m) {
+  if (f === null || a === m) {
     text = 'ISSUE-TYP Alle ▽';
+  } else if (a === 0) {
+    text = 'ISSUE-TYP Keine ▽';
   } else if (a === 1) {
     text = `ISSUE-TYP ${f[0]} ▽`;
   } else if (a === 2) {
@@ -1310,7 +1318,7 @@ function _updateIssueTypeBtn() {
   } else {
     text = `ISSUE-TYP ${a}/${m} ▽`;
   }
-  const isActive = a > 0 && a < m;
+  const isActive = f !== null && (f.length === 0 || f.length < m);
   document.querySelectorAll('.btn-issuetype-trigger').forEach(btn => {
     btn.textContent = text;
     btn.classList.toggle('pf-active', isActive);

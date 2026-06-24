@@ -213,7 +213,7 @@ export function init() {
 
   function _activeSquadName() {
     if (drillSquad) return drillSquad;
-    if (core.state.squadFilter.length === 1) return core.state.squadFilter[0];
+    if (core.state.squadFilter !== null && core.state.squadFilter.length === 1) return core.state.squadFilter[0];
     return null;
   }
 
@@ -237,7 +237,7 @@ export function init() {
   function _getDrillRows() {
     if (drillSquad) {
       let rows = core.state.rows.filter(r => String(r['Squad'] || '') === drillSquad);
-      if (drillKeepFilter && core.state.squadFilter.length > 0)
+      if (drillKeepFilter && core.state.squadFilter !== null && core.state.squadFilter.length > 0)
         rows = rows.filter(r => core.state.squadFilter.includes(String(r['Squad'] || '')));
       return rows;
     }
@@ -553,7 +553,8 @@ export function init() {
     const total    = _getDrillRows().length;
     const resolved = _hasLT() ? _getDrillRows().filter(r => core.toDate(r[cfg.ltEnd]) != null).length : 0;
     const fStr     = (cfg.filter === 'resolved' && _hasLT()) ? `resolved (${resolved}/${total})` : `alle (${total})`;
-    const sqCtx    = drillSquad ? ` · Drill: ${drillSquad}` : (core.state.squadFilter.length ? ` · Squads: ${core.state.squadFilter.length}` : '');
+    const _sf      = core.state.squadFilter;
+    const sqCtx    = drillSquad ? ` · Drill: ${drillSquad}` : (_sf !== null && _sf.length ? ` · Squads: ${_sf.length}` : '');
     diagEl.textContent =
       `${core.state.rows.length} Items${sqCtx} · ${groups.length} Gruppen · ` +
       `${ordStates.length}/${cfg.stateOrder.length} Status` +

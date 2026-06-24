@@ -214,11 +214,9 @@ export function init() {
       return;
     }
 
-    // Squad-Filter
-    const activeSquads = core.state.squadFilter ?? [];
-    const filteredEpics = activeSquads.length
-      ? epics.filter(r => activeSquads.includes(r['Squad']))
-      : epics;
+    // Squad-Filter: null = alle, [] = keine, [...] = nur diese
+    const sf = core.state.squadFilter;
+    const filteredEpics = sf === null ? epics : epics.filter(r => sf.includes(r['Squad']));
 
     // Alle Etappen chronologisch sortiert (nur mit gültigem Start- und Endedatum)
     const allEtappen = etappen
