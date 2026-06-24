@@ -183,42 +183,29 @@ function _toggleFmtPanel(btn) {
 function _onData() {
   _rawMonths = [];
 
-  const raw = (core.state.sheetsRaw || {})[SHEET];
+  // Normalisiertes Format: [{Squad: "name", "2024-01": N, "2024-02": N, ...}]
+  const happRows = ((core.state.sheets || {})[SHEET]) || [];
 
-  if (!raw || !raw.length) {
+  if (!happRows.length) {
     _render();
     return;
   }
 
-  // Header-Zeile finden: erste Zeile mit dem Wert 'Datum'
-  const hIdx = raw.findIndex(row => Array.isArray(row) && row.some(c => c === 'Datum'));
-  if (hIdx < 0) { _render(); return; }
+  // Monatsspalten = alle Keys außer "Squad"
+  const monthKeys = Object.keys(happRows[0]).filter(k => k !== 'Squad');
+  if (!monthKeys.length) { _render(); return; }
 
-  const hRow   = raw[hIdx];
-  const dateCI = hRow.findIndex(c => c === 'Datum');
-  // Spalte dateCI+1 = 'ausgewähltes Squad' (Formel-Spalte) → überspringen
-  // Squad-Spalten starten ab dateCI+2
-
-  const squadCols = []; // [{idx, name}]
-  for (let ci = dateCI + 2; ci < hRow.length; ci++) {
-    const v = hRow[ci];
-    if (typeof v === 'string' && v.trim()) {
-      squadCols.push({ idx: ci, name: v.trim() });
-    }
-  }
-
-  // Datenzeilen parsen
-  raw.slice(hIdx + 1).forEach(row => {
-    if (!Array.isArray(row)) return;
-    const rawD = row[dateCI];
-    if (rawD == null) return;
-    const date = rawD instanceof Date ? rawD : core.toDate(rawD);
-    if (!date || isNaN(date.getTime())) return;
+  monthKeys.forEach(key => {
+    // "YYYY-MM" → Date (z.B. "2024-01" → 2024-01-01)
+    const date = new Date(key + '-01');
+    if (isNaN(date.getTime())) return;
 
     const values = {};
-    squadCols.forEach(({ idx, name }) => {
-      const v = row[idx];
-      values[name] = (typeof v === 'number' && isFinite(v) && v >= 1 && v <= 5) ? v : null;
+    happRows.forEach(row => {
+      const squad = String(row['Squad'] || '').trim();
+      if (!squad) return;
+      const v = parseFloat(row[key]);
+      values[squad] = (isFinite(v) && v >= 1 && v <= 5) ? v : null;
     });
     _rawMonths.push({ date, label: _mlbl(date), values });
   });
@@ -248,7 +235,7 @@ function _render() {
 
   // ── Sheet fehlt ──
   if (!_rawMonths.length) {
-    _showMsg(`Sheet „${SHEET}" nicht in der Excel gefunden`);
+    _showMsg(`Sheet „${SHEET}" nicht in den Daten gefunden`);
     _clrBadge(); _diagMid.textContent = 'Sheet fehlt';
     return;
   }

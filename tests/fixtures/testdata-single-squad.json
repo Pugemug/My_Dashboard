@@ -1,0 +1,128 @@
+{
+  "meta": {
+    "exportDate": "2026-06-24T21:21:23.493393Z",
+    "source": "Testdaten",
+    "version": "1"
+  },
+  "sheets": {
+    "JiraStories": [
+      {
+        "Jira-ID": "SX-001",
+        "Issue-Type": "Story",
+        "Squad": "Squad-X",
+        "Issue-Status": "Resolved",
+        "Ready4Progress_first": "2024-03-01T00:00:00Z",
+        "Ready4Progress": "2024-03-01T00:00:00Z",
+        "In Progress_first": "2024-03-02T00:00:00Z",
+        "In Progress": "2024-03-02T00:00:00Z",
+        "leaving_In Progress_first": "2024-03-05T00:00:00Z",
+        "leaving_In Progress": "2024-03-05T00:00:00Z",
+        "Ready4Test_first": "2024-03-06T00:00:00Z",
+        "Ready4Test": "2024-03-06T00:00:00Z",
+        "leaving_Ready4Test_first": "2024-03-07T00:00:00Z",
+        "leaving_Ready4Test": "2024-03-07T00:00:00Z",
+        "Resolved": "2024-03-07T00:00:00Z",
+        "Rejected": null
+      },
+      {
+        "Jira-ID": "SX-002",
+        "Issue-Type": "Story",
+        "Squad": "Squad-X",
+        "Issue-Status": "Resolved",
+        "Ready4Progress_first": "2024-03-05T00:00:00Z",
+        "Ready4Progress": "2024-03-05T00:00:00Z",
+        "In Progress_first": "2024-03-06T00:00:00Z",
+        "In Progress": "2024-03-06T00:00:00Z",
+        "leaving_In Progress_first": "2024-03-10T00:00:00Z",
+        "leaving_In Progress": "2024-03-10T00:00:00Z",
+        "Ready4Test_first": "2024-03-11T00:00:00Z",
+        "Ready4Test": "2024-03-11T00:00:00Z",
+        "leaving_Ready4Test_first": "2024-03-12T00:00:00Z",
+        "leaving_Ready4Test": "2024-03-12T00:00:00Z",
+        "Resolved": "2024-03-12T00:00:00Z",
+        "Rejected": null
+      },
+      {
+        "Jira-ID": "SX-003",
+        "Issue-Type": "Story",
+        "Squad": "Squad-X",
+        "Issue-Status": "Resolved",
+        "Ready4Progress_first": "2024-03-09T00:00:00Z",
+        "Ready4Progress": "2024-03-09T00:00:00Z",
+        "In Progress_first": "2024-03-10T00:00:00Z",
+        "In Progress": "2024-03-10T00:00:00Z",
+        "leaving_In Progress_first": "2024-03-15T00:00:00Z",
+        "leaving_In Progress": "2024-03-15T00:00:00Z",
+        "Ready4Test_first": "2024-03-16T00:00:00Z",
+        "Ready4Test": "2024-03-16T00:00:00Z",
+        "leaving_Ready4Test_first": "2024-03-17T00:00:00Z",
+        "leaving_Ready4Test": "2024-03-17T00:00:00Z",
+        "Resolved": "2024-03-17T00:00:00Z",
+        "Rejected": null
+      },
+      {
+        "Jira-ID": "SX-004",
+        "Issue-Type": "Story",
+        "Squad": "Squad-X",
+        "Issue-Status": "Resolved",
+        "Ready4Progress_first": "2024-03-13T00:00:00Z",
+        "Ready4Progress": "2024-03-13T00:00:00Z",
+        "In Progress_first": "2024-03-14T00:00:00Z",
+        "In Progress": "2024-03-14T00:00:00Z",
+        "leaving_In Progress_first": "2024-03-20T00:00:00Z",
+        "leaving_In Progress": "2024-03-20T00:00:00Z",
+        "Ready4Test_first": "2024-03-21T00:00:00Z",
+        "Ready4Test": "2024-03-21T00:00:00Z",
+        "leaving_Ready4Test_first": "2024-03-22T00:00:00Z",
+        "leaving_Ready4Test": "2024-03-22T00:00:00Z",
+        "Resolved": "2024-03-22T00:00:00Z",
+        "Rejected": null
+      },
+      {
+        "Jira-ID": "SX-005",
+        "Issue-Type": "Story",
+        "Squad": "Squad-X",
+        "Issue-Status": "Resolved",
+        "Ready4Progress_first": "2024-03-17T00:00:00Z",
+        "Ready4Progress": "2024-03-17T00:00:00Z",
+        "In Progress_first": "2024-03-18T00:00:00Z",
+        "In Progress": "2024-03-18T00:00:00Z",
+        "leaving_In Progress_first": "2024-03-25T00:00:00Z",
+        "leaving_In Progress": "2024-03-25T00:00:00Z",
+        "Ready4Test_first": "2024-03-26T00:00:00Z",
+        "Ready4Test": "2024-03-26T00:00:00Z",
+        "leaving_Ready4Test_first": "2024-03-27T00:00:00Z",
+        "leaving_Ready4Test": "2024-03-27T00:00:00Z",
+        "Resolved": "2024-03-27T00:00:00Z",
+        "Rejected": null
+      },
+      {
+        "Jira-ID": "SX-006",
+        "Issue-Type": "Bug",
+        "Squad": "Squad-X",
+        "Issue-Status": "In Progress",
+        "Ready4Progress_first": "2024-05-01T00:00:00Z",
+        "Ready4Progress": "2024-05-01T00:00:00Z",
+        "In Progress_first": "2024-05-02T00:00:00Z",
+        "In Progress": "2024-05-02T00:00:00Z",
+        "leaving_In Progress_first": null,
+        "leaving_In Progress": null,
+        "Ready4Test_first": null,
+        "Ready4Test": null,
+        "leaving_Ready4Test_first": null,
+        "leaving_Ready4Test": null,
+        "Resolved": null,
+        "Rejected": null
+      }
+    ],
+    "Happiness Faktor": [
+      {
+        "Squad": "Squad-X",
+        "2024-01": 4,
+        "2024-02": 3,
+        "2024-03": 4,
+        "2024-04": 5
+      }
+    ]
+  }
+}

@@ -728,9 +728,8 @@ function _initSidebarButtons() {
     document.querySelectorAll('body > div[style*="position:fixed"]').forEach(el => {
       el.style.display = 'none';
     });
-    core.state.rows      = [];
-    core.state.sheets    = {};
-    core.state.sheetsRaw = {};
+    core.state.rows   = [];
+    core.state.sheets = {};
   });
 
   // Squad dropdown toggle – shared across all pages via .btn-squad-trigger
@@ -749,7 +748,7 @@ function _initSidebarButtons() {
       }
       document.querySelectorAll('.btn-squad-trigger').forEach(b => {
         b.classList.toggle('p-blue',    open);
-        b.classList.toggle('pf-active', open || (core.state.squadFilter !== null && (core.state.squadFilter.length === 0 || core.state.squadFilter.length < core.state.allSquads.length)));
+        b.classList.toggle('pf-active', open || core.state.squadFilter !== null);
       });
     });
   });
@@ -861,24 +860,19 @@ function _loadFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      const data = JSON.parse(e.target.result);
+      if (!data || typeof data.sheets !== 'object') throw new Error('Ungültiges JSON-Format: "sheets"-Objekt fehlt');
 
-      // Alle Sheets laden – automatisch erweiterbar ohne Core-Änderung
-      const sheets = {}, sheetsRaw = {};
-      wb.SheetNames.forEach(sn => {
-        sheets[sn]    = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
-        sheetsRaw[sn] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null });
-      });
-      core.state.sheets    = sheets;
-      core.state.sheetsRaw = sheetsRaw;
+      core.state.sheets = data.sheets;
 
       // Primär-Sheet: JiraStories (oder erstes Sheet als Fallback)
-      const sn = wb.SheetNames.includes(TARGET_SHEET) ? TARGET_SHEET : wb.SheetNames[0];
+      const sheetNames = Object.keys(data.sheets);
+      const sn = data.sheets[TARGET_SHEET] ? TARGET_SHEET : sheetNames[0];
       core.state.sheetName = sn;
-      const rows = sheets[sn] || [];
+      const rows = data.sheets[sn] || [];
 
       _processData(rows);
-      _showDataPreview(wb.SheetNames, sheets);
+      _showDataPreview(sheetNames, data.sheets);
     } catch (err) {
       const dp = document.getElementById('data-preview');
       if (dp) {
@@ -886,7 +880,7 @@ function _loadFile(file) {
       }
     }
   };
-  reader.readAsArrayBuffer(file);
+  reader.readAsText(file);
 }
 
 function _processData(rows) {
@@ -1031,7 +1025,7 @@ function _calcDcSummary(rows, s) {
 function _buildDcExtraSheets(s) {
   const epics       = (s.sheets && s.sheets['JiraEpics']) || [];
   const blockerRows = (s.sheets && s.sheets['JiraBlockermanagement']) || [];
-  const happRaw     = ((s.sheetsRaw || {})['Happiness Faktor']) || [];
+  const happRows    = ((s.sheets || {})['Happiness Faktor']) || [];
 
   let epicCard = '';
   if (epics.length > 0) {
@@ -1075,41 +1069,39 @@ function _buildDcExtraSheets(s) {
   }
 
   let happCard = '';
-  if (happRaw.length > 3) {
-    const headerIdx = happRaw.findIndex(row => row.some(c => c === 'Squad'));
-    if (headerIdx >= 0) {
-      const header   = happRaw[headerIdx];
-      const dataRows = happRaw.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim());
-      let lastColIdx = -1, lastColName = '';
-      for (let ci = header.length - 1; ci >= 1; ci--) {
-        const hasData = dataRows.some(r => r[ci] != null && r[ci] !== '' && !isNaN(parseFloat(r[ci])));
-        if (hasData) { lastColIdx = ci; lastColName = String(header[ci] || ''); break; }
-      }
-      if (lastColIdx >= 0) {
-        const lastVals = dataRows.map(r => parseFloat(r[lastColIdx])).filter(v => !isNaN(v));
-        const happLast = lastVals.length ? lastVals.reduce((a, b) => a + b, 0) / lastVals.length : null;
-        const allVals  = [];
-        for (let ci = 1; ci < header.length; ci++) {
-          dataRows.forEach(r => { const v = parseFloat(r[ci]); if (!isNaN(v)) allVals.push(v); });
-        }
-        const happAvg  = allVals.length ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
-        const fmtH     = v => v != null ? v.toFixed(1) : '–';
-        const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
-        happCard = `
-          <div class="dc-sheet-card">
-            <div class="dc-sheet-card-title">Happiness Faktor</div>
-            <div style="display:flex;gap:1.2rem;align-items:flex-end">
-              <div>
-                <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
-                <div class="dc-stat-lbl">Letzter Wert &middot; ${escHtml(lastColName)}</div>
-              </div>
-              <div>
-                <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
-                <div class="dc-stat-lbl">&Oslash; alle Monate</div>
-              </div>
+  if (happRows.length > 0) {
+    // Normalisiertes Format: [{Squad, "Jan 2024": N, "Feb 2024": N, ...}]
+    // Monatsspalten = alle Keys außer "Squad"
+    const firstRow   = happRows[0];
+    const monthKeys  = Object.keys(firstRow).filter(k => k !== 'Squad');
+    let lastColName  = '';
+    for (let i = monthKeys.length - 1; i >= 0; i--) {
+      const k = monthKeys[i];
+      const hasData = happRows.some(r => r[k] != null && !isNaN(parseFloat(r[k])));
+      if (hasData) { lastColName = k; break; }
+    }
+    if (lastColName) {
+      const lastVals = happRows.map(r => parseFloat(r[lastColName])).filter(v => !isNaN(v));
+      const happLast = lastVals.length ? lastVals.reduce((a, b) => a + b, 0) / lastVals.length : null;
+      const allVals  = [];
+      monthKeys.forEach(k => happRows.forEach(r => { const v = parseFloat(r[k]); if (!isNaN(v)) allVals.push(v); }));
+      const happAvg  = allVals.length ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
+      const fmtH     = v => v != null ? v.toFixed(1) : '–';
+      const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
+      happCard = `
+        <div class="dc-sheet-card">
+          <div class="dc-sheet-card-title">Happiness Faktor</div>
+          <div style="display:flex;gap:1.2rem;align-items:flex-end">
+            <div>
+              <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
+              <div class="dc-stat-lbl">Letzter Wert &middot; ${escHtml(lastColName)}</div>
             </div>
-          </div>`;
-      }
+            <div>
+              <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
+              <div class="dc-stat-lbl">&Oslash; alle Monate</div>
+            </div>
+          </div>
+        </div>`;
     }
   }
 
@@ -1259,7 +1251,7 @@ function _updateSquadBtn() {
   } else {
     text = `SQUADS ${a}/${m} \u25bd`;
   }
-  const isActive = f !== null && (f.length === 0 || f.length < m);
+  const isActive = f !== null;
   document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
     btn.textContent = text;
     btn.classList.toggle('pf-active', isActive);

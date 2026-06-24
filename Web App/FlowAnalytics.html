@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Flow Analytics</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -151,7 +150,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .settings-order-reset:hover{background:rgba(56,189,248,.18)}
 
 /* ── SIDEBAR ── */
-.sidebar{width:196px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+.sidebar{width:196px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;position:relative;z-index:650}
 .sidebar-logo{font-size:.8rem;font-weight:700;letter-spacing:-.02em;padding:.65rem .8rem;border-bottom:1px solid var(--border);color:var(--text);flex-shrink:0;white-space:nowrap}
 .sidebar-logo .hl{color:var(--blue)}
 .sidebar-nav{display:flex;flex-direction:column;padding:.25rem 0;flex:1}
@@ -420,10 +419,10 @@ td.td-lt{background:rgba(192,132,252,.04)}
       <div class="dz-cell c4"></div><div class="dz-cell c2"></div><div class="dz-cell c1"></div>
       <div class="dz-cell c3"></div><div class="dz-cell c1"></div><div class="dz-cell c2"></div>
     </div>
-    <p>Excel-Datei hier ablegen</p>
-    <small>.xlsx &middot; .xlsm &middot; .xls</small><br>
+    <p>JSON-Datei hier ablegen</p>
+    <small>.json</small><br>
     <button class="btn-pick" onclick="document.getElementById('file-input').click()">Datei ausw&#228;hlen</button>
-    <input type="file" id="file-input" accept=".xlsx,.xlsm,.xls">
+    <input type="file" id="file-input" accept=".json">
   </div>
 
   <!-- Daten-Preview (Kompatibilitäts-Rest, nicht aktiv genutzt) -->
@@ -1752,9 +1751,8 @@ function _initSidebarButtons() {
     document.querySelectorAll('body > div[style*="position:fixed"]').forEach(el => {
       el.style.display = 'none';
     });
-    core.state.rows      = [];
-    core.state.sheets    = {};
-    core.state.sheetsRaw = {};
+    core.state.rows   = [];
+    core.state.sheets = {};
   });
 
   // Squad dropdown toggle – shared across all pages via .btn-squad-trigger
@@ -1773,7 +1771,7 @@ function _initSidebarButtons() {
       }
       document.querySelectorAll('.btn-squad-trigger').forEach(b => {
         b.classList.toggle('p-blue',    open);
-        b.classList.toggle('pf-active', open || (core.state.squadFilter !== null && (core.state.squadFilter.length === 0 || core.state.squadFilter.length < core.state.allSquads.length)));
+        b.classList.toggle('pf-active', open || core.state.squadFilter !== null);
       });
     });
   });
@@ -1885,24 +1883,19 @@ function _loadFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+      const data = JSON.parse(e.target.result);
+      if (!data || typeof data.sheets !== 'object') throw new Error('Ungültiges JSON-Format: "sheets"-Objekt fehlt');
 
-      // Alle Sheets laden – automatisch erweiterbar ohne Core-Änderung
-      const sheets = {}, sheetsRaw = {};
-      wb.SheetNames.forEach(sn => {
-        sheets[sn]    = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null });
-        sheetsRaw[sn] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null });
-      });
-      core.state.sheets    = sheets;
-      core.state.sheetsRaw = sheetsRaw;
+      core.state.sheets = data.sheets;
 
       // Primär-Sheet: JiraStories (oder erstes Sheet als Fallback)
-      const sn = wb.SheetNames.includes(TARGET_SHEET) ? TARGET_SHEET : wb.SheetNames[0];
+      const sheetNames = Object.keys(data.sheets);
+      const sn = data.sheets[TARGET_SHEET] ? TARGET_SHEET : sheetNames[0];
       core.state.sheetName = sn;
-      const rows = sheets[sn] || [];
+      const rows = data.sheets[sn] || [];
 
       _processData(rows);
-      _showDataPreview(wb.SheetNames, sheets);
+      _showDataPreview(sheetNames, data.sheets);
     } catch (err) {
       const dp = document.getElementById('data-preview');
       if (dp) {
@@ -1910,7 +1903,7 @@ function _loadFile(file) {
       }
     }
   };
-  reader.readAsArrayBuffer(file);
+  reader.readAsText(file);
 }
 
 function _processData(rows) {
@@ -2055,7 +2048,7 @@ function _calcDcSummary(rows, s) {
 function _buildDcExtraSheets(s) {
   const epics       = (s.sheets && s.sheets['JiraEpics']) || [];
   const blockerRows = (s.sheets && s.sheets['JiraBlockermanagement']) || [];
-  const happRaw     = ((s.sheetsRaw || {})['Happiness Faktor']) || [];
+  const happRows    = ((s.sheets || {})['Happiness Faktor']) || [];
 
   let epicCard = '';
   if (epics.length > 0) {
@@ -2099,41 +2092,39 @@ function _buildDcExtraSheets(s) {
   }
 
   let happCard = '';
-  if (happRaw.length > 3) {
-    const headerIdx = happRaw.findIndex(row => row.some(c => c === 'Squad'));
-    if (headerIdx >= 0) {
-      const header   = happRaw[headerIdx];
-      const dataRows = happRaw.slice(headerIdx + 1).filter(r => r[0] && String(r[0]).trim());
-      let lastColIdx = -1, lastColName = '';
-      for (let ci = header.length - 1; ci >= 1; ci--) {
-        const hasData = dataRows.some(r => r[ci] != null && r[ci] !== '' && !isNaN(parseFloat(r[ci])));
-        if (hasData) { lastColIdx = ci; lastColName = String(header[ci] || ''); break; }
-      }
-      if (lastColIdx >= 0) {
-        const lastVals = dataRows.map(r => parseFloat(r[lastColIdx])).filter(v => !isNaN(v));
-        const happLast = lastVals.length ? lastVals.reduce((a, b) => a + b, 0) / lastVals.length : null;
-        const allVals  = [];
-        for (let ci = 1; ci < header.length; ci++) {
-          dataRows.forEach(r => { const v = parseFloat(r[ci]); if (!isNaN(v)) allVals.push(v); });
-        }
-        const happAvg  = allVals.length ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
-        const fmtH     = v => v != null ? v.toFixed(1) : '–';
-        const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
-        happCard = `
-          <div class="dc-sheet-card">
-            <div class="dc-sheet-card-title">Happiness Faktor</div>
-            <div style="display:flex;gap:1.2rem;align-items:flex-end">
-              <div>
-                <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
-                <div class="dc-stat-lbl">Letzter Wert &middot; ${escHtml(lastColName)}</div>
-              </div>
-              <div>
-                <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
-                <div class="dc-stat-lbl">&Oslash; alle Monate</div>
-              </div>
+  if (happRows.length > 0) {
+    // Normalisiertes Format: [{Squad, "Jan 2024": N, "Feb 2024": N, ...}]
+    // Monatsspalten = alle Keys außer "Squad"
+    const firstRow   = happRows[0];
+    const monthKeys  = Object.keys(firstRow).filter(k => k !== 'Squad');
+    let lastColName  = '';
+    for (let i = monthKeys.length - 1; i >= 0; i--) {
+      const k = monthKeys[i];
+      const hasData = happRows.some(r => r[k] != null && !isNaN(parseFloat(r[k])));
+      if (hasData) { lastColName = k; break; }
+    }
+    if (lastColName) {
+      const lastVals = happRows.map(r => parseFloat(r[lastColName])).filter(v => !isNaN(v));
+      const happLast = lastVals.length ? lastVals.reduce((a, b) => a + b, 0) / lastVals.length : null;
+      const allVals  = [];
+      monthKeys.forEach(k => happRows.forEach(r => { const v = parseFloat(r[k]); if (!isNaN(v)) allVals.push(v); }));
+      const happAvg  = allVals.length ? allVals.reduce((a, b) => a + b, 0) / allVals.length : null;
+      const fmtH     = v => v != null ? v.toFixed(1) : '–';
+      const valColor = happLast != null && happLast >= 3.5 ? 'green' : (happLast != null && happLast < 3 ? 'orange' : '');
+      happCard = `
+        <div class="dc-sheet-card">
+          <div class="dc-sheet-card-title">Happiness Faktor</div>
+          <div style="display:flex;gap:1.2rem;align-items:flex-end">
+            <div>
+              <div class="dc-stat-val ${valColor}" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happLast)}</div>
+              <div class="dc-stat-lbl">Letzter Wert &middot; ${escHtml(lastColName)}</div>
             </div>
-          </div>`;
-      }
+            <div>
+              <div class="dc-stat-val" style="font-size:1.25rem;margin-bottom:.12rem">${fmtH(happAvg)}</div>
+              <div class="dc-stat-lbl">&Oslash; alle Monate</div>
+            </div>
+          </div>
+        </div>`;
     }
   }
 
@@ -2283,7 +2274,7 @@ function _updateSquadBtn() {
   } else {
     text = `SQUADS ${a}/${m} \u25bd`;
   }
-  const isActive = f !== null && (f.length === 0 || f.length < m);
+  const isActive = f !== null;
   document.querySelectorAll('.btn-squad-trigger').forEach(btn => {
     btn.textContent = text;
     btn.classList.toggle('pf-active', isActive);
@@ -5189,7 +5180,7 @@ const DEFAULT_CFG = {
   yStep:        0,
   yLog:         false,
   includeBug:   false,
-  months:       12,
+  months:       0,
 };
 
 let _initialized = false;
@@ -5873,7 +5864,9 @@ function init_boxchart() {
     // ── Daten gruppieren ──────────────────────────────────────────────────────
     const periodItems = new Map();
     const now    = new Date();
-    const cutoff = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
+    const cutoff = cfg.months > 0
+      ? new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1)
+      : null;
 
     for (const row of rows) {
       if (row['Rejected'] != null && row['Rejected'] !== '') continue;
@@ -5881,7 +5874,7 @@ function init_boxchart() {
       if (!lt || lt < 1) continue;
       const endDate = core.toDate(row[ltE]);
       if (!endDate) continue;
-      if (endDate < cutoff) continue;
+      if (cutoff && endDate < cutoff) continue;
       const key = _periodKey(endDate, cfg.periodMode);
       if (!key) continue;
       if (!periodItems.has(key)) periodItems.set(key, []);
@@ -6368,42 +6361,29 @@ function _toggleFmtPanel(btn) {
 function _onData() {
   _rawMonths = [];
 
-  const raw = (core.state.sheetsRaw || {})[SHEET];
+  // Normalisiertes Format: [{Squad: "name", "2024-01": N, "2024-02": N, ...}]
+  const happRows = ((core.state.sheets || {})[SHEET]) || [];
 
-  if (!raw || !raw.length) {
+  if (!happRows.length) {
     _render();
     return;
   }
 
-  // Header-Zeile finden: erste Zeile mit dem Wert 'Datum'
-  const hIdx = raw.findIndex(row => Array.isArray(row) && row.some(c => c === 'Datum'));
-  if (hIdx < 0) { _render(); return; }
+  // Monatsspalten = alle Keys außer "Squad"
+  const monthKeys = Object.keys(happRows[0]).filter(k => k !== 'Squad');
+  if (!monthKeys.length) { _render(); return; }
 
-  const hRow   = raw[hIdx];
-  const dateCI = hRow.findIndex(c => c === 'Datum');
-  // Spalte dateCI+1 = 'ausgewähltes Squad' (Formel-Spalte) → überspringen
-  // Squad-Spalten starten ab dateCI+2
-
-  const squadCols = []; // [{idx, name}]
-  for (let ci = dateCI + 2; ci < hRow.length; ci++) {
-    const v = hRow[ci];
-    if (typeof v === 'string' && v.trim()) {
-      squadCols.push({ idx: ci, name: v.trim() });
-    }
-  }
-
-  // Datenzeilen parsen
-  raw.slice(hIdx + 1).forEach(row => {
-    if (!Array.isArray(row)) return;
-    const rawD = row[dateCI];
-    if (rawD == null) return;
-    const date = rawD instanceof Date ? rawD : core.toDate(rawD);
-    if (!date || isNaN(date.getTime())) return;
+  monthKeys.forEach(key => {
+    // "YYYY-MM" → Date (z.B. "2024-01" → 2024-01-01)
+    const date = new Date(key + '-01');
+    if (isNaN(date.getTime())) return;
 
     const values = {};
-    squadCols.forEach(({ idx, name }) => {
-      const v = row[idx];
-      values[name] = (typeof v === 'number' && isFinite(v) && v >= 1 && v <= 5) ? v : null;
+    happRows.forEach(row => {
+      const squad = String(row['Squad'] || '').trim();
+      if (!squad) return;
+      const v = parseFloat(row[key]);
+      values[squad] = (isFinite(v) && v >= 1 && v <= 5) ? v : null;
     });
     _rawMonths.push({ date, label: _mlbl(date), values });
   });
@@ -6433,7 +6413,7 @@ function _render() {
 
   // ── Sheet fehlt ──
   if (!_rawMonths.length) {
-    _showMsg(`Sheet „${SHEET}" nicht in der Excel gefunden`);
+    _showMsg(`Sheet „${SHEET}" nicht in den Daten gefunden`);
     _clrBadge(); _diagMid.textContent = 'Sheet fehlt';
     return;
   }
@@ -7052,7 +7032,7 @@ function init_flowefficiency() {
   };
 
   const KEY  = 'fhwa_flowefficiency';
-  const DEF  = { months: 12, targetFE: 40, showTarget: true, mode: 'line' };
+  const DEF  = { months: 0, targetFE: 40, showTarget: true, mode: 'line' };
 
   // ── State ──────────────────────────────────────
   const cfg       = Object.assign({}, DEF, core.load(KEY, {}));
@@ -7652,7 +7632,9 @@ function init_flowefficiency() {
 
     // Rolling-window cutoff
     const now     = new Date();
-    const cutoff  = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
+    const cutoff  = cfg.months > 0
+      ? new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1)
+      : null;
 
     const monthly = {};
     let errors  = 0;
@@ -7665,7 +7647,7 @@ function init_flowefficiency() {
       if (row['Rejected'] != null && row['Rejected'] !== '') return;
 
       // Rolling window
-      if (resolved < cutoff) return;
+      if (cutoff && resolved < cutoff) return;
 
       const r4p = core.toDate(row['Ready4Progress_first']);
       if (!r4p) return;   // skip – no LT start
@@ -9401,6 +9383,21 @@ function _render() {
     return;
   }
 
+  // ── Squad-Filter-Validierung (identisch zu Happiness / WIP) ──
+  const sf = core.state.squadFilter;
+  if (!sf || !sf.length) {
+    _showMsg('Kein Squad ausgewählt');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
+    _diagTextEl.textContent = 'Kein Squad';
+    return;
+  }
+  if (sf.length > 1) {
+    _showMsg('Bitte nur 1 Squad wählen');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
+    _diagTextEl.textContent = `${sf.length} Squads gewählt`;
+    return;
+  }
+
   // ── JiraEpics fehlt oder leer ──
   if (!_epicRows.length) {
     _showMsg('JiraEpics-Sheet nicht gefunden');
@@ -9414,21 +9411,6 @@ function _render() {
     _showMsg('Keine Epics mit Stage-Daten');
     if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Keine Stage-Daten';
-    return;
-  }
-
-  // ── Squad-Filter-Validierung (identisch zu Happiness / WIP) ──
-  const sf = core.state.squadFilter;
-  if (!sf || !sf.length) {
-    _showMsg('Kein Squad ausgewählt');
-    if (_nBadgeEl) _nBadgeEl.textContent = '';
-    _diagTextEl.textContent = 'Kein Squad';
-    return;
-  }
-  if (sf.length > 1) {
-    _showMsg('Bitte nur 1 Squad wählen');
-    if (_nBadgeEl) _nBadgeEl.textContent = '';
-    _diagTextEl.textContent = `${sf.length} Squads gewählt`;
     return;
   }
 

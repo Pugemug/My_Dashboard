@@ -26,7 +26,7 @@ const DEFAULT_CFG = {
   yStep:        0,
   yLog:         false,
   includeBug:   false,
-  months:       12,
+  months:       0,
 };
 
 let _initialized = false;
@@ -710,7 +710,9 @@ export function init() {
     // ── Daten gruppieren ──────────────────────────────────────────────────────
     const periodItems = new Map();
     const now    = new Date();
-    const cutoff = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
+    const cutoff = cfg.months > 0
+      ? new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1)
+      : null;
 
     for (const row of rows) {
       if (row['Rejected'] != null && row['Rejected'] !== '') continue;
@@ -718,7 +720,7 @@ export function init() {
       if (!lt || lt < 1) continue;
       const endDate = core.toDate(row[ltE]);
       if (!endDate) continue;
-      if (endDate < cutoff) continue;
+      if (cutoff && endDate < cutoff) continue;
       const key = _periodKey(endDate, cfg.periodMode);
       if (!key) continue;
       if (!periodItems.has(key)) periodItems.set(key, []);

@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Flow Analytics</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -151,7 +150,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .settings-order-reset:hover{background:rgba(56,189,248,.18)}
 
 /* ── SIDEBAR ── */
-.sidebar{width:196px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+.sidebar{width:196px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;position:relative;z-index:650}
 .sidebar-logo{font-size:.8rem;font-weight:700;letter-spacing:-.02em;padding:.65rem .8rem;border-bottom:1px solid var(--border);color:var(--text);flex-shrink:0;white-space:nowrap}
 .sidebar-logo .hl{color:var(--blue)}
 .sidebar-nav{display:flex;flex-direction:column;padding:.25rem 0;flex:1}
@@ -420,10 +419,10 @@ td.td-lt{background:rgba(192,132,252,.04)}
       <div class="dz-cell c4"></div><div class="dz-cell c2"></div><div class="dz-cell c1"></div>
       <div class="dz-cell c3"></div><div class="dz-cell c1"></div><div class="dz-cell c2"></div>
     </div>
-    <p>Excel-Datei hier ablegen</p>
-    <small>.xlsx &middot; .xlsm &middot; .xls</small><br>
+    <p>JSON-Datei hier ablegen</p>
+    <small>.json</small><br>
     <button class="btn-pick" onclick="document.getElementById('file-input').click()">Datei ausw&#228;hlen</button>
-    <input type="file" id="file-input" accept=".xlsx,.xlsm,.xls">
+    <input type="file" id="file-input" accept=".json">
   </div>
 
   <!-- Daten-Preview (Kompatibilitäts-Rest, nicht aktiv genutzt) -->

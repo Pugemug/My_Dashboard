@@ -20,7 +20,7 @@ export function init() {
   };
 
   const KEY  = 'fhwa_flowefficiency';
-  const DEF  = { months: 12, targetFE: 40, showTarget: true, mode: 'line' };
+  const DEF  = { months: 0, targetFE: 40, showTarget: true, mode: 'line' };
 
   // ── State ──────────────────────────────────────
   const cfg       = Object.assign({}, DEF, core.load(KEY, {}));
@@ -620,7 +620,9 @@ export function init() {
 
     // Rolling-window cutoff
     const now     = new Date();
-    const cutoff  = new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1);
+    const cutoff  = cfg.months > 0
+      ? new Date(now.getFullYear(), now.getMonth() - cfg.months + 1, 1)
+      : null;
 
     const monthly = {};
     let errors  = 0;
@@ -633,7 +635,7 @@ export function init() {
       if (row['Rejected'] != null && row['Rejected'] !== '') return;
 
       // Rolling window
-      if (resolved < cutoff) return;
+      if (cutoff && resolved < cutoff) return;
 
       const r4p = core.toDate(row['Ready4Progress_first']);
       if (!r4p) return;   // skip – no LT start

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_PATH  = `file://${path.resolve(__dirname, '../../Web App/FlowAnalytics.html')}`;
-const FIXTURE   = path.resolve(__dirname, '../fixtures/testdata.xlsx');
+const FIXTURE   = path.resolve(__dirname, '../fixtures/testdata.json');
 
 /** Datei hochladen, CTA klicken, dann per Sidebar zur Ziel-Page navigieren. */
 async function navigateToPage(page, pageName) {

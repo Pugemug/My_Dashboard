@@ -12,8 +12,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname     = path.dirname(fileURLToPath(import.meta.url));
 const APP_PATH      = `file://${path.resolve(__dirname, '../../Web App/FlowAnalytics.html')}`;
-const FIXTURE       = path.resolve(__dirname, '../fixtures/testdata.xlsx');
-const FIXTURE_EMPTY = path.resolve(__dirname, '../fixtures/testdata-empty.xlsx');
+const FIXTURE       = path.resolve(__dirname, '../fixtures/testdata.json');
+const FIXTURE_EMPTY = path.resolve(__dirname, '../fixtures/testdata-empty.json');
 
 // Alle Tiles die nach Upload auf der Lieferfähigkeit-Page sichtbar sein müssen
 const EXPECTED_TILES = [

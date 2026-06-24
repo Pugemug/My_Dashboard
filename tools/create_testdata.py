@@ -1,25 +1,21 @@
 """
 Erstellt den M17 Standard-Testdatensatz für Testautomatisierung.
 Enthält gezielte Edge Cases aus TestAutomatisierung.md Block B.
+Ausgabe: JSON im Format { meta, sheets } (Stufe 1 JSON-Migration).
 """
-import openpyxl
-from openpyxl import Workbook
-from datetime import datetime, timedelta
+import json
 import os
+from datetime import datetime, timedelta, timezone
 
-def d(year, month, day):
-    """Hilfsfunktion: datetime Objekt"""
-    return datetime(year, month, day)
+def iso(year, month, day):
+    """Hilfsfunktion: ISO-8601-String (UTC Mitternacht)"""
+    return datetime(year, month, day, tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z')
 
-wb = Workbook()
+def month_key(year, month):
+    """Monatsspalten-Key im Format 'YYYY-MM'"""
+    return f'{year:04d}-{month:02d}'
 
-# ══════════════════════════════════════════════════════════════
-# Sheet 1: JiraStories (Pflicht-Sheet)
-# ══════════════════════════════════════════════════════════════
-ws = wb.active
-ws.title = 'JiraStories'
-
-headers = [
+HEADERS = [
     'Jira-ID', 'Issue-Type', 'Squad', 'Issue-Status',
     'Ready4Progress_first', 'Ready4Progress',
     'In Progress_first', 'In Progress',
@@ -28,165 +24,193 @@ headers = [
     'leaving_Ready4Test_first', 'leaving_Ready4Test',
     'Resolved', 'Rejected',
 ]
-ws.append(headers)
+
+def make_row(*vals):
+    return dict(zip(HEADERS, vals))
+
+# ══════════════════════════════════════════════════════════════
+# Sheet 1: JiraStories (Pflicht-Sheet)
+# ══════════════════════════════════════════════════════════════
+stories = []
 
 # ── Normalfall: abgeschlossen, Squad A ──────────────────────
-# CT = In Progress bis Resolved
-ws.append(['JA-001', 'Story', 'Squad-A', 'Resolved',
-    d(2024,1,1), d(2024,1,1),    # Ready4Progress_first == Ready4Progress (einmal)
-    d(2024,1,2), d(2024,1,2),    # In Progress_first == In Progress (einmal)
-    d(2024,1,8), d(2024,1,8),    # leaving_In Progress_first == leaving
-    d(2024,1,9), d(2024,1,9),    # Ready4Test_first == Ready4Test
-    d(2024,1,12), d(2024,1,12),  # leaving_Ready4Test
-    d(2024,1,15), None           # Resolved, kein Rejected
-])
+stories.append(make_row(
+    'JA-001', 'Story', 'Squad-A', 'Resolved',
+    iso(2024,1,1),  iso(2024,1,1),
+    iso(2024,1,2),  iso(2024,1,2),
+    iso(2024,1,8),  iso(2024,1,8),
+    iso(2024,1,9),  iso(2024,1,9),
+    iso(2024,1,12), iso(2024,1,12),
+    iso(2024,1,15), None,
+))
 
 # ── Dual-Period: Status zweimal durchlaufen ──────────────────
 # In Progress: 3.1–5.1 (3 Tage) + 10.1–11.1 (2 Tage) = 5 Tage
-ws.append(['JA-002', 'Story', 'Squad-A', 'Resolved',
-    d(2024,1,3), d(2024,1,3),
-    d(2024,1,3), d(2024,1,10),   # _first = 3.1, Basis = 10.1 → zweimal
-    d(2024,1,5), d(2024,1,11),   # leaving: _first endet 5.1, Basis endet 11.1
-    d(2024,1,12), d(2024,1,12),
-    d(2024,1,14), d(2024,1,14),
-    d(2024,1,20), None
-])
+stories.append(make_row(
+    'JA-002', 'Story', 'Squad-A', 'Resolved',
+    iso(2024,1,3),  iso(2024,1,3),
+    iso(2024,1,3),  iso(2024,1,10),
+    iso(2024,1,5),  iso(2024,1,11),
+    iso(2024,1,12), iso(2024,1,12),
+    iso(2024,1,14), iso(2024,1,14),
+    iso(2024,1,20), None,
+))
 
 # ── Aktives WIP-Item (weder Resolved noch Rejected) ─────────
-ws.append(['JA-003', 'Bug', 'Squad-A', 'In Progress',
-    d(2024,2,1), d(2024,2,1),
-    d(2024,2,2), d(2024,2,2),
+stories.append(make_row(
+    'JA-003', 'Bug', 'Squad-A', 'In Progress',
+    iso(2024,2,1), iso(2024,2,1),
+    iso(2024,2,2), iso(2024,2,2),
     None, None, None, None, None, None,
-    None, None
-])
+    None, None,
+))
 
 # ── Rejected Item (abgebrochen, nicht in Rolling Pace) ──────
-ws.append(['JA-004', 'Story', 'Squad-B', 'Rejected',
-    d(2024,1,5), d(2024,1,5),
-    d(2024,1,6), d(2024,1,6),
-    d(2024,1,10), d(2024,1,10),
+stories.append(make_row(
+    'JA-004', 'Story', 'Squad-B', 'Rejected',
+    iso(2024,1,5),  iso(2024,1,5),
+    iso(2024,1,6),  iso(2024,1,6),
+    iso(2024,1,10), iso(2024,1,10),
     None, None, None, None,
-    None, d(2024,1,12)
-])
+    None, iso(2024,1,12),
+))
 
 # ── Item ohne Squad (leere Squad-Spalte) ────────────────────
-ws.append(['JA-005', 'Task', '', 'Resolved',
-    d(2024,1,8), d(2024,1,8),
-    d(2024,1,9), d(2024,1,9),
-    d(2024,1,13), d(2024,1,13),
-    d(2024,1,14), d(2024,1,14),
-    d(2024,1,14), d(2024,1,17), None
-])
+stories.append(make_row(
+    'JA-005', 'Task', '', 'Resolved',
+    iso(2024,1,8),  iso(2024,1,8),
+    iso(2024,1,9),  iso(2024,1,9),
+    iso(2024,1,13), iso(2024,1,13),
+    iso(2024,1,14), iso(2024,1,14),
+    iso(2024,1,14), iso(2024,1,17), None,
+))
 
 # ── Squad-B: genau 1 Item (Grenzfall für Statistiken) ───────
-ws.append(['JB-001', 'Story', 'Squad-B', 'Resolved',
-    d(2024,3,1), d(2024,3,1),
-    d(2024,3,2), d(2024,3,2),
-    d(2024,3,7), d(2024,3,7),
-    d(2024,3,8), d(2024,3,8),
-    d(2024,3,10), None
-])
+stories.append(make_row(
+    'JB-001', 'Story', 'Squad-B', 'Resolved',
+    iso(2024,3,1), iso(2024,3,1),
+    iso(2024,3,2), iso(2024,3,2),
+    iso(2024,3,7), iso(2024,3,7),
+    iso(2024,3,8), iso(2024,3,8),
+    iso(2024,3,10), None,
+))
 
 # ── Squad-C: 20 Items für Normalfall (CT variiert) ──────────
+def _d(base, delta):
+    t = base + timedelta(days=delta)
+    return iso(t.year, t.month, t.day)
+
+base_c = datetime(2024, 1, 1)
 for i in range(20):
-    start = d(2024, 1, 1) + timedelta(days=i * 3)
-    ct = 3 + (i % 7)  # CT variiert zwischen 3 und 9 Tagen
-    ws.append([
+    start = base_c + timedelta(days=i * 3)
+    ct = 3 + (i % 7)
+    stories.append(make_row(
         f'JC-{i+1:03d}', 'Story', 'Squad-C', 'Resolved',
-        start, start,
-        start + timedelta(days=1), start + timedelta(days=1),
-        start + timedelta(days=ct), start + timedelta(days=ct),
-        start + timedelta(days=ct+1), start + timedelta(days=ct+1),
-        start + timedelta(days=ct+2), start + timedelta(days=ct+2),
-        start + timedelta(days=ct+2), None
-    ])
+        _d(start, 0),    _d(start, 0),
+        _d(start, 1),    _d(start, 1),
+        _d(start, ct),   _d(start, ct),
+        _d(start, ct+1), _d(start, ct+1),
+        _d(start, ct+2), _d(start, ct+2),
+        _d(start, ct+2), None,
+    ))
 
 # ── Inkonsistentes Datum: Ende vor Start (Datenqualitätsproblem) ──
-ws.append(['JA-ERR', 'Story', 'Squad-A', 'Resolved',
-    d(2024,4,10), d(2024,4,10),
-    d(2024,4,15), d(2024,4,15),   # In Progress startet später als Resolved
-    d(2024,4,12), d(2024,4,12),   # leaving_In Progress VOR In Progress → negativ
+stories.append(make_row(
+    'JA-ERR', 'Story', 'Squad-A', 'Resolved',
+    iso(2024,4,10), iso(2024,4,10),
+    iso(2024,4,15), iso(2024,4,15),
+    iso(2024,4,12), iso(2024,4,12),
     None, None, None, None,
-    d(2024,4,10), None            # Resolved = gleicher Tag wie Start
-])
+    iso(2024,4,10), None,
+))
 
 # ══════════════════════════════════════════════════════════════
-# Sheet 2: Epics (für Say_Do_Ratio)
+# Sheet 2: JiraEpics (für SayDoRatio, Akzeptanzkriterien)
 # ══════════════════════════════════════════════════════════════
-ws_epics = wb.create_sheet('Epics')
-ws_epics.append(['Epic-ID', 'Summary', 'Squad', 'Iteration', 'Resolved', 'Rejected'])
-ws_epics.append(['EP-001', 'Feature A', 'Squad-A', 'Q1-2024', d(2024,3,28), None])
-ws_epics.append(['EP-002', 'Feature B', 'Squad-A', 'Q1-2024', None, None])   # nicht geliefert
-ws_epics.append(['EP-003', 'Feature C', 'Squad-B', 'Q1-2024', d(2024,3,30), None])
-ws_epics.append(['EP-004', 'Feature D', 'Squad-A', 'Q2-2024', d(2024,6,28), None])
-ws_epics.append(['EP-005', 'Feature E', 'Squad-A', 'Q2-2024', d(2024,6,29), None])
-ws_epics.append(['EP-006', 'Feature F', 'Squad-B', 'Q2-2024', None, d(2024,5,15)])  # rejected
+EPIC_HEADERS = ['Jira-ID', 'Kurzbeschreibung', 'Squad', 'Stage', 'Resolved', 'Rejected', 'UNCALLED', 'Akzeptanzkriterien']
+
+def make_epic(*vals):
+    return dict(zip(EPIC_HEADERS, vals))
+
+epics = [
+    make_epic('EP-001', 'Feature A', 'Squad-A', 'Q1-2024', iso(2024,3,28), None, None, 'Als Nutzer möchte ich das Feature A nutzen können'),
+    make_epic('EP-002', 'Feature B', 'Squad-A', 'Q1-2024', None, None, None, 'Kurz'),
+    make_epic('EP-003', 'Feature C', 'Squad-B', 'Q1-2024', iso(2024,3,30), None, None, 'Als Nutzer möchte ich Feature C sehen und verwenden'),
+    make_epic('EP-004', 'Feature D', 'Squad-A', 'Q2-2024', iso(2024,6,28), None, None, 'Als Nutzer möchte ich das Feature D konfigurieren'),
+    make_epic('EP-005', 'Feature E', 'Squad-A', 'Q2-2024', iso(2024,6,29), None, None, None),
+    make_epic('EP-006', 'Feature F', 'Squad-B', 'Q2-2024', None, iso(2024,5,15), None, 'Als Nutzer möchte ich Feature F deaktivieren können'),
+]
 
 # ══════════════════════════════════════════════════════════════
-# Sheet 3: Happiness Faktor (Custom-Header in Zeile 3)
+# Sheet 3: Happiness Faktor (normalisiert: Squad + YYYY-MM Spalten)
 # ══════════════════════════════════════════════════════════════
-ws_hf = wb.create_sheet('Happiness Faktor')
-ws_hf.append(['Flow Analytics – Happiness Export'])          # Zeile 1: Titel
-ws_hf.append(['Stand: 2024-06-01'])                          # Zeile 2: Meta
-ws_hf.append(['Schlüsselwert', 'Squad', 'Jan 2024', 'Feb 2024', 'Mrz 2024', 'Apr 2024'])  # Zeile 3: Header
-ws_hf.append([1, 'Squad-A', 4, 3, 4, 5])
-ws_hf.append([2, 'Squad-B', 3, 3, 2, 4])
-ws_hf.append([3, 'Squad-C', 5, 4, 4, 3])
+happiness = [
+    {'Squad': 'Squad-A', month_key(2024,1): 4, month_key(2024,2): 3, month_key(2024,3): 4, month_key(2024,4): 5},
+    {'Squad': 'Squad-B', month_key(2024,1): 3, month_key(2024,2): 3, month_key(2024,3): 2, month_key(2024,4): 4},
+    {'Squad': 'Squad-C', month_key(2024,1): 5, month_key(2024,2): 4, month_key(2024,3): 4, month_key(2024,4): 3},
+]
 
 # ══════════════════════════════════════════════════════════════
-# Speichern
+# Ausgabe
 # ══════════════════════════════════════════════════════════════
 out_dir = os.path.join(os.path.dirname(__file__), '..', 'tests', 'fixtures')
 os.makedirs(out_dir, exist_ok=True)
-out_path = os.path.join(out_dir, 'testdata.xlsx')
-wb.save(out_path)
-print(f'OK testdata.xlsx: {os.path.abspath(out_path)}')
 
-# ── Leere Datei (nur Header, keine Datenzeilen) ──────────────
-wb_empty = Workbook()
-ws_empty = wb_empty.active
-ws_empty.title = 'JiraStories'
-ws_empty.append(headers)
-empty_path = os.path.join(out_dir, 'testdata-empty.xlsx')
-wb_empty.save(empty_path)
-print(f'OK testdata-empty.xlsx: {os.path.abspath(empty_path)}')
+export_date = datetime.now(tz=timezone.utc).isoformat().replace('+00:00', 'Z')
 
-# ── Einzelner-Squad-Testdatensatz (testdata-single-squad.xlsx) ────────────
-# Testet den Sonderfall: nur 1 Squad → Auto-Setzung des Squad-Filters
-wb_single = Workbook()
-ws_sq = wb_single.active
-ws_sq.title = 'JiraStories'
-ws_sq.append(headers)
+def write_json(path, sheets):
+    data = {
+        'meta': {'exportDate': export_date, 'source': 'Testdaten', 'version': '1'},
+        'sheets': sheets,
+    }
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
-# 5 abgeschlossene Items für Squad-X
+# ── Haupt-Testdatei ──────────────────────────────────────────
+main_path = os.path.join(out_dir, 'testdata.json')
+write_json(main_path, {
+    'JiraStories':   stories,
+    'JiraEpics':     epics,
+    'Happiness Faktor': happiness,
+})
+print(f'OK testdata.json: {os.path.abspath(main_path)}')
+
+# ── Leere Datei (nur Pflicht-Sheet, keine Datenzeilen) ───────
+empty_path = os.path.join(out_dir, 'testdata-empty.json')
+write_json(empty_path, {'JiraStories': []})
+print(f'OK testdata-empty.json: {os.path.abspath(empty_path)}')
+
+# ── Einzelner-Squad-Testdatensatz ────────────────────────────
+single_stories = []
+base_sq = datetime(2024, 3, 1)
 for i in range(5):
-    start = d(2024, 3, 1) + timedelta(days=i * 4)
+    start = base_sq + timedelta(days=i * 4)
     ct = 4 + i
-    ws_sq.append([
+    single_stories.append(make_row(
         f'SX-{i+1:03d}', 'Story', 'Squad-X', 'Resolved',
-        start, start,
-        start + timedelta(days=1), start + timedelta(days=1),
-        start + timedelta(days=ct), start + timedelta(days=ct),
-        start + timedelta(days=ct+1), start + timedelta(days=ct+1),
-        start + timedelta(days=ct+2), start + timedelta(days=ct+2),
-        start + timedelta(days=ct+2), None
-    ])
+        _d(start, 0),    _d(start, 0),
+        _d(start, 1),    _d(start, 1),
+        _d(start, ct),   _d(start, ct),
+        _d(start, ct+1), _d(start, ct+1),
+        _d(start, ct+2), _d(start, ct+2),
+        _d(start, ct+2), None,
+    ))
 
-# 1 aktives WIP-Item (für WIP-Tile)
-ws_sq.append(['SX-006', 'Bug', 'Squad-X', 'In Progress',
-    d(2024, 5, 1), d(2024, 5, 1),
-    d(2024, 5, 2), d(2024, 5, 2),
+single_stories.append(make_row(
+    'SX-006', 'Bug', 'Squad-X', 'In Progress',
+    iso(2024,5,1), iso(2024,5,1),
+    iso(2024,5,2), iso(2024,5,2),
     None, None, None, None, None, None,
-    None, None
-])
+    None, None,
+))
 
-# Happiness Faktor Sheet (nur Squad-X)
-ws_hf_sq = wb_single.create_sheet('Happiness Faktor')
-ws_hf_sq.append(['Flow Analytics – Happiness Export'])
-ws_hf_sq.append(['Stand: 2024-06-01'])
-ws_hf_sq.append(['Schlüsselwert', 'Squad', 'Jan 2024', 'Feb 2024', 'Mrz 2024', 'Apr 2024'])
-ws_hf_sq.append([1, 'Squad-X', 4, 3, 4, 5])
+single_happiness = [
+    {'Squad': 'Squad-X', month_key(2024,1): 4, month_key(2024,2): 3, month_key(2024,3): 4, month_key(2024,4): 5},
+]
 
-single_path = os.path.join(out_dir, 'testdata-single-squad.xlsx')
-wb_single.save(single_path)
-print(f'OK testdata-single-squad.xlsx: {os.path.abspath(single_path)}')
+single_path = os.path.join(out_dir, 'testdata-single-squad.json')
+write_json(single_path, {
+    'JiraStories':   single_stories,
+    'Happiness Faktor': single_happiness,
+})
+print(f'OK testdata-single-squad.json: {os.path.abspath(single_path)}')

@@ -188,6 +188,21 @@ function _render() {
     return;
   }
 
+  // ── Squad-Filter-Validierung (identisch zu Happiness / WIP) ──
+  const sf = core.state.squadFilter;
+  if (!sf || !sf.length) {
+    _showMsg('Kein Squad ausgewählt');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
+    _diagTextEl.textContent = 'Kein Squad';
+    return;
+  }
+  if (sf.length > 1) {
+    _showMsg('Bitte nur 1 Squad wählen');
+    if (_nBadgeEl) _nBadgeEl.textContent = '';
+    _diagTextEl.textContent = `${sf.length} Squads gewählt`;
+    return;
+  }
+
   // ── JiraEpics fehlt oder leer ──
   if (!_epicRows.length) {
     _showMsg('JiraEpics-Sheet nicht gefunden');
@@ -201,21 +216,6 @@ function _render() {
     _showMsg('Keine Epics mit Stage-Daten');
     if (_nBadgeEl) _nBadgeEl.textContent = '';
     _diagTextEl.textContent = 'Keine Stage-Daten';
-    return;
-  }
-
-  // ── Squad-Filter-Validierung (identisch zu Happiness / WIP) ──
-  const sf = core.state.squadFilter;
-  if (!sf || !sf.length) {
-    _showMsg('Kein Squad ausgewählt');
-    if (_nBadgeEl) _nBadgeEl.textContent = '';
-    _diagTextEl.textContent = 'Kein Squad';
-    return;
-  }
-  if (sf.length > 1) {
-    _showMsg('Bitte nur 1 Squad wählen');
-    if (_nBadgeEl) _nBadgeEl.textContent = '';
-    _diagTextEl.textContent = `${sf.length} Squads gewählt`;
     return;
   }
 
