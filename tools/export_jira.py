@@ -23,10 +23,14 @@ import math
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import requests
+import yaml
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ─────────────────────────────────────────────────────────────────────────────
 # KONFIGURATION
@@ -36,16 +40,11 @@ JIRA_BASE_URL = os.environ.get("JIRA_URL", "https://jiraws.axa.com")
 JIRA_USER     = os.environ.get("JIRA_USER", "")
 JIRA_TOKEN    = os.environ.get("JIRA_TOKEN", "")
 
-# Entspricht der jiraProjectsTable in Excel.
-# Modifier: optionaler JQL-Zusatz (leerer String = kein Zusatz).
-PROJECTS: list[dict] = [
-    {"Project": "PROJ-A", "Modifier": "component = 'MyComponent'", "Squad": "Team Alpha"},
-    {"Project": "PROJ-B", "Modifier": "",                          "Squad": "Team Beta"},
-]
-
-OUTPUT_PATH          = "flowdata.json"
-PAGE_SIZE            = 500
-JQL_RESOLVED_WINDOW  = "startOfMonth(-52w)"
+OUTPUT_PATH            = "flowdata.json"
+PAGE_SIZE              = 500
+JQL_RESOLVED_WINDOW    = "startOfMonth(-52w)"
+PROJECTS_CONFIG_PATH   = Path(__file__).parent / "projects.yaml"
+JIRA_BLOCKED_STATUS_ID = "10290"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HILFSFUNKTIONEN
@@ -106,7 +105,7 @@ def _parse_time_in_status_blocked(v: Any) -> float | None:
     if not v or not isinstance(v, str):
         return None
     try:
-        marker = "|*_10290_*:*_"
+        marker = f"|*_{JIRA_BLOCKED_STATUS_ID}_*:*_"
         idx = v.find(marker)
         if idx < 0:
             return None
@@ -173,10 +172,17 @@ ALLOWED_FOR_LEAVING = {
 # API-ABRUF (SRC-Schicht)
 # ─────────────────────────────────────────────────────────────────────────────
 
+_EXPORT_WARNINGS: list[str] = []
+
+
 def _session() -> requests.Session:
     s = requests.Session()
     s.auth = (JIRA_USER, JIRA_TOKEN)
     s.headers.update({"Accept": "application/json"})
+    retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503])
+    adapter = HTTPAdapter(max_retries=retry)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
     return s
 
 
@@ -205,7 +211,9 @@ def _fetch_all(jql: str, fields: str, expand_changelog: bool = False) -> list[di
     try:
         resp = _get_session().get(url, params=params, timeout=60).json()
     except Exception as exc:
-        _log(f"  ⚠ API-Fehler beim ersten Aufruf: {exc}")
+        msg = f"API-Fehler beim ersten Aufruf ({jql[:80]}): {exc}"
+        _log(f"  ⚠ {msg}")
+        _EXPORT_WARNINGS.append(msg)
         return []
 
     total  = resp.get("total", 0)
@@ -222,7 +230,9 @@ def _fetch_all(jql: str, fields: str, expand_changelog: bool = False) -> list[di
             issues.extend(batch)
             _log(f"  Seite {page}/{pages} — {len(issues)}/{total}")
         except Exception as exc:
-            _log(f"  ⚠ Seite {page} fehlgeschlagen: {exc}")
+            msg = f"Seite {page} fehlgeschlagen ({jql[:80]}): {exc}"
+            _log(f"  ⚠ {msg}")
+            _EXPORT_WARNINGS.append(msg)
 
     return issues
 
@@ -851,6 +861,34 @@ def build_jira_blockermanagement(blocked_history: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# KONFIGURATION LADEN
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _load_projects(config_path: Path | str) -> list[dict]:
+    """Lädt die Projektliste aus projects.yaml. Bricht mit Fehlermeldung ab wenn Datei fehlt."""
+    path = Path(config_path)
+    if not path.exists():
+        _log(f"⚠ Konfigurationsdatei nicht gefunden: {path.resolve()}")
+        _log("  Lege projects.yaml an – Vorlage: tools/projects.yaml")
+        sys.exit(1)
+    with open(path, encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+    projects = [
+        {
+            "Project":  str(p.get("project", "")),
+            "Modifier": str(p.get("modifier") or ""),
+            "Squad":    str(p.get("squad") or ""),
+        }
+        for p in (data or {}).get("projects", [])
+        if p.get("project")
+    ]
+    if not projects:
+        _log(f"⚠ Keine Projekte in {path.resolve()} gefunden.")
+        sys.exit(1)
+    return projects
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -863,16 +901,24 @@ def main() -> None:
         help=f"Ausgabepfad (Standard: {OUTPUT_PATH})",
     )
     parser.add_argument(
+        "--config", default=str(PROJECTS_CONFIG_PATH),
+        help=f"Pfad zur Projektkonfiguration (Standard: {PROJECTS_CONFIG_PATH})",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Konfiguration ausgeben, keinen API-Aufruf starten",
     )
     args = parser.parse_args()
 
+    _EXPORT_WARNINGS.clear()
+    projects = _load_projects(args.config)
+
     if args.dry_run:
         _log("Dry-Run – Konfiguration:")
         _log(f"  JIRA_URL:  {JIRA_BASE_URL}")
         _log(f"  JIRA_USER: {JIRA_USER or '(nicht gesetzt)'}")
-        _log(f"  Projekte:  {[p['Project'] for p in PROJECTS]}")
+        _log(f"  Config:    {args.config}")
+        _log(f"  Projekte:  {[p['Project'] for p in projects]}")
         _log(f"  Ausgabe:   {args.output}")
         return
 
@@ -885,10 +931,10 @@ def main() -> None:
     _log("═" * 60)
 
     # ── Abrufen ───────────────────────────────────────────────────────────
-    raw_epics_base   = fetch_epics_base(PROJECTS)
-    raw_epics_hist   = fetch_epics_history(PROJECTS)
-    raw_stories_base = fetch_stories_base(PROJECTS)
-    raw_stories_hist = fetch_stories_history(PROJECTS)
+    raw_epics_base   = fetch_epics_base(projects)
+    raw_epics_hist   = fetch_epics_history(projects)
+    raw_stories_base = fetch_stories_base(projects)
+    raw_stories_hist = fetch_stories_history(projects)
 
     # ── Transformieren ────────────────────────────────────────────────────
     epics_base   = build_epics_base(raw_epics_base)
@@ -913,6 +959,8 @@ def main() -> None:
             "exportDate": datetime.now(timezone.utc).isoformat(),
             "source":     "Jira",
             "version":    "1",
+            "errors":     len(_EXPORT_WARNINGS),
+            "warnings":   list(_EXPORT_WARNINGS),
         },
         "sheets": {
             "JiraStories":           _df_to_records(jira_stories),
@@ -926,7 +974,10 @@ def main() -> None:
 
     sizes = {k: len(v) for k, v in output["sheets"].items()}
     _log("═" * 60)
-    _log(f"✓ Export abgeschlossen → {args.output}")
+    if _EXPORT_WARNINGS:
+        _log(f"⚠ Export abgeschlossen mit {len(_EXPORT_WARNINGS)} Warnung(en) → {args.output}")
+    else:
+        _log(f"✓ Export abgeschlossen → {args.output}")
     for sheet, count in sizes.items():
         _log(f"  {sheet}: {count} Zeilen")
     _log("═" * 60)

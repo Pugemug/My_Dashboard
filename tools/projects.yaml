@@ -1,0 +1,24 @@
+# Jira-Projektliste für export_jira.py
+#
+# Felder je Eintrag:
+#   project:  Jira-Projektkürzel  (Pflichtfeld, z.B. "PROJ-A")
+#   modifier: Optionaler JQL-Zusatz, um nur einen Teil des Projekts zu exportieren.
+#             Leer lassen oder weglassen, wenn das gesamte Projekt exportiert werden soll.
+#   squad:    Team-Name, der in der Dashboard-Auswertung erscheinen soll.
+#
+# Beispiel-JQL-Modifier:
+#   component = 'MyComponent'          → nur eine Komponente
+#   labels = 'myteam'                  → nur Issues mit diesem Label
+#   assignee in membersOf('myteam')    → nur Issues eines bestimmten Teams
+#
+# Aufruf mit abweichender Datei:
+#   python tools/export_jira.py --config pfad/zur/anderen/projects.yaml
+
+projects:
+  - project: PROJ-A
+    modifier: "component = 'MyComponent'"
+    squad: Team Alpha
+
+  - project: PROJ-B
+    modifier: ""
+    squad: Team Beta
