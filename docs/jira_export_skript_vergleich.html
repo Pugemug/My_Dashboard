@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Jira Export – Skript-Vergleich</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    background: #fff;
+    color: #1a1a1a;
+    padding: 20px;
+    line-height: 1.5;
+  }
+  h1 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #666; font-size: 12px; margin-bottom: 20px; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tab {
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    border: 1.5px solid #ddd;
+    background: transparent; font-size: 12px; font-weight: 500;
+    color: #666; transition: all .15s;
+  }
+  .tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .score-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .score-card {
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px; padding: 14px; text-align: center;
+  }
+  .score-card .label { font-size: 11px; color: #888; margin-bottom: 6px; }
+  .score-card .name { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+  .score-bar-wrap { height: 6px; background: #f0f0f0; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+  .score-bar { height: 100%; border-radius: 3px; }
+  .score-val { font-size: 11px; font-weight: 600; }
+
+  .cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .cmp-table th {
+    text-align: left; padding: 8px 10px;
+    background: #f5f5f5;
+    border-bottom: 2px solid #ddd;
+    font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .cmp-table td { padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .cmp-table tr:last-child td { border-bottom: none; }
+  .cmp-table tr:hover td { background: #fafafa; }
+  .tag {
+    display: inline-block; padding: 2px 7px; border-radius: 99px;
+    font-size: 10px; font-weight: 600; white-space: nowrap;
+  }
+  .tag-green { background: #dcfce7; color: #166534; }
+  .tag-yellow { background: #fef9c3; color: #854d0e; }
+  .tag-red { background: #fee2e2; color: #991b1b; }
+  .tag-blue { background: #dbeafe; color: #1e40af; }
+  .tag-gray { background: #f3f4f6; color: #374151; }
+
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .diff-col h3 { font-size: 12px; font-weight: 700; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid; }
+  .diff-col.ps h3 { border-color: #f59e0b; color: #b45309; }
+  .diff-col.py h3 { border-color: #10b981; color: #065f46; }
+  .diff-item { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; font-size: 11px; }
+  .diff-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .diff-col.ps .diff-dot { background: #f59e0b; }
+  .diff-col.py .diff-dot { background: #10b981; }
+
+  .bug-box {
+    border: 2px solid #ef4444; border-radius: 8px; padding: 12px 14px;
+    background: #fff5f5; margin-bottom: 16px;
+  }
+  .bug-box .bug-title { font-weight: 700; color: #dc2626; font-size: 12px; margin-bottom: 6px; }
+  .bug-code { background: #1e1e1e; color: #f87171; font-family: monospace; padding: 6px 10px; border-radius: 4px; font-size: 11px; margin-bottom: 6px; }
+  .bug-fix  { background: #1e1e1e; color: #86efac; font-family: monospace; padding: 6px 10px; border-radius: 4px; font-size: 11px; }
+
+  .output-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .output-col h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+  .sheet-item { border: 1.5px solid #e0e0e0; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; }
+  .sheet-name { font-weight: 600; font-size: 11px; }
+  .sheet-desc { font-size: 10px; color: #888; margin-top: 2px; }
+  .metric-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+  .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: #666; margin-bottom: 10px; }
+
+  .winner-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #2563eb; color: #fff; border-radius: 99px;
+    padding: 3px 10px; font-size: 10px; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<h1>Jira Export – Skript-Vergleich</h1>
+<p class="subtitle">PowerShell (jira_transform.ps1) &nbsp;vs.&nbsp; Python (export_jira.py) &nbsp;|&nbsp; Stand: 2026-06-25</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('overview', this)">Übersicht</button>
+  <button class="tab" onclick="show('perf', this)">Performance</button>
+  <button class="tab" onclick="show('detail', this)">Detailvergleich</button>
+  <button class="tab" onclick="show('output', this)">Output-Inhalt</button>
+  <button class="tab" onclick="show('bugs', this)">Bugs &amp; Risiken</button>
+</div>
+
+<!-- OVERVIEW -->
+<div id="overview" class="panel active">
+  <p class="section-title">Gesamtbewertung (1–10)</p>
+  <div class="score-grid">
+    <div class="score-card">
+      <div class="label">PowerShell</div>
+      <div class="name">jira_transform.ps1</div>
+      <div class="score-bar-wrap"><div class="score-bar" style="width:45%;background:#f59e0b"></div></div>
+      <div class="score-val" style="color:#b45309">4.5 / 10</div>
+    </div>
+    <div class="score-card">
+      <div class="label">Python</div>
+      <div class="name">export_jira.py</div>
+      <div class="score-bar-wrap"><div class="score-bar" style="width:88%;background:#10b981"></div></div>
+      <div class="score-val" style="color:#065f46">8.8 / 10</div>
+    </div>
+    <div class="score-card">
+      <div class="label">Launcher</div>
+      <div class="name">jira_fetch.bat</div>
+      <div class="score-bar-wrap"><div class="score-bar" style="width:65%;background:#6366f1"></div></div>
+      <div class="score-val" style="color:#3730a3">6.5 / 10</div>
+    </div>
+  </div>
+
+  <div class="diff-grid">
+    <div class="diff-col ps">
+      <h3>PowerShell – Stärken &amp; Schwächen</h3>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>Inkrementeller Sync</b> – holt nur geänderte Issues seit dem letzten Export</span></div>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>Squad-Kapazität</b> aus Config in Output-JSON</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Bug: URL ohne Anführungszeichen</b> (Zeile 38) – würde vermutlich crashen</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Page-Size 100</b> – 5× mehr API-Requests als nötig</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Kein Retry</b> – jeder Netzwerkfehler bricht alles ab</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Passwort interaktiv</b> – nicht automatisierbar</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Keine Metriken</b> (kein LeadTime, CycleTime etc.)</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Kein Dry-Run</b>, keine Tests möglich</span></div>
+    </div>
+    <div class="diff-col py">
+      <h3>Python – Stärken &amp; Schwächen</h3>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>Page-Size 500</b> – bis zu 5× weniger API-Requests</span></div>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>Retry-Logik</b> (3× mit Backoff) bei Netzwerkproblemen</span></div>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>3 Output-Tabellen</b>: Stories, Epics, Blockermanagement</span></div>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>Metriken berechnet</b>: LeadTime, CycleTime, TimeInWIP</span></div>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>Credentials via Env-Var</b> – CI/CD-tauglich</span></div>
+      <div class="diff-item"><div class="diff-dot"></div><span><b>--dry-run</b> zum Testen ohne API-Aufruf</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Kein Inkremental-Sync</b> – immer Vollabzug</span></div>
+      <div class="diff-item"><div class="diff-dot" style="background:#ef4444"></div><span><b>Keine Squad-Kapazität</b> im Output</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- PERFORMANCE -->
+<div id="perf" class="panel">
+  <p class="section-title">Performance-Vergleich</p>
+  <table class="cmp-table">
+    <thead>
+      <tr><th>Kriterium</th><th>PowerShell</th><th>Python</th><th>Sieger</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Page-Size</b><br><span style="color:#888;font-size:10px">Issues pro API-Request</span></td>
+        <td>100 Issues <span class="tag tag-red">klein</span></td>
+        <td>500 Issues <span class="tag tag-green">groß</span></td>
+        <td><span class="winner-badge">🐍 Python</span></td>
+      </tr>
+      <tr>
+        <td><b>Netzwerk-Fehlertoleranz</b></td>
+        <td>Kein Retry → <span class="tag tag-red">Abbruch</span></td>
+        <td>3× Retry mit Backoff → <span class="tag tag-green">Robuster</span></td>
+        <td><span class="winner-badge">🐍 Python</span></td>
+      </tr>
+      <tr>
+        <td><b>Datenverarbeitung</b></td>
+        <td>Zeile-für-Zeile in PowerShell-Schleife</td>
+        <td>pandas DataFrame (vektorisiert)</td>
+        <td><span class="winner-badge">🐍 Python</span></td>
+      </tr>
+      <tr>
+        <td><b>Session-Pooling</b></td>
+        <td><span class="tag tag-red">Nein</span> – neue Verbindung pro Request</td>
+        <td><span class="tag tag-green">Ja</span> – requests.Session</td>
+        <td><span class="winner-badge">🐍 Python</span></td>
+      </tr>
+      <tr>
+        <td><b>Inkrementeller Sync</b></td>
+        <td><span class="tag tag-green">Ja</span> – holt nur Updates seit letztem Export</td>
+        <td><span class="tag tag-red">Nein</span> – immer Vollabzug</td>
+        <td><span class="winner-badge">⚡ PowerShell</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- DETAIL COMPARISON -->
+<div id="detail" class="panel">
+  <p class="section-title">Detailvergleich nach Kategorie</p>
+  <table class="cmp-table">
+    <thead>
+      <tr><th>Kategorie</th><th>PowerShell</th><th>Python</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Credential-Sicherheit</b></td>
+        <td>Interaktiv (Read-Host), manuell aus Speicher gelöscht <span class="tag tag-yellow">Manuell sicher</span></td>
+        <td>Environment-Variablen (JIRA_USER, JIRA_TOKEN) <span class="tag tag-green">Sicherer</span></td>
+      </tr>
+      <tr>
+        <td><b>Fehlerbehandlung</b></td>
+        <td>Stoppt bei jedem Fehler <span class="tag tag-red">Alles-oder-nichts</span></td>
+        <td>Sammelt Warnungen, macht weiter <span class="tag tag-green">Graceful degradation</span></td>
+      </tr>
+      <tr>
+        <td><b>Codestruktur</b></td>
+        <td>Alles in einer Datei, Abschnitte mit Kommentaren <span class="tag tag-yellow">OK für ein Skript</span></td>
+        <td>Klare Schichten: SRC → STG → OUTPUT <span class="tag tag-green">Wartbar, testbar</span></td>
+      </tr>
+      <tr>
+        <td><b>Automatisierung / CI-CD</b></td>
+        <td>Erfordert interaktive Passworteingabe <span class="tag tag-red">Nicht automatisierbar</span></td>
+        <td>Läuft headless mit Env-Vars <span class="tag tag-green">CI/CD-fähig</span></td>
+      </tr>
+      <tr>
+        <td><b>Dry-Run / Test</b></td>
+        <td>Keiner vorhanden <span class="tag tag-red">Fehlt</span></td>
+        <td><code>--dry-run</code> Flag <span class="tag tag-green">Vorhanden</span></td>
+      </tr>
+      <tr>
+        <td><b>Epics</b></td>
+        <td>Werden mitgeladen, aber wie Stories behandelt <span class="tag tag-yellow">Nicht getrennt</span></td>
+        <td>Eigene Tabelle JiraEpics mit Status-Pivot <span class="tag tag-green">Getrennt</span></td>
+      </tr>
+      <tr>
+        <td><b>Blockermanagement</b></td>
+        <td>Kein Blocked-Tracking <span class="tag tag-red">Fehlt</span></td>
+        <td>Eigene Tabelle mit Episoden, Dauer, Häufigkeit <span class="tag tag-green">Vollständig</span></td>
+      </tr>
+      <tr>
+        <td><b>Dependency</b></td>
+        <td>Kein pip, läuft auf jedem Windows-PC direkt <span class="tag tag-green">Zero-Install</span></td>
+        <td>pandas, requests, yaml, urllib3 nötig <span class="tag tag-yellow">Virtuelle Umgebung nötig</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- OUTPUT CONTENT -->
+<div id="output" class="panel">
+  <p class="section-title">Was kommt raus? – Output-Tabellen im Vergleich</p>
+  <div class="output-grid">
+    <div class="output-col">
+      <h3>⚡ PowerShell (nach Erweiterung)</h3>
+      <div class="sheet-item">
+        <div class="sheet-name">📋 JiraStories</div>
+        <div class="sheet-desc">Stories, Tasks, Bugs mit dynamischen Status-Spalten</div>
+        <div class="metric-row">
+          <span class="tag tag-gray">Jira-ID</span>
+          <span class="tag tag-gray">Issue-Type</span>
+          <span class="tag tag-gray">Squad</span>
+          <span class="tag tag-gray">Status</span>
+          <span class="tag tag-gray">Resolved / Rejected</span>
+          <span class="tag tag-gray">Sprint</span>
+          <span class="tag tag-gray">Dynamic Status-Cols</span>
+        </div>
+      </div>
+      <div class="sheet-item">
+        <div class="sheet-name">🏆 JiraEpics</div>
+        <div class="sheet-desc">Epics mit Stage, EPIC-Kategorie und Status-Pivot</div>
+        <div class="metric-row">
+          <span class="tag tag-green">Kurzbeschreibung</span>
+          <span class="tag tag-green">Stage</span>
+          <span class="tag tag-green">EPIC-Kategorie</span>
+          <span class="tag tag-green">Status-Pivot-Cols</span>
+        </div>
+      </div>
+      <div class="sheet-item">
+        <div class="sheet-name">🚧 JiraBlockermanagement</div>
+        <div class="sheet-desc">Blocked-Episoden aus Changelog</div>
+        <div class="metric-row">
+          <span class="tag tag-green">BlockedStart / End</span>
+          <span class="tag tag-green">BlockedDurationHours</span>
+          <span class="tag tag-green">BlockiertWartendSeit</span>
+          <span class="tag tag-green">Wie oft in Blocked</span>
+        </div>
+      </div>
+      <div class="sheet-item">
+        <div class="sheet-name">🏢 SquadDaten</div>
+        <div class="sheet-desc">Squad-Namen + Kapazitäten aus Config</div>
+        <div class="metric-row"><span class="tag tag-blue">Squad-Name</span><span class="tag tag-blue">Kapazität</span></div>
+      </div>
+    </div>
+    <div class="output-col">
+      <h3>🐍 Python</h3>
+      <div class="sheet-item">
+        <div class="sheet-name">📋 JiraStories</div>
+        <div class="sheet-desc">Stories, Tasks, Bugs – mit berechneten Metriken</div>
+        <div class="metric-row">
+          <span class="tag tag-green">LeadTime</span>
+          <span class="tag tag-green">CycleTime</span>
+          <span class="tag tag-green">TimeInWIP</span>
+          <span class="tag tag-green">TimeInActualStatus</span>
+          <span class="tag tag-green">TimeInStatusBlocked</span>
+          <span class="tag tag-gray">Dynamic Status-Cols + _first + _Count</span>
+        </div>
+      </div>
+      <div class="sheet-item">
+        <div class="sheet-name">🏆 JiraEpics</div>
+        <div class="sheet-desc">Epics mit Status-Pivot (letzter Eintritt pro Status)</div>
+        <div class="metric-row">
+          <span class="tag tag-green">Stage</span>
+          <span class="tag tag-green">EPIC-Kategorie</span>
+          <span class="tag tag-green">Status-Pivot-Cols</span>
+        </div>
+      </div>
+      <div class="sheet-item">
+        <div class="sheet-name">🚧 JiraBlockermanagement</div>
+        <div class="sheet-desc">Blocked-Episoden mit Zustand/Grund-Trennung</div>
+        <div class="metric-row">
+          <span class="tag tag-green">BlockedStart / End</span>
+          <span class="tag tag-green">BlockedDurationHours</span>
+          <span class="tag tag-green">Zustand / Grund</span>
+          <span class="tag tag-green">Wie oft in Blocked</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BUGS & RISKS -->
+<div id="bugs" class="panel">
+  <p class="section-title">Bugs &amp; Risiken (Stand: Original-Skript vor Überarbeitung)</p>
+
+  <div class="bug-box">
+    <div class="bug-title">🐛 Bug #1 – URL ohne Anführungszeichen (jira_transform.ps1, Zeile 38) – behoben</div>
+    <div class="bug-code">$baseUrl    = https://jiraws.axa.com/jira</div>
+    <div style="font-size:11px;margin:6px 0;color:#555">PowerShell interpretiert <code>https:</code> als Namespace-Aufruf, nicht als String.</div>
+    <div class="bug-fix">$baseUrl    = "https://jiraws.axa.com/jira"</div>
+  </div>
+
+  <table class="cmp-table">
+    <thead>
+      <tr><th>Risiko</th><th>PowerShell</th><th>Python</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Netzwerkausfall mitten im Export</b></td>
+        <td><span class="tag tag-red">Vollabbruch</span> – alles weg, neu starten</td>
+        <td><span class="tag tag-yellow">3 Retries</span>, dann Warnung, weiter mit nächstem Projekt</td>
+      </tr>
+      <tr>
+        <td><b>Passwort im Speicher</b></td>
+        <td>Manuell mit ZeroFreeBSTR gelöscht <span class="tag tag-yellow">gut gemeint, aber fragil</span></td>
+        <td>Nie im Script – kommt aus Env-Var <span class="tag tag-green">Sauber</span></td>
+      </tr>
+      <tr>
+        <td><b>Inkrementeller Sync: alte Datei löschen</b></td>
+        <td><code>Remove-Item</code> ohne Backup <span class="tag tag-red">Datenverlust möglich</span></td>
+        <td>Kein inkrementeller Sync → kein Risiko</td>
+      </tr>
+      <tr>
+        <td><b>Nummerierung Abschnitt 9</b></td>
+        <td>Zweimal „9." im Kommentar (kosmetisch) <span class="tag tag-gray">Trivial</span></td>
+        <td>–</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

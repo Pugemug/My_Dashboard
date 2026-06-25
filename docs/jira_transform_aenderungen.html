@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>jira_transform.ps1 – 5 Änderungen</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  background: #fff;
+  color: #1a1a1a;
+  padding: 20px;
+  line-height: 1.5;
+}
+h1 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.subtitle { color: #666; font-size: 11px; margin-bottom: 18px; }
+
+.change {
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px; margin-bottom: 14px; overflow: hidden;
+}
+.change-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; cursor: pointer;
+  background: #f8f8f8;
+  user-select: none;
+}
+.change-header:hover { background: #f0f0f0; }
+.change-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.change-title { font-weight: 600; font-size: 13px; flex: 1; }
+.change-loc { font-size: 10px; color: #888; font-family: monospace; }
+.change-arrow { color: #aaa; font-size: 12px; transition: transform .2s; }
+.change-arrow.open { transform: rotate(90deg); }
+.change-body { display: none; padding: 12px 14px; border-top: 1px solid #eee; }
+.change-body.open { display: block; }
+.change-desc { font-size: 12px; margin-bottom: 10px; color: #444; }
+
+pre {
+  background: #1a1a2e; color: #e2e8f0;
+  border-radius: 6px; padding: 10px 12px;
+  font-size: 11px; font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  overflow-x: auto; white-space: pre; tab-size: 4;
+  line-height: 1.6;
+}
+.del { color: #f87171; }
+.add { color: #86efac; }
+.cmt { color: #94a3b8; }
+.kw  { color: #c4b5fd; }
+.fn  { color: #67e8f9; }
+.str { color: #fde68a; }
+
+.tag {
+  display: inline-block; padding: 2px 7px; border-radius: 99px;
+  font-size: 10px; font-weight: 600;
+}
+.tag-new { background: #dcfce7; color: #166534; }
+.tag-mod { background: #dbeafe; color: #1e40af; }
+.tag-fix { background: #fee2e2; color: #991b1b; }
+
+.summary-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 24px; }
+.summary-table th {
+  text-align: left; padding: 8px 10px;
+  background: #f5f5f5; border-bottom: 2px solid #ddd;
+  font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+}
+.summary-table td { padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+.summary-table tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<h1>jira_transform.ps1 – 5 Änderungen</h1>
+<p class="subtitle">Erweiterung um JiraEpics + JiraBlockermanagement &nbsp;|&nbsp; Stand: 2026-06-25 &nbsp;|&nbsp; jira_fetch.bat bleibt unverändert</p>
+
+<!-- Change 1 -->
+<div class="change">
+  <div class="change-header" onclick="toggle(this)">
+    <div class="change-num" style="background:#6366f1">1</div>
+    <div class="change-title">URL-Bug fixen + Custom Fields + Fields-Param erweitern &nbsp;<span class="tag tag-fix">Bug-Fix</span></div>
+    <div class="change-loc">Zeile 38 &amp; 51–62 &amp; $fieldsParam</div>
+    <div class="change-arrow open">▶</div>
+  </div>
+  <div class="change-body open">
+    <p class="change-desc">URL ohne Anführungszeichen verursacht einen PowerShell-Syntaxfehler. Außerdem fehlt <code>epicCategory</code> (EPIC-Kategorie, customfield_17726) in den Custom-Field-Defaults, und <code>summary</code> sowie <code>epicCategory</code> müssen im API-Felder-Parameter ergänzt werden.</p>
+<pre><span class="cmt"># Zeile 38 – URL-Bug</span>
+<span class="del">- $baseUrl    = https://jiraws.axa.com/jira</span>
+<span class="add">+ $baseUrl    = "https://jiraws.axa.com/jira"</span>
+
+<span class="cmt"># Custom-Field-Defaults (Zeilen 54–61)</span>
+  [PSCustomObject]@{
+      epicLink      = <span class="str">"customfield_10222"</span>
+      sprint        = <span class="str">"customfield_10221"</span>
+      epicStage     = <span class="str">"customfield_19320"</span>
+<span class="add">+     epicCategory  = "customfield_17726"</span>
+      blockedReason = <span class="str">"customfield_23623"</span>
+      akzeptanz     = <span class="str">"customfield_11720"</span>
+  }
+
+<span class="cmt"># $fieldsParam</span>
+<span class="del">- $fieldsParam = "issuetype,status,created,updated,project,..."</span>
+<span class="del">-              + ",...,$($cf.epicStage),$($cf.blockedReason),..."</span>
+<span class="add">+ $fieldsParam = "summary,issuetype,status,created,updated,project,..."</span>
+<span class="add">+              + ",...,$($cf.epicStage),$($cf.epicCategory),$($cf.blockedReason),..."</span></pre>
+  </div>
+</div>
+
+<!-- Change 2 -->
+<div class="change">
+  <div class="change-header" onclick="toggle(this)">
+    <div class="change-num" style="background:#10b981">2</div>
+    <div class="change-title">Neue Funktion: <code>Get-EpicStatusPivot</code> &nbsp;<span class="tag tag-new">Neu</span></div>
+    <div class="change-loc">Nach Abschnitt 6 (Get-SprintName) einfügen</div>
+    <div class="change-arrow">▶</div>
+  </div>
+  <div class="change-body">
+    <p class="change-desc">Für Epics: letzter Eintrittszeitpunkt je Status als Dictionary. Im Gegensatz zur Dual-Period-Logik für Stories zählt hier nur der neueste Wert pro Status.</p>
+<pre><span class="kw">function</span> <span class="fn">Get-EpicStatusPivot</span> {
+    <span class="kw">param</span>($Issue)
+    $pivot = @{}
+    <span class="kw">if</span> (-not ($Issue.PSObject.Properties[<span class="str">'changelog'</span>] -and
+              $Issue.changelog.PSObject.Properties[<span class="str">'histories'</span>])) {
+        <span class="kw">return</span> $pivot
+    }
+    <span class="kw">foreach</span> ($h <span class="kw">in</span> ($Issue.changelog.histories | Sort-Object { [datetime]$_.created })) {
+        <span class="kw">foreach</span> ($item <span class="kw">in</span> $h.items) {
+            <span class="kw">if</span> ($item.field -eq <span class="str">"status"</span>) {
+                $s = $item.toString
+                <span class="kw">if</span> (-not $pivot.ContainsKey($s) -or
+                    [datetime]$h.created -gt [datetime]$pivot[$s]) {
+                    $pivot[$s] = $h.created   <span class="cmt"># letzter Wert gewinnt</span>
+                }
+            }
+        }
+    }
+    <span class="kw">return</span> $pivot
+}</pre>
+  </div>
+</div>
+
+<!-- Change 3 -->
+<div class="change">
+  <div class="change-header" onclick="toggle(this)">
+    <div class="change-num" style="background:#10b981">3</div>
+    <div class="change-title">Neue Funktion: <code>Convert-EpicToRow</code> &nbsp;<span class="tag tag-new">Neu</span></div>
+    <div class="change-loc">Nach Get-EpicStatusPivot einfügen</div>
+    <div class="change-arrow">▶</div>
+  </div>
+  <div class="change-body">
+    <p class="change-desc">Baut eine Epic-Zeile mit Summary, Stage, EPIC-Kategorie und dynamischen Status-Spalten (aus Get-EpicStatusPivot). Epics erhalten keine Resolved/Rejected/Sprint-Felder.</p>
+<pre><span class="kw">function</span> <span class="fn">Convert-EpicToRow</span> {
+    <span class="kw">param</span>($Issue, [string]$SquadName, $CustomFields)
+    $f = $Issue.fields
+
+    $stageRaw = <span class="kw">if</span> ($f.PSObject.Properties[$CustomFields.epicStage]) {
+                    $f.($CustomFields.epicStage) } <span class="kw">else</span> { $null }
+    $stage    = <span class="kw">if</span> ($stageRaw -and $stageRaw.PSObject.Properties[<span class="str">'value'</span>]) {
+                    $stageRaw.value } <span class="kw">else</span> { <span class="str">"$stageRaw"</span> }
+
+    $catRaw   = <span class="kw">if</span> ($f.PSObject.Properties[$CustomFields.epicCategory]) {
+                    $f.($CustomFields.epicCategory) } <span class="kw">else</span> { $null }
+    $cat      = <span class="kw">if</span> ($catRaw -and $catRaw.PSObject.Properties[<span class="str">'value'</span>]) {
+                    $catRaw.value } <span class="kw">else</span> { <span class="str">"$catRaw"</span> }
+
+    $pivot = <span class="fn">Get-EpicStatusPivot</span> -Issue $Issue
+
+    $row = [ordered]@{
+        <span class="str">"Jira-ID"</span>              = $Issue.key
+        <span class="str">"Kurzbeschreibung"</span>     = $f.summary
+        <span class="str">"Issue-Status"</span>         = $f.status.name
+        <span class="str">"Stage"</span>                = $stage
+        <span class="str">"EPIC-Kategorie"</span>       = $cat
+        <span class="str">"Created (Status New)"</span> = $f.created
+        <span class="str">"Squad"</span>                = $SquadName
+        <span class="str">"Project-Key"</span>          = $f.project.key
+    }
+    <span class="kw">foreach</span> ($key <span class="kw">in</span> ($pivot.Keys | Sort-Object)) { $row[$key] = $pivot[$key] }
+    <span class="kw">return</span> $row
+}</pre>
+  </div>
+</div>
+
+<!-- Change 4 -->
+<div class="change">
+  <div class="change-header" onclick="toggle(this)">
+    <div class="change-num" style="background:#10b981">4</div>
+    <div class="change-title">Neue Funktion: <code>Get-BlockedEpisodes</code> &nbsp;<span class="tag tag-new">Neu</span></div>
+    <div class="change-loc">Nach Convert-EpicToRow einfügen</div>
+    <div class="change-arrow">▶</div>
+  </div>
+  <div class="change-body">
+    <p class="change-desc">Liest aus dem Changelog jede Blocked-Episode: Start = toString gesetzt, Ende = fromString gesetzt. Paart Start- und End-Events der Reihe nach (BlockedSeq). Berechnet Dauer in Stunden und „seit wie vielen Tagen blockiert".</p>
+<pre><span class="kw">function</span> <span class="fn">Get-BlockedEpisodes</span> {
+    <span class="kw">param</span>($Issue, [string]$SquadName, $CustomFields)
+    $episodes = [System.Collections.Generic.List[object]]::new()
+    <span class="kw">if</span> (-not $Issue.changelog.PSObject.Properties[<span class="str">'histories'</span>]) { <span class="kw">return</span> $episodes }
+
+    $starts = [System.Collections.Generic.List[string]]::new()
+    $ends   = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+    <span class="kw">foreach</span> ($h <span class="kw">in</span> ($Issue.changelog.histories | Sort-Object { [datetime]$_.created })) {
+        <span class="kw">foreach</span> ($item <span class="kw">in</span> $h.items) {
+            <span class="cmt"># Feld per ID oder Anzeigename erkennen</span>
+            <span class="kw">if</span> ($item.field -eq $CustomFields.blockedReason -or
+                $item.field -eq <span class="str">"Blocked Reason"</span> -or
+                $item.field -eq <span class="str">"Blockiert/Wartend"</span>) {
+                <span class="kw">if</span> (-not [string]::IsNullOrWhiteSpace($item.toString))   { $starts.Add($h.created) }
+                <span class="kw">if</span> (-not [string]::IsNullOrWhiteSpace($item.fromString)) {
+                    $ends.Add([PSCustomObject]@{ Time = $h.created; Reason = $item.fromString })
+                }
+            }
+        }
+    }
+
+    <span class="kw">for</span> ($i = 0; $i -lt $starts.Count; $i++) {
+        $start = $starts[$i]
+        $end   = <span class="kw">if</span> ($i -lt $ends.Count) { $ends[$i] } <span class="kw">else</span> { $null }
+        $durH  = <span class="kw">if</span> ($end) { [math]::Round(([datetime]$end.Time - [datetime]$start).TotalHours, 2) } <span class="kw">else</span> { $null }
+        $seit  = <span class="kw">if</span> (-not $end) { ([datetime]::Now - [datetime]$start).Days }
+                 <span class="kw">elseif</span> ($durH) { [math]::Ceiling($durH / 24) } <span class="kw">else</span> { $null }
+
+        $episodes.Add([PSCustomObject]@{
+            <span class="str">"Jira-ID"</span>              = $Issue.key
+            <span class="str">"Status"</span>               = $Issue.fields.status.name
+            <span class="str">"Squad"</span>                = $SquadName
+            <span class="str">"BlockedStart"</span>         = $start
+            <span class="str">"BlockedEnd"</span>           = <span class="kw">if</span> ($end) { $end.Time } <span class="kw">else</span> { $null }
+            <span class="str">"BlockedReason"</span>        = <span class="kw">if</span> ($end) { $end.Reason } <span class="kw">else</span> { $null }
+            <span class="str">"BlockedSeq"</span>           = $i + 1
+            <span class="str">"BlockedDurationHours"</span>  = $durH
+            <span class="str">"BlockiertWartendSeit"</span>  = $seit
+        })
+    }
+    <span class="kw">return</span> $episodes
+}</pre>
+  </div>
+</div>
+
+<!-- Change 5 -->
+<div class="change">
+  <div class="change-header" onclick="toggle(this)">
+    <div class="change-num" style="background:#f59e0b">5</div>
+    <div class="change-title">Hauptschleife + Merge + JSON-Output anpassen &nbsp;<span class="tag tag-mod">Änderung</span></div>
+    <div class="change-loc">Abschnitt 7 (Schleife), Abschnitt 8 (Merge), Abschnitt 9 (Output)</div>
+    <div class="change-arrow">▶</div>
+  </div>
+  <div class="change-body">
+    <p class="change-desc">Issues nach Typ aufteilen (Epic → <code>$allEpics</code>, sonst → <code>$allStories</code>), Blocked-Episoden sammeln, „Wie oft in Blocked" nachberechnen, inkrementellen Merge auf alle drei Sammlungen ausweiten, vier Sheets in den JSON-Output schreiben.</p>
+<pre><span class="cmt"># Sammlungen initialisieren</span>
+  $allStories = [System.Collections.Generic.List[object]]::new()
+<span class="add">+ $allEpics   = [System.Collections.Generic.List[object]]::new()</span>
+<span class="add">+ $allBlocked = [System.Collections.Generic.List[object]]::new()</span>
+
+<span class="cmt"># Issue-Schleife – nach Typ verzweigen</span>
+<span class="del">- foreach ($issue in $response.issues) {</span>
+<span class="del">-     $row = Convert-IssueToRow -Issue $issue -SquadName $squadName -CustomFields $cf</span>
+<span class="del">-     $allStories.Add([PSCustomObject]$row)</span>
+<span class="del">- }</span>
+<span class="add">+ foreach ($issue in $response.issues) {</span>
+<span class="add">+     $type = $issue.fields.issuetype.name</span>
+<span class="add">+     if ($type -eq "Epic") {</span>
+<span class="add">+         $row = Convert-EpicToRow -Issue $issue -SquadName $squadName -CustomFields $cf</span>
+<span class="add">+         $allEpics.Add([PSCustomObject]$row)</span>
+<span class="add">+     } else {</span>
+<span class="add">+         $row = Convert-IssueToRow -Issue $issue -SquadName $squadName -CustomFields $cf</span>
+<span class="add">+         $allStories.Add([PSCustomObject]$row)</span>
+<span class="add">+     }</span>
+<span class="add">+     foreach ($ep in (Get-BlockedEpisodes -Issue $issue -SquadName $squadName -CustomFields $cf)) {</span>
+<span class="add">+         $allBlocked.Add($ep)</span>
+<span class="add">+     }</span>
+<span class="add">+ }</span>
+
+<span class="cmt"># Nach der Squad-Schleife: "Wie oft in Blocked" berechnen</span>
+<span class="add">+ $blockedCount = @{}</span>
+<span class="add">+ foreach ($ep in $allBlocked) {</span>
+<span class="add">+     $k = $ep.'Jira-ID'</span>
+<span class="add">+     if ($blockedCount.ContainsKey($k)) { $blockedCount[$k]++ } else { $blockedCount[$k] = 1 }</span>
+<span class="add">+ }</span>
+<span class="add">+ foreach ($ep in $allBlocked) {</span>
+<span class="add">+     $ep | Add-Member -NotePropertyName "Wie oft in Blocked" -NotePropertyValue $blockedCount[$ep.'Jira-ID'] -Force</span>
+<span class="add">+ }</span>
+
+<span class="cmt"># Inkrementeller Merge – Epics + Blocked ergänzt</span>
+<span class="add">+ # Epics per Jira-ID mergen</span>
+<span class="add">+ $epicMergeMap = [System.Collections.Generic.Dictionary[string,object]]::new()</span>
+<span class="add">+ foreach ($row in @($existingData.sheets.JiraEpics)) { if ($row.'Jira-ID') { $epicMergeMap[$row.'Jira-ID'] = $row } }</span>
+<span class="add">+ foreach ($row in $allEpics) { $epicMergeMap[$row.'Jira-ID'] = $row }</span>
+<span class="add">+ $allEpics = [System.Collections.Generic.List[object]]::new()</span>
+<span class="add">+ foreach ($val in $epicMergeMap.Values) { $allEpics.Add($val) }</span>
+<span class="add">+</span>
+<span class="add">+ # Blocked: Episoden aktualisierter Issues komplett ersetzen</span>
+<span class="add">+ $updatedKeys = [System.Collections.Generic.HashSet[string]]::new()</span>
+<span class="add">+ foreach ($ep in $allBlocked) { [void]$updatedKeys.Add($ep.'Jira-ID') }</span>
+<span class="add">+ $mergedBlocked = [System.Collections.Generic.List[object]]::new()</span>
+<span class="add">+ foreach ($row in @($existingData.sheets.JiraBlockermanagement)) {</span>
+<span class="add">+     if ($row -and -not $updatedKeys.Contains($row.'Jira-ID')) { $mergedBlocked.Add($row) }</span>
+<span class="add">+ }</span>
+<span class="add">+ foreach ($ep in $allBlocked) { $mergedBlocked.Add($ep) }</span>
+<span class="add">+ $allBlocked = $mergedBlocked</span>
+
+<span class="cmt"># JSON-Output – 4 statt 2 Sheets</span>
+  sheets = [ordered]@{
+      JiraStories           = $allStories.ToArray()
+<span class="add">+     JiraEpics             = $allEpics.ToArray()</span>
+<span class="add">+     JiraBlockermanagement = $allBlocked.ToArray()</span>
+      SquadDaten            = $squadDaten.ToArray()
+  }</pre>
+  </div>
+</div>
+
+<!-- Summary table -->
+<table class="summary-table">
+  <thead>
+    <tr><th>#</th><th>Was</th><th>Wo</th><th>Art</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>URL-Bug fixen + <code>epicCategory</code> + <code>summary</code> ergänzen</td>
+      <td>Zeile 38, Zeilen 54–61, <code>$fieldsParam</code></td>
+      <td><span class="tag tag-fix">Bug-Fix</span></td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>Funktion <code>Get-EpicStatusPivot</code></td>
+      <td>Neu nach Abschnitt 6</td>
+      <td><span class="tag tag-new">Neu</span></td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>Funktion <code>Convert-EpicToRow</code></td>
+      <td>Neu nach Change 2</td>
+      <td><span class="tag tag-new">Neu</span></td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>Funktion <code>Get-BlockedEpisodes</code></td>
+      <td>Neu nach Change 3</td>
+      <td><span class="tag tag-new">Neu</span></td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>Hauptschleife aufteilen, Merge erweitern, JSON-Output auf 4 Sheets</td>
+      <td>Abschnitt 7, 8, 9</td>
+      <td><span class="tag tag-mod">Änderung</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<script>
+function toggle(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.change-arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+</script>
+</body>
+</html>
