@@ -5,3 +5,4 @@ test-results/
 coverage/
 .claude/
 docs/prototypes/
+tools/__pycache__/export_jira.cpython-313.pyc
