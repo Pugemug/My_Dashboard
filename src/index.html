@@ -8,9 +8,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:3px}
 :root{
   --bg:#0f1c30;--bg2:#162035;--bg3:#1e2e47;--bg4:#273552;
-  --border:#2a3d5c;--text:#e8f0fe;--dim:#8ba8c8;--dimmer:#4d6a88;
+  --border:#2a3d5c;--text:#e8f0fe;--dim:#8ba8c8;--dimmer:#7090ad;
   --blue:#38bdf8;--red:#f87171;--green:#4ade80;--yellow:#fbbf24;
   --purple:#c084fc;--orange:#fb923c;
   --sans:'DM Sans',system-ui,sans-serif;--mono:'DM Mono','Courier New',monospace;
@@ -19,7 +20,7 @@
 }
 [data-theme="light"]{
   --bg:#f1f5f9;--bg2:#ffffff;--bg3:#f8fafc;--bg4:#e2e8f0;
-  --border:#cbd5e1;--text:#0f172a;--dim:#475569;--dimmer:#94a3b8;
+  --border:#cbd5e1;--text:#0f172a;--dim:#475569;--dimmer:#64748b;
   --blue:#0284c7;--red:#dc2626;--green:#16a34a;--yellow:#b45309;
   --purple:#7c3aed;--orange:#c2410c;
   color-scheme:light;
@@ -51,10 +52,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 /* Sheet-Navigator (Upload-Screen) */
 .sheet-nav{width:100%;max-width:440px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .sheet-tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--bg3)}
-.sheet-tab{display:flex;align-items:center;gap:.3rem;padding:.32rem .58rem;font-size:.63rem;font-weight:500;color:var(--dim);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s,background .12s;font-family:var(--sans);flex-shrink:0;margin-bottom:-1px}
+.sheet-tab{display:flex;align-items:center;gap:.3rem;padding:.45rem .7rem;min-height:36px;font-size:.68rem;font-weight:500;color:var(--dim);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s,background .12s;font-family:var(--sans);flex-shrink:0;margin-bottom:-1px}
 .sheet-tab:hover{color:var(--text)}
 .sheet-tab.active{color:var(--blue);border-bottom-color:var(--blue);background:var(--bg2)}
-.tab-badge{font-size:.55rem;font-family:var(--mono);padding:.1rem .28rem;border-radius:3px;font-weight:600;flex-shrink:0}
+.tab-badge{font-size:.65rem;font-family:var(--mono);padding:.15rem .35rem;border-radius:3px;font-weight:600;flex-shrink:0}
 .tab-badge.req{background:rgba(56,189,248,.12);color:var(--blue)}
 .tab-badge.opt{background:rgba(255,255,255,.05);color:var(--dimmer)}
 .sheet-tab-content{display:none;padding:.75rem 1rem}
@@ -62,7 +63,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .hint-cols{display:flex;flex-wrap:wrap;gap:.3rem}
 .hint-col{font-family:var(--mono);font-size:.67rem;padding:.18rem .45rem;border-radius:4px;white-space:nowrap}
 .hc-req{background:rgba(56,189,248,.12);color:var(--blue)}.hc-opt{background:rgba(255,255,255,.05);color:var(--dim)}.hc-state{background:rgba(251,146,60,.12);color:var(--orange)}
-.hint-note{font-size:.67rem;color:var(--dimmer);margin-top:.55rem;font-family:var(--mono);line-height:1.55}
+.hint-note{font-size:.72rem;color:var(--dimmer);margin-top:.55rem;font-family:var(--mono);line-height:1.55}
 
 /* ── DATA PREVIEW ── */
 #data-preview{display:none;max-width:440px;padding:1.25rem 1.4rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px}
@@ -103,7 +104,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .squad-dropdown{position:fixed;top:0;left:0;min-width:200px;max-width:280px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 32px rgba(0,0,0,.5);z-index:200;padding:.4rem 0;display:none}
 .squad-dropdown.open{display:block}
 .squad-dd-header{display:flex;gap:.3rem;padding:.3rem .55rem .4rem;border-bottom:1px solid var(--border);margin-bottom:.25rem}
-.sdd-btn{font-size:.63rem;font-family:var(--mono);padding:.15rem .4rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer}
+.sdd-btn{font-size:.68rem;font-family:var(--mono);padding:.3rem .55rem;min-height:28px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer}
 .sdd-btn:hover{color:var(--text)}
 .squad-opt{display:flex;align-items:center;gap:.45rem;padding:.22rem .55rem;cursor:pointer;transition:background .1s}
 .squad-opt:hover{background:var(--bg3)}
@@ -133,16 +134,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .settings-panel.open{display:block}
 .settings-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
 .settings-panel-title{font-size:.65rem;font-family:var(--mono);color:var(--dimmer);text-transform:uppercase;letter-spacing:.05em}
-.settings-close-btn{background:none;border:none;color:var(--dimmer);cursor:pointer;font-size:.9rem;padding:.1rem .3rem;border-radius:4px;line-height:1;transition:color .12s}
+.settings-close-btn{background:none;border:none;color:var(--dimmer);cursor:pointer;font-size:.9rem;padding:.25rem .45rem;min-width:32px;min-height:32px;border-radius:4px;line-height:1;transition:color .12s;display:flex;align-items:center;justify-content:center}
 .settings-close-btn:hover{color:var(--text);background:var(--bg3)}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:.5rem 0}
 .settings-section-label{font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--dimmer);margin-bottom:.35rem}
 .settings-row{display:flex;flex-direction:column;gap:.25rem;margin-bottom:.5rem}
 .settings-row:last-child{margin-bottom:0}
 .settings-label{font-size:.7rem;color:var(--dim)}
-.settings-input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:.7rem;padding:.3rem .45rem;outline:none}
+.settings-input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:.7rem;padding:.3rem .45rem}
 .settings-input:focus{border-color:var(--blue)}
-.settings-hint{font-size:.62rem;color:var(--dimmer)}
+.settings-hint{font-size:.7rem;color:var(--dimmer)}
 .settings-range{width:100%;cursor:pointer;accent-color:var(--blue);margin:.15rem 0}
 .settings-row--disabled{opacity:.4;pointer-events:none}
 /* Status-Reihenfolge im Settings-Panel */
@@ -155,7 +156,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .sidebar-logo{font-size:.8rem;font-weight:700;letter-spacing:-.02em;padding:.65rem .8rem;border-bottom:1px solid var(--border);color:var(--text);flex-shrink:0;white-space:nowrap}
 .sidebar-logo .hl{color:var(--blue)}
 .sidebar-nav{display:flex;flex-direction:column;padding:.25rem 0;flex:1}
-.sidebar-section{font-size:.56rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);padding:.65rem .8rem .18rem;opacity:.65;flex-shrink:0}
+.sidebar-section{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);padding:.65rem .8rem .18rem;opacity:.8;flex-shrink:0}
 .sidebar-link{display:flex;align-items:center;gap:.55rem;padding:.38rem .8rem;color:var(--dim);cursor:pointer;border-left:2px solid transparent;transition:color .12s,background .12s,border-color .12s;user-select:none}
 .sidebar-glyph{font-size:.95rem;line-height:1;flex-shrink:0;width:1.1rem;text-align:center;color:var(--dimmer);transition:color .12s}
 .sidebar-txt{display:flex;flex-direction:column;gap:.06rem;min-width:0}
@@ -291,7 +292,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .lt-field{display:flex;align-items:center;gap:.3rem}
 .lt-label{font-size:.65rem;color:var(--dim);font-family:var(--mono);white-space:nowrap}
 .lt-select{background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:.65rem;padding:.2rem .4rem;cursor:pointer;max-width:200px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a8fa8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .3rem center;padding-right:1.2rem}
-.lt-select:focus{outline:none;border-color:var(--purple)}
+.lt-select:focus{border-color:var(--purple)}
 .lt-hint{font-size:.6rem;color:var(--dimmer);font-family:var(--mono)}
 .status-panel-ctx{font-size:.6rem;color:var(--dim);font-family:var(--mono);font-weight:400;text-transform:none;letter-spacing:0}
 .status-reset-btn{font-size:.58rem;padding:.08rem .3rem;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);border-radius:3px;color:var(--orange);cursor:pointer;font-family:var(--mono)}
@@ -311,7 +312,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .o-handle{color:var(--dimmer);font-size:.58rem;cursor:grab}
 .o-num{font-family:var(--mono);font-size:.56rem;color:var(--dimmer);min-width:12px}
 .o-name{font-size:.68rem;color:var(--text)}
-.obtn{width:16px;height:16px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--dimmer);cursor:pointer;font-size:.56rem;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.obtn{width:24px;height:24px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--dimmer);cursor:pointer;font-size:.65rem;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
 .obtn:hover:not(:disabled){color:var(--yellow);border-color:rgba(251,191,36,.5)}
 .obtn:disabled{opacity:.15;cursor:default}
 /* Extra-Status (nicht in DEFAULT_STATUS_ORDER) */
@@ -353,15 +354,15 @@ td.td-group.clickable:hover{background:rgba(56,189,248,.08);color:var(--blue)}
 td.td-lt{background:rgba(192,132,252,.04)}
 .cell-in{padding:.35rem .42rem;min-width:78px;display:flex;flex-direction:column;gap:1px}
 .c-main{font-family:var(--mono);font-size:.88rem;color:var(--text);line-height:1.2}
-.c-sub{font-family:var(--mono);font-size:.53rem;color:var(--dimmer);white-space:nowrap}
-.c-n{font-family:var(--mono);font-size:.53rem;color:var(--dimmer);margin-top:1px}
+.c-sub{font-family:var(--mono);font-size:.64rem;color:var(--dimmer);white-space:nowrap}
+.c-n{font-family:var(--mono);font-size:.64rem;color:var(--dimmer);margin-top:1px}
 .c-bar-w{height:2px;background:rgba(255,255,255,.07);border-radius:2px;margin-top:3px;overflow:hidden}
 .c-bar{height:100%;border-radius:2px;background:rgba(255,255,255,.2)}
 .c-empty{display:flex;align-items:center;justify-content:center;min-height:50px;color:var(--dimmer);font-family:var(--mono);font-size:.6rem}
 
 /* ── LEGEND / DIAG ── */
 .legend-bar{display:flex;align-items:center;gap:.4rem;padding:.28rem .6rem;border-top:1px solid var(--border);font-size:.58rem;color:var(--dimmer);font-family:var(--mono);flex-shrink:0;background:var(--bg2)}
-.diag-bar{padding:.22rem .6rem;background:var(--bg);border-top:1px solid var(--border);font-family:var(--mono);font-size:.56rem;color:var(--dimmer);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.diag-bar{padding:.22rem .6rem;background:var(--bg);border-top:1px solid var(--border);font-family:var(--mono);font-size:.68rem;color:var(--dimmer);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
 
 /* ── TOOLTIPS ── */
 .tt-title{font-family:var(--sans);font-weight:600;font-size:.7rem;color:var(--blue);margin-bottom:.36rem;padding-bottom:.28rem;border-bottom:1px solid var(--border)}
@@ -386,6 +387,37 @@ td.td-lt{background:rgba(192,132,252,.04)}
 .tile-fullscreen-content .tile-expand-btn{display:none}
 .tile-fullscreen-content .tile-header{justify-content:flex-end}
 
+/* ── UPLOAD LOADING SPINNER ── */
+#upload-loading{position:absolute;inset:0;background:rgba(15,28,48,.75);display:none;align-items:center;justify-content:center;flex-direction:column;gap:.75rem;z-index:50;border-radius:14px}
+.ul-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+.ul-msg{font-size:.75rem;color:var(--dim);font-family:var(--mono)}
+@keyframes spin{to{transform:rotate(360deg)}}
+[data-theme="light"] #upload-loading{background:rgba(241,245,249,.8)}
+
+/* ── FILTER CHIPS (erkennbar als Dropdown) ── */
+.pf-filter-chip{padding:.25rem .6rem;font-size:.68rem;font-weight:600;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-family:var(--sans);transition:color .12s,border-color .12s,background .12s;letter-spacing:.01em}
+.pf-filter-chip:hover{border-color:var(--dim);background:var(--bg3)}
+.pf-filter-chip.pf-active{color:var(--blue);border-color:rgba(56,189,248,.5);background:rgba(56,189,248,.09)}
+.pf-filter-chip.pf-disabled{opacity:.5;cursor:not-allowed}
+.pf-reset{background:transparent;border-color:transparent;color:var(--dimmer);font-weight:400}
+.pf-reset:hover{color:var(--text);background:transparent;border-color:transparent}
+
+/* ── SIDEBAR COLLAPSE ── */
+.sidebar-collapse-btn{display:flex;align-items:center;gap:.5rem;padding:.34rem .8rem;color:var(--dimmer);cursor:pointer;font-size:.68rem;font-weight:500;background:transparent;border:none;width:100%;text-align:left;font-family:var(--sans);transition:color .12s,background .12s}
+.sidebar-collapse-btn:hover{color:var(--text);background:var(--bg3)}
+.sidebar.collapsed{width:52px;overflow:hidden}
+.sidebar.collapsed .sidebar-txt,.sidebar.collapsed .sidebar-section,.sidebar.collapsed .sidebar-filebadge,.sidebar.collapsed .sidebar-locked{display:none}
+.sidebar.collapsed .sidebar-glyph{font-size:1.1rem;width:auto;margin:0 auto}
+.sidebar.collapsed .sidebar-link{justify-content:center;padding:.45rem}
+.sidebar.collapsed .sidebar-logo{font-size:.55rem;padding:.5rem;text-align:center;overflow:hidden}
+.sidebar.collapsed .sidebar-bottom-btn{justify-content:center;padding:.38rem;overflow:hidden}
+.sidebar.collapsed .sidebar-bottom-btn-lbl{display:none}
+.sidebar.collapsed .sidebar-collapse-btn{justify-content:center;padding:.38rem}
+.sidebar.collapsed .sidebar-collapse-lbl{display:none}
+
+/* ── DATENCHECK STEP HINT ── */
+.dc-step-hint{font-size:.7rem;font-weight:600;color:var(--blue);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.55rem;opacity:.8}
+
 /* ── MISC ── */
 .state-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 2rem;gap:.4rem;text-align:center}
 .state-msg h3{color:var(--text);font-size:.88rem}.state-msg p{color:var(--dim);font-size:.7rem;font-family:var(--mono)}
@@ -404,6 +436,37 @@ td.td-lt{background:rgba(192,132,252,.04)}
 /* Drag-Handle und Resize-Handle ausblenden */
 .page-detail-canvas .card-drag-handle,
 .page-detail-canvas .card-resize-handle{display:none!important}
+
+/* ── TILE ORDER BUTTONS (Keyboard-Alternative für Drag) ── */
+.tile-order-btns{display:flex;gap:.2rem;flex-shrink:0}
+.tile-order-btn{width:22px;height:22px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--dimmer);cursor:pointer;font-size:.6rem;display:flex;align-items:center;justify-content:center;padding:0;transition:color .12s,border-color .12s}
+.tile-order-btn:hover:not(:disabled){color:var(--blue);border-color:rgba(56,189,248,.4)}
+.tile-order-btn:disabled{opacity:.2;cursor:default}
+
+/* ── CUSTOM CONFIRM MODAL ── */
+#confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:800;display:none;align-items:center;justify-content:center}
+#confirm-backdrop.open{display:flex}
+#confirm-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 20px 56px rgba(0,0,0,.6);padding:1.2rem 1.4rem;max-width:380px;width:90%;z-index:801}
+.confirm-title{font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:.5rem}
+.confirm-msg{font-size:.75rem;color:var(--dim);margin-bottom:1rem;line-height:1.5}
+.confirm-btns{display:flex;gap:.5rem;justify-content:flex-end}
+.confirm-btn-cancel{padding:.38rem .9rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--dim);font-family:var(--sans);font-size:.78rem;cursor:pointer;transition:color .12s}
+.confirm-btn-cancel:hover{color:var(--text)}
+.confirm-btn-ok{padding:.38rem .9rem;background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);border-radius:6px;color:var(--red);font-family:var(--sans);font-size:.78rem;font-weight:600;cursor:pointer;transition:background .12s}
+.confirm-btn-ok:hover{background:rgba(248,113,113,.25)}
+
+/* ── RESPONSIVE (schmale Bildschirme) ── */
+@media(max-width:800px){
+  .sidebar{width:56px;overflow:hidden}
+  .sidebar-txt,.sidebar-section,.sidebar-filebadge,.sidebar-locked{display:none}
+  .sidebar-logo{font-size:.6rem;padding:.5rem;text-align:center}
+  .sidebar-glyph{font-size:1.2rem;width:auto;margin:0 auto}
+  .sidebar-link{justify-content:center;padding:.5rem}
+  .sidebar-bottom-btn span{display:none}
+  .sidebar-bottom-btn{justify-content:center;padding:.4rem}
+  .page-scroll,.page-detail-canvas{overflow-x:auto}
+  .tile-container{justify-content:flex-start;padding:.5rem}
+}
 </style>
 </head>
 <body>
@@ -414,7 +477,11 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <div class="logo"><span class="logo-flow">Flow</span><span class="logo-heat">Analytics</span></div>
     <div class="logo-sub">Flow Analytics &middot; Dashboard</div>
   </div>
-  <div class="drop-zone" id="drop-zone">
+  <div class="drop-zone" id="drop-zone" style="position:relative">
+    <div id="upload-loading" aria-live="polite" aria-label="Datei wird geladen">
+      <div class="ul-spinner"></div>
+      <span class="ul-msg">Datei wird analysiert&hellip;</span>
+    </div>
     <div class="dz-grid">
       <div class="dz-cell c1"></div><div class="dz-cell c2"></div><div class="dz-cell c3"></div>
       <div class="dz-cell c4"></div><div class="dz-cell c2"></div><div class="dz-cell c1"></div>
@@ -431,6 +498,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
   <!-- Sheet-Navigator -->
   <div class="sheet-nav">
+    <div style="padding:.32rem .7rem;font-size:.65rem;color:var(--dimmer);font-family:var(--mono);border-bottom:1px solid var(--border);background:var(--bg3)">&#9432; Erwartete Spaltenstruktur &mdash; nicht der Inhalt Ihrer Datei</div>
     <div class="sheet-tabs">
       <button class="sheet-tab active" data-sntab="jira-stories">JiraStories <span class="tab-badge req">Pflicht</span></button>
       <button class="sheet-tab" data-sntab="jira-epics">JiraEpics <span class="tab-badge opt">optional</span></button>
@@ -494,21 +562,21 @@ td.td-lt{background:rgba(192,132,252,.04)}
 <div id="app-screen">
 
   <!-- Shared squad dropdown – position:fixed, geöffnet von jeder .btn-squad-trigger -->
-  <div class="squad-dropdown" id="squad-dropdown">
+  <div class="squad-dropdown" id="squad-dropdown" role="dialog" aria-label="Squad-Filter">
     <div class="squad-dd-header">
-      <button class="sdd-btn" id="sdd-all">Alle</button>
-      <button class="sdd-btn" id="sdd-none">Keine</button>
+      <button class="sdd-btn" id="sdd-all" aria-label="Alle Squads auswählen">Alle</button>
+      <button class="sdd-btn" id="sdd-none" aria-label="Keine Squads auswählen">Keine</button>
     </div>
-    <div id="squad-opts"></div>
+    <div id="squad-opts" role="list"></div>
   </div>
 
   <!-- Shared issue-type dropdown – position:fixed, geöffnet von jeder .btn-issuetype-trigger -->
-  <div class="squad-dropdown" id="issuetype-dropdown">
+  <div class="squad-dropdown" id="issuetype-dropdown" role="dialog" aria-label="Issue-Typ-Filter">
     <div class="squad-dd-header">
-      <button class="sdd-btn" id="sdd-type-all">Alle</button>
-      <button class="sdd-btn" id="sdd-type-none">Keine</button>
+      <button class="sdd-btn" id="sdd-type-all" aria-label="Alle Issue-Typen auswählen">Alle</button>
+      <button class="sdd-btn" id="sdd-type-none" aria-label="Keine Issue-Typen auswählen">Keine</button>
     </div>
-    <div id="issuetype-opts"></div>
+    <div id="issuetype-opts" role="list"></div>
   </div>
 
   <!-- Shared Zeitraum-Dropdown – position:fixed, geöffnet von jeder .btn-daterange-trigger -->
@@ -524,11 +592,11 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <div class="dr-divider">Zeitraum festlegen</div>
     <div class="dr-custom">
       <div class="dr-custom-row">
-        <label>Von</label>
+        <label for="dr-from">Von</label>
         <input type="date" id="dr-from">
       </div>
       <div class="dr-custom-row">
-        <label>Bis</label>
+        <label for="dr-to">Bis</label>
         <input type="date" id="dr-to">
       </div>
       <button id="dr-apply">&#10003; &Uuml;bernehmen</button>
@@ -549,62 +617,72 @@ td.td-lt{background:rgba(192,132,252,.04)}
   <div class="app-body">
 
     <!-- Persistente linke Navigation -->
-    <nav class="sidebar">
+    <nav class="sidebar" aria-label="Hauptnavigation">
       <div class="sidebar-logo">Flow<span class="hl">Analytics</span></div>
       <div class="sidebar-filebadge" id="file-badge">&mdash;</div>
 
       <!-- Gesperrter Hinweis vor Daten-Bestätigung -->
-      <div class="sidebar-locked" id="sidebar-locked">&#128274; Erst Daten best&auml;tigen</div>
+      <div class="sidebar-locked" id="sidebar-locked" aria-live="polite" aria-atomic="true">&#128274; Erst Daten best&auml;tigen</div>
 
       <div class="sidebar-nav">
         <div class="sidebar-section">&Uuml;berblick</div>
-        <div class="sidebar-link" data-page="lieferfahigkeit">
-          <span class="sidebar-glyph">&#128230;</span>
+        <div class="sidebar-link" data-page="lieferfahigkeit" role="button" tabindex="0" aria-label="Lieferfähigkeit – 6 Metriken">
+          <span class="sidebar-glyph" aria-hidden="true">&#128230;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Lieferf&auml;higkeit</span>
             <span class="sidebar-tech">6 Metriken</span>
           </span>
         </div>
         <div class="sidebar-section">Detailanalysen</div>
-        <div class="sidebar-link" data-page="blocker">
-          <span class="sidebar-glyph">&#9940;</span>
+        <div class="sidebar-link" data-page="blocker" role="button" tabindex="0" aria-label="Was blockiert uns? – Blockermanagement">
+          <span class="sidebar-glyph" aria-hidden="true">&#9940;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Was blockiert uns?</span>
             <span class="sidebar-tech">Blockermanagement</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="wipage">
-          <span class="sidebar-glyph">&#9203;</span>
+        <div class="sidebar-link" data-page="wipage" role="button" tabindex="0" aria-label="Was liegt gerade rum? – WIP-Alter">
+          <span class="sidebar-glyph" aria-hidden="true">&#9203;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Was liegt gerade rum?</span>
             <span class="sidebar-tech">WIP-Alter</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="scatter">
-          <span class="sidebar-glyph">&#9200;</span>
+        <div class="sidebar-link" data-page="scatter" role="button" tabindex="0" aria-label="Wie lange dauert ein Ticket? – Cycle Time">
+          <span class="sidebar-glyph" aria-hidden="true">&#9200;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wie lange dauert ein Ticket?</span>
             <span class="sidebar-tech">Cycle Time</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="heatmap">
-          <span class="sidebar-glyph">&#128293;</span>
+        <div class="sidebar-link" data-page="heatmap" role="button" tabindex="0" aria-label="Wo verbringen Tickets ihre Zeit? – Flow-Heatmap">
+          <span class="sidebar-glyph" aria-hidden="true">&#128293;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wo verbringen Tickets ihre Zeit?</span>
             <span class="sidebar-tech">Flow-Heatmap</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="monte">
-          <span class="sidebar-glyph">&#127922;&#127922;</span>
+        <div class="sidebar-link" data-page="monte" role="button" tabindex="0" aria-label="Wann sind wir fertig? – Monte Carlo">
+          <span class="sidebar-glyph" aria-hidden="true">&#127922;&#127922;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wann sind wir fertig?</span>
             <span class="sidebar-tech">Monte Carlo</span>
+          </span>
+        </div>
+        <div class="sidebar-link" data-page="cfd" role="button" tabindex="0" aria-label="Wie fließt Arbeit? – Cumulative Flow">
+          <span class="sidebar-glyph" aria-hidden="true">&#128200;</span>
+          <span class="sidebar-txt">
+            <span class="sidebar-name">Wie flie&szlig;t Arbeit?</span>
+            <span class="sidebar-tech">Cumulative Flow</span>
           </span>
         </div>
       </div>
 
       <!-- Sidebar-Bottom: Einstellungen · Theme · Datencheck · Neue Datei -->
       <div class="sidebar-bottom">
+        <button class="sidebar-collapse-btn" id="btn-sidebar-collapse" aria-label="Sidebar einklappen" title="Sidebar einklappen">
+          <span>&#9664;</span><span class="sidebar-collapse-lbl"> Einklappen</span>
+        </button>
         <!-- Einstellungen mit Overlay-Panel -->
         <div class="settings-wrap" id="settings-wrap" style="position:relative">
           <button class="sidebar-bottom-btn" id="btn-settings">&#9881; Einstellungen</button>
@@ -656,9 +734,9 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <span class="settings-hint" style="display:block;margin-bottom:.35rem">&#8596; ziehen oder &#9650;&#9660; &ndash; gilt f&uuml;r WIPAge &amp; Heatmap</span>
           <div class="settings-order-list" id="settings-order-list"></div>
         </div>
-        <button class="sidebar-bottom-btn" id="btn-theme">&#9728; Light</button>
-        <button class="sidebar-bottom-btn" id="btn-datencheck">&#10558; Datencheck</button>
-        <button class="sidebar-bottom-btn" id="btn-reset">&#8617; Neue Datei</button>
+        <button class="sidebar-bottom-btn" id="btn-theme" aria-label="Theme wechseln (aktuell: Dark)">&#9728; Light</button>
+        <button class="sidebar-bottom-btn" id="btn-datencheck" aria-label="Datencheck anzeigen">&#10558; Datencheck</button>
+        <button class="sidebar-bottom-btn" id="btn-reset" aria-label="Neue Datei laden">&#8617; Neue Datei</button>
       </div>
     </nav>
 
@@ -676,11 +754,11 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <!-- Squad-Filter (global, hier in der LF-Page) -->
           <div class="squad-dd-wrap" id="squad-dd-wrap">
-            <button class="pf-filter-chip btn-squad-trigger" id="btn-squad">SQUADS Alle &#9661;</button>
+            <button class="pf-filter-chip btn-squad-trigger" id="btn-squad" aria-haspopup="dialog" aria-expanded="false" aria-controls="squad-dropdown">SQUADS Alle &#9661;</button>
             <!-- #squad-dropdown wurde auf #app-screen-Ebene verschoben (position:fixed, shared) -->
           </div>
-          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="issuetype-dropdown">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="daterange-dropdown">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset" id="lf-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -760,8 +838,33 @@ td.td-lt{background:rgba(192,132,252,.04)}
         <div class="page-detail-canvas" id="page-canvas-monte"></div>
       </div>
 
+      <!-- Page: Cumulative Flow Diagram -->
+      <div class="page page-flex" id="page-cfd">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Wie fließt Arbeit?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-cfd">SQUADS Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-detail-canvas" id="page-canvas-cfd"></div>
+      </div>
+
     </div><!-- .main-content -->
   </div><!-- .app-body -->
+
+  <!-- Custom Confirm Modal (ersetzt window.confirm) -->
+  <div id="confirm-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div id="confirm-modal">
+      <div class="confirm-title" id="confirm-title">Bestätigung</div>
+      <div class="confirm-msg" id="confirm-msg"></div>
+      <div class="confirm-btns">
+        <button class="confirm-btn-cancel" id="confirm-cancel">Abbrechen</button>
+        <button class="confirm-btn-ok" id="confirm-ok">Zurücksetzen</button>
+      </div>
+    </div>
+  </div>
 
 </div><!-- #app-screen -->
 
@@ -779,6 +882,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
   import { init as initSayDoRatioEpics }  from './saydoratioepics.js';
   import { init as initMonteCarlo }       from './montecarlo.js';
   import { init as initAkzeptanz }        from './akzeptanz.js';
+  import { init as initCfd }              from './cfd.js';
 
   // Visuals registrieren ihre Cards (werden an den richtigen Page-Canvas gehängt)
   initBlocker();
@@ -792,9 +896,48 @@ td.td-lt{background:rgba(192,132,252,.04)}
   initSayDoRatioEpics();
   initMonteCarlo();
   initAkzeptanz();
+  initCfd();
 
   // Core-App initialisieren (Theme, globaler State, File-Upload-Listener, Sidebar)
   core.initApp();
+
+  // ── Sidebar Collapse ──────────────────────────
+  (function() {
+    const COLLAPSE_KEY = 'fhwa_sidebar_collapsed';
+    const sidebar = document.querySelector('.sidebar');
+    const btn     = document.getElementById('btn-sidebar-collapse');
+    if (!sidebar || !btn) return;
+
+    function setCollapsed(collapsed) {
+      sidebar.classList.toggle('collapsed', collapsed);
+      const icon = btn.querySelector('span');
+      btn.setAttribute('aria-label', collapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen');
+      btn.title = collapsed ? 'Sidebar ausklappen' : 'Sidebar einklappen';
+      if (icon) icon.textContent = collapsed ? '▶' : '◀';
+      core.save(COLLAPSE_KEY, collapsed);
+      core.emit('resize');
+    }
+
+    btn.addEventListener('click', () => setCollapsed(!sidebar.classList.contains('collapsed')));
+    setCollapsed(!!core.load(COLLAPSE_KEY, false));
+  })();
+
+  // ── Custom Confirm Modal ─────────────────────
+  function showConfirm(title, msg, onOk) {
+    const backdrop = document.getElementById('confirm-backdrop');
+    const msgEl    = document.getElementById('confirm-msg');
+    const okBtn    = document.getElementById('confirm-ok');
+    const cancelBtn= document.getElementById('confirm-cancel');
+    if (!backdrop) { if (onOk) onOk(); return; }
+    msgEl.textContent = msg;
+    document.getElementById('confirm-title').textContent = title;
+    backdrop.classList.add('open');
+    const close = () => backdrop.classList.remove('open');
+    const onKeydown = e => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKeydown); } };
+    document.addEventListener('keydown', onKeydown);
+    okBtn.onclick = () => { close(); document.removeEventListener('keydown', onKeydown); if (onOk) onOk(); };
+    cancelBtn.onclick = () => { close(); document.removeEventListener('keydown', onKeydown); };
+  }
 
   // ── Settings-Panel: Overlay-Logik ─────────────
   (function() {
@@ -816,6 +959,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
     if (btn)      btn.addEventListener('click', openSettings);
     if (closeBtn) closeBtn.addEventListener('click', closeSettings);
     if (backdrop) backdrop.addEventListener('click', closeSettings);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('open')) closeSettings(); });
 
     // ── Status-Reihenfolge im Settings-Panel ──────
     const orderList  = document.getElementById('settings-order-list');
@@ -1014,11 +1158,56 @@ td.td-lt{background:rgba(192,132,252,.04)}
       });
     }
 
+    function _refreshTileOrderBtnStates() {
+      if (!canvas) return;
+      const tiles = Array.from(canvas.querySelectorAll('.tile'));
+      tiles.forEach((tile, idx) => {
+        const btns = tile.querySelectorAll('.tile-order-btn');
+        if (btns[0]) btns[0].disabled = idx === 0;
+        if (btns[1]) btns[1].disabled = idx === tiles.length - 1;
+      });
+    }
+
+    function _addTileOrderButtons() {
+      if (!canvas) return;
+      canvas.querySelectorAll('.tile').forEach(tile => {
+        const header = tile.querySelector('.tile-header');
+        if (!header || header.querySelector('.tile-order-btns')) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'tile-order-btns';
+        const btnL = document.createElement('button');
+        btnL.className = 'tile-order-btn'; btnL.textContent = '◀';
+        btnL.setAttribute('aria-label', 'Kachel nach links verschieben');
+        btnL.title = 'Nach links';
+        const btnR = document.createElement('button');
+        btnR.className = 'tile-order-btn'; btnR.textContent = '▶';
+        btnR.setAttribute('aria-label', 'Kachel nach rechts verschieben');
+        btnR.title = 'Nach rechts';
+        btnL.addEventListener('click', e => {
+          e.stopPropagation();
+          const all = Array.from(canvas.querySelectorAll('.tile'));
+          const idx = all.indexOf(tile);
+          if (idx > 0) { all[idx - 1].before(tile); saveTileOrder(); _refreshTileOrderBtnStates(); }
+        });
+        btnR.addEventListener('click', e => {
+          e.stopPropagation();
+          const all = Array.from(canvas.querySelectorAll('.tile'));
+          const idx = all.indexOf(tile);
+          if (idx < all.length - 1) { all[idx + 1].after(tile); saveTileOrder(); _refreshTileOrderBtnStates(); }
+        });
+        wrap.appendChild(btnL); wrap.appendChild(btnR);
+        const spacer = header.querySelector('.tile-spacer');
+        if (spacer) spacer.before(wrap); else header.appendChild(wrap);
+      });
+      _refreshTileOrderBtnStates();
+    }
+
     // Tiles sind nach init()-Aufrufen im DOM → Reihenfolge im nächsten Frame anwenden
     requestAnimationFrame(() => {
       const saved = core.load(TILE_ORDER_KEY, null);
       applyTileOrder(saved || DEFAULT_TILE_ORDER);
       initTileDrag();
+      _addTileOrderButtons();
     });
 
     // Settings: Kachel-Reihenfolge zurücksetzen
@@ -1027,6 +1216,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
       orderResetBtn.addEventListener('click', () => {
         core.save(TILE_ORDER_KEY, [...DEFAULT_TILE_ORDER]);
         applyTileOrder([...DEFAULT_TILE_ORDER]);
+        _refreshTileOrderBtnStates();
       });
     }
 
@@ -1034,14 +1224,19 @@ td.td-lt{background:rgba(192,132,252,.04)}
     const factoryResetBtn = document.getElementById('settings-factory-reset');
     if (factoryResetBtn) {
       factoryResetBtn.addEventListener('click', () => {
-        if (!window.confirm('Alle Einstellungen zurücksetzen?\n\nDies löscht alle gespeicherten Konfigurationen (Reihenfolge, Filter, Farben usw.) und lädt die Seite neu.')) return;
-        const toDelete = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('fhwa_')) toDelete.push(k);
-        }
-        toDelete.forEach(k => localStorage.removeItem(k));
-        location.reload();
+        showConfirm(
+          'Alle Einstellungen zurücksetzen?',
+          'Dies löscht alle gespeicherten Konfigurationen (Reihenfolge, Filter, Farben usw.) und lädt die Seite neu.',
+          () => {
+            const toDelete = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith('fhwa_')) toDelete.push(k);
+            }
+            toDelete.forEach(k => localStorage.removeItem(k));
+            location.reload();
+          }
+        );
       });
     }
 
@@ -1111,6 +1306,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
     if (closeBtn) closeBtn.addEventListener('click', closeFullscreen);
     if (backdrop) backdrop.addEventListener('click', closeFullscreen);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('open')) closeFullscreen(); });
     core.on('page', closeFullscreen);
 
     // Buttons verdrahten – Tiles sind nach requestAnimationFrame im DOM

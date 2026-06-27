@@ -33,7 +33,7 @@
   /* Text */
   --text:   #e8f0fe;   /* Primärtext */
   --dim:    #8ba8c8;   /* Sekundärtext */
-  --dimmer: #4d6a88;   /* Tertiärtext, Icons */
+  --dimmer: #7090ad;   /* Tertiärtext, Icons – erhöht auf ≥4.9:1 Kontrast (WCAG AA) */
 
   /* Akzentfarben */
   --blue:   #38bdf8;   /* Akzentfarbe, Links, aktive Elemente */
@@ -68,7 +68,7 @@
   /* Text */
   --text:   #0f172a;
   --dim:    #475569;
-  --dimmer: #94a3b8;
+  --dimmer: #64748b;   /* erhöht auf ≥4.7:1 Kontrast (WCAG AA) */
 
   /* Akzentfarben */
   --blue:   #0284c7;

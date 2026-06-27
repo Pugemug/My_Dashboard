@@ -72,6 +72,7 @@ const CARD_PAGE_MAP = {
   'happinessfaktor':  'lieferfahigkeit',
   'saydoratioepics':  'lieferfahigkeit',
   'montecarlo':       'monte',
+  'cfd':              'cfd',
 };
 
 const COLOR_MIN_DARK  = [28,  42,  63 ];
@@ -294,8 +295,9 @@ export const core = {
     document.querySelectorAll('.page').forEach(p => { p.style.display = 'none'; });
     const page = document.getElementById('page-' + pageId);
     if (page) page.style.display = page.classList.contains('page-flex') ? 'flex' : 'block';
-    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-    document.querySelector(`.sidebar-link[data-page="${pageId}"]`)?.classList.add('active');
+    document.querySelectorAll('.sidebar-link').forEach(l => { l.classList.remove('active'); l.removeAttribute('aria-current'); });
+    const _activeLink = document.querySelector(`.sidebar-link[data-page="${pageId}"]`);
+    if (_activeLink) { _activeLink.classList.add('active'); _activeLink.setAttribute('aria-current', 'page'); }
     // Datencheck-Button aktiv/inaktiv in Sidebar-Bottom
     const dcBtn = document.getElementById('btn-datencheck');
     if (dcBtn) dcBtn.classList.toggle('sb-active', pageId === 'datencheck');
@@ -840,10 +842,14 @@ function _initSidebarButtons() {
 // ── Sidebar-Navigation initialisieren ──
 function _initSidebar() {
   document.querySelectorAll('.sidebar-link').forEach(link => {
-    link.addEventListener('click', () => {
-      if (link.classList.contains('nav-locked')) return; // gesperrt bis Bestätigung
+    const _navigate = () => {
+      if (link.classList.contains('nav-locked')) return;
       const pageId = link.dataset.page;
       if (pageId) core.showPage(pageId);
+    };
+    link.addEventListener('click', _navigate);
+    link.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _navigate(); }
     });
   });
 
@@ -858,6 +864,8 @@ function _initSidebar() {
 // ════════════════════════════════════════════════
 function _loadFile(file) {
   core.state.fileName = file.name;
+  const spinner = document.getElementById('upload-loading');
+  if (spinner) spinner.style.display = 'flex';
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -880,9 +888,11 @@ function _loadFile(file) {
       _processData(rows);
       _showDataPreview(wb.SheetNames, sheets);
     } catch (err) {
+      if (spinner) spinner.style.display = 'none';
       const dp = document.getElementById('data-preview');
       if (dp) {
-        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${escHtml(err.message)}</div>`;
+        dp.style.display = 'block';
+        dp.innerHTML = `<div role="alert" style="color:var(--red);background:var(--bg2);border:1px solid rgba(248,113,113,.4);border-radius:8px;padding:.88rem 1.2rem;font-family:var(--mono);font-size:.78rem;line-height:1.55"><strong style="display:block;margin-bottom:.3rem">&#9888; Datei konnte nicht gelesen werden</strong>${escHtml(err.message)}<br><span style="color:var(--dimmer);font-size:.72rem">Bitte prüfe, ob es sich um eine gültige .xlsx/.xlsm/.xls-Datei handelt.</span></div>`;
       }
     }
   };
@@ -971,6 +981,8 @@ function _showDataPreview(sheetNames, sheets) {
 
 // ── Upload-Screen → App-Screen schalten (Datencheck-Page, gesperrt) ──
 function _switchToAppScreen() {
+  const spinner = document.getElementById('upload-loading');
+  if (spinner) spinner.style.display = 'none';
   document.getElementById('upload-screen').style.display = 'none';
   const app = document.getElementById('app-screen');
   app.style.display = 'block';
@@ -1146,6 +1158,7 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
 
   page.innerHTML = `
     <div class="dc-wrap">
+      <div class="dc-step-hint">Schritt 1 von 1 &mdash; Bitte prüfen, dann bestätigen</div>
       <div class="dc-badge">&#10003; Datei erkannt</div>
       <h2 class="dc-title">Das haben wir in deinem Export gefunden</h2>
       <div class="dc-sub">${escHtml(s.fileName)} &middot; Sheet &bdquo;${escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
@@ -1189,8 +1202,8 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       ${extraSheetsHtml}
 
       <div class="dc-cta">
-        <button class="btn-cta" id="btn-goto-app">Weiter zu Lieferf&auml;higkeit &rarr;</button>
-        <span class="dc-cta-note">Alles erkannt &mdash; du kannst Stati &amp; Squads jederzeit sp&auml;ter feinjustieren.</span>
+        <button class="btn-cta" id="btn-goto-app">&#10003; Sieht gut aus &mdash; weiter zum Dashboard &rarr;</button>
+        <span class="dc-cta-note">Stati, Squads &amp; Farben kannst du jederzeit in den Einstellungen anpassen.</span>
       </div>
     </div>
   `;

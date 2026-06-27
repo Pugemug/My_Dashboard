@@ -8,9 +8,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:3px}
 :root{
   --bg:#0f1c30;--bg2:#162035;--bg3:#1e2e47;--bg4:#273552;
-  --border:#2a3d5c;--text:#e8f0fe;--dim:#8ba8c8;--dimmer:#4d6a88;
+  --border:#2a3d5c;--text:#e8f0fe;--dim:#8ba8c8;--dimmer:#7090ad;
   --blue:#38bdf8;--red:#f87171;--green:#4ade80;--yellow:#fbbf24;
   --purple:#c084fc;--orange:#fb923c;
   --sans:'DM Sans',system-ui,sans-serif;--mono:'DM Mono','Courier New',monospace;
@@ -19,7 +20,7 @@
 }
 [data-theme="light"]{
   --bg:#f1f5f9;--bg2:#ffffff;--bg3:#f8fafc;--bg4:#e2e8f0;
-  --border:#cbd5e1;--text:#0f172a;--dim:#475569;--dimmer:#94a3b8;
+  --border:#cbd5e1;--text:#0f172a;--dim:#475569;--dimmer:#64748b;
   --blue:#0284c7;--red:#dc2626;--green:#16a34a;--yellow:#b45309;
   --purple:#7c3aed;--orange:#c2410c;
   color-scheme:light;
@@ -51,10 +52,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 /* Sheet-Navigator (Upload-Screen) */
 .sheet-nav{width:100%;max-width:440px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .sheet-tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--bg3)}
-.sheet-tab{display:flex;align-items:center;gap:.3rem;padding:.32rem .58rem;font-size:.63rem;font-weight:500;color:var(--dim);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s,background .12s;font-family:var(--sans);flex-shrink:0;margin-bottom:-1px}
+.sheet-tab{display:flex;align-items:center;gap:.3rem;padding:.45rem .7rem;min-height:36px;font-size:.68rem;font-weight:500;color:var(--dim);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s,background .12s;font-family:var(--sans);flex-shrink:0;margin-bottom:-1px}
 .sheet-tab:hover{color:var(--text)}
 .sheet-tab.active{color:var(--blue);border-bottom-color:var(--blue);background:var(--bg2)}
-.tab-badge{font-size:.55rem;font-family:var(--mono);padding:.1rem .28rem;border-radius:3px;font-weight:600;flex-shrink:0}
+.tab-badge{font-size:.65rem;font-family:var(--mono);padding:.15rem .35rem;border-radius:3px;font-weight:600;flex-shrink:0}
 .tab-badge.req{background:rgba(56,189,248,.12);color:var(--blue)}
 .tab-badge.opt{background:rgba(255,255,255,.05);color:var(--dimmer)}
 .sheet-tab-content{display:none;padding:.75rem 1rem}
@@ -62,7 +63,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .hint-cols{display:flex;flex-wrap:wrap;gap:.3rem}
 .hint-col{font-family:var(--mono);font-size:.67rem;padding:.18rem .45rem;border-radius:4px;white-space:nowrap}
 .hc-req{background:rgba(56,189,248,.12);color:var(--blue)}.hc-opt{background:rgba(255,255,255,.05);color:var(--dim)}.hc-state{background:rgba(251,146,60,.12);color:var(--orange)}
-.hint-note{font-size:.67rem;color:var(--dimmer);margin-top:.55rem;font-family:var(--mono);line-height:1.55}
+.hint-note{font-size:.72rem;color:var(--dimmer);margin-top:.55rem;font-family:var(--mono);line-height:1.55}
 
 /* ── DATA PREVIEW ── */
 #data-preview{display:none;max-width:440px;padding:1.25rem 1.4rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px}
@@ -103,7 +104,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .squad-dropdown{position:fixed;top:0;left:0;min-width:200px;max-width:280px;background:var(--bg2);border:1px solid var(--border);border-radius:9px;box-shadow:0 12px 32px rgba(0,0,0,.5);z-index:200;padding:.4rem 0;display:none}
 .squad-dropdown.open{display:block}
 .squad-dd-header{display:flex;gap:.3rem;padding:.3rem .55rem .4rem;border-bottom:1px solid var(--border);margin-bottom:.25rem}
-.sdd-btn{font-size:.63rem;font-family:var(--mono);padding:.15rem .4rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer}
+.sdd-btn{font-size:.68rem;font-family:var(--mono);padding:.3rem .55rem;min-height:28px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--dim);cursor:pointer}
 .sdd-btn:hover{color:var(--text)}
 .squad-opt{display:flex;align-items:center;gap:.45rem;padding:.22rem .55rem;cursor:pointer;transition:background .1s}
 .squad-opt:hover{background:var(--bg3)}
@@ -133,16 +134,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .settings-panel.open{display:block}
 .settings-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem}
 .settings-panel-title{font-size:.65rem;font-family:var(--mono);color:var(--dimmer);text-transform:uppercase;letter-spacing:.05em}
-.settings-close-btn{background:none;border:none;color:var(--dimmer);cursor:pointer;font-size:.9rem;padding:.1rem .3rem;border-radius:4px;line-height:1;transition:color .12s}
+.settings-close-btn{background:none;border:none;color:var(--dimmer);cursor:pointer;font-size:.9rem;padding:.25rem .45rem;min-width:32px;min-height:32px;border-radius:4px;line-height:1;transition:color .12s;display:flex;align-items:center;justify-content:center}
 .settings-close-btn:hover{color:var(--text);background:var(--bg3)}
 .settings-divider{border:none;border-top:1px solid var(--border);margin:.5rem 0}
 .settings-section-label{font-size:.58rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--dimmer);margin-bottom:.35rem}
 .settings-row{display:flex;flex-direction:column;gap:.25rem;margin-bottom:.5rem}
 .settings-row:last-child{margin-bottom:0}
 .settings-label{font-size:.7rem;color:var(--dim)}
-.settings-input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:.7rem;padding:.3rem .45rem;outline:none}
+.settings-input{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:.7rem;padding:.3rem .45rem}
 .settings-input:focus{border-color:var(--blue)}
-.settings-hint{font-size:.62rem;color:var(--dimmer)}
+.settings-hint{font-size:.7rem;color:var(--dimmer)}
 .settings-range{width:100%;cursor:pointer;accent-color:var(--blue);margin:.15rem 0}
 .settings-row--disabled{opacity:.4;pointer-events:none}
 /* Status-Reihenfolge im Settings-Panel */
@@ -155,7 +156,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .sidebar-logo{font-size:.8rem;font-weight:700;letter-spacing:-.02em;padding:.65rem .8rem;border-bottom:1px solid var(--border);color:var(--text);flex-shrink:0;white-space:nowrap}
 .sidebar-logo .hl{color:var(--blue)}
 .sidebar-nav{display:flex;flex-direction:column;padding:.25rem 0;flex:1}
-.sidebar-section{font-size:.56rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);padding:.65rem .8rem .18rem;opacity:.65;flex-shrink:0}
+.sidebar-section{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--dimmer);padding:.65rem .8rem .18rem;opacity:.8;flex-shrink:0}
 .sidebar-link{display:flex;align-items:center;gap:.55rem;padding:.38rem .8rem;color:var(--dim);cursor:pointer;border-left:2px solid transparent;transition:color .12s,background .12s,border-color .12s;user-select:none}
 .sidebar-glyph{font-size:.95rem;line-height:1;flex-shrink:0;width:1.1rem;text-align:center;color:var(--dimmer);transition:color .12s}
 .sidebar-txt{display:flex;flex-direction:column;gap:.06rem;min-width:0}
@@ -291,7 +292,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .lt-field{display:flex;align-items:center;gap:.3rem}
 .lt-label{font-size:.65rem;color:var(--dim);font-family:var(--mono);white-space:nowrap}
 .lt-select{background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:.65rem;padding:.2rem .4rem;cursor:pointer;max-width:200px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a8fa8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .3rem center;padding-right:1.2rem}
-.lt-select:focus{outline:none;border-color:var(--purple)}
+.lt-select:focus{border-color:var(--purple)}
 .lt-hint{font-size:.6rem;color:var(--dimmer);font-family:var(--mono)}
 .status-panel-ctx{font-size:.6rem;color:var(--dim);font-family:var(--mono);font-weight:400;text-transform:none;letter-spacing:0}
 .status-reset-btn{font-size:.58rem;padding:.08rem .3rem;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);border-radius:3px;color:var(--orange);cursor:pointer;font-family:var(--mono)}
@@ -311,7 +312,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh
 .o-handle{color:var(--dimmer);font-size:.58rem;cursor:grab}
 .o-num{font-family:var(--mono);font-size:.56rem;color:var(--dimmer);min-width:12px}
 .o-name{font-size:.68rem;color:var(--text)}
-.obtn{width:16px;height:16px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--dimmer);cursor:pointer;font-size:.56rem;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.obtn{width:24px;height:24px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--dimmer);cursor:pointer;font-size:.65rem;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
 .obtn:hover:not(:disabled){color:var(--yellow);border-color:rgba(251,191,36,.5)}
 .obtn:disabled{opacity:.15;cursor:default}
 /* Extra-Status (nicht in DEFAULT_STATUS_ORDER) */
@@ -353,15 +354,15 @@ td.td-group.clickable:hover{background:rgba(56,189,248,.08);color:var(--blue)}
 td.td-lt{background:rgba(192,132,252,.04)}
 .cell-in{padding:.35rem .42rem;min-width:78px;display:flex;flex-direction:column;gap:1px}
 .c-main{font-family:var(--mono);font-size:.88rem;color:var(--text);line-height:1.2}
-.c-sub{font-family:var(--mono);font-size:.53rem;color:var(--dimmer);white-space:nowrap}
-.c-n{font-family:var(--mono);font-size:.53rem;color:var(--dimmer);margin-top:1px}
+.c-sub{font-family:var(--mono);font-size:.64rem;color:var(--dimmer);white-space:nowrap}
+.c-n{font-family:var(--mono);font-size:.64rem;color:var(--dimmer);margin-top:1px}
 .c-bar-w{height:2px;background:rgba(255,255,255,.07);border-radius:2px;margin-top:3px;overflow:hidden}
 .c-bar{height:100%;border-radius:2px;background:rgba(255,255,255,.2)}
 .c-empty{display:flex;align-items:center;justify-content:center;min-height:50px;color:var(--dimmer);font-family:var(--mono);font-size:.6rem}
 
 /* ── LEGEND / DIAG ── */
 .legend-bar{display:flex;align-items:center;gap:.4rem;padding:.28rem .6rem;border-top:1px solid var(--border);font-size:.58rem;color:var(--dimmer);font-family:var(--mono);flex-shrink:0;background:var(--bg2)}
-.diag-bar{padding:.22rem .6rem;background:var(--bg);border-top:1px solid var(--border);font-family:var(--mono);font-size:.56rem;color:var(--dimmer);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.diag-bar{padding:.22rem .6rem;background:var(--bg);border-top:1px solid var(--border);font-family:var(--mono);font-size:.68rem;color:var(--dimmer);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
 
 /* ── TOOLTIPS ── */
 .tt-title{font-family:var(--sans);font-weight:600;font-size:.7rem;color:var(--blue);margin-bottom:.36rem;padding-bottom:.28rem;border-bottom:1px solid var(--border)}
@@ -386,6 +387,37 @@ td.td-lt{background:rgba(192,132,252,.04)}
 .tile-fullscreen-content .tile-expand-btn{display:none}
 .tile-fullscreen-content .tile-header{justify-content:flex-end}
 
+/* ── UPLOAD LOADING SPINNER ── */
+#upload-loading{position:absolute;inset:0;background:rgba(15,28,48,.75);display:none;align-items:center;justify-content:center;flex-direction:column;gap:.75rem;z-index:50;border-radius:14px}
+.ul-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+.ul-msg{font-size:.75rem;color:var(--dim);font-family:var(--mono)}
+@keyframes spin{to{transform:rotate(360deg)}}
+[data-theme="light"] #upload-loading{background:rgba(241,245,249,.8)}
+
+/* ── FILTER CHIPS (erkennbar als Dropdown) ── */
+.pf-filter-chip{padding:.25rem .6rem;font-size:.68rem;font-weight:600;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-family:var(--sans);transition:color .12s,border-color .12s,background .12s;letter-spacing:.01em}
+.pf-filter-chip:hover{border-color:var(--dim);background:var(--bg3)}
+.pf-filter-chip.pf-active{color:var(--blue);border-color:rgba(56,189,248,.5);background:rgba(56,189,248,.09)}
+.pf-filter-chip.pf-disabled{opacity:.5;cursor:not-allowed}
+.pf-reset{background:transparent;border-color:transparent;color:var(--dimmer);font-weight:400}
+.pf-reset:hover{color:var(--text);background:transparent;border-color:transparent}
+
+/* ── SIDEBAR COLLAPSE ── */
+.sidebar-collapse-btn{display:flex;align-items:center;gap:.5rem;padding:.34rem .8rem;color:var(--dimmer);cursor:pointer;font-size:.68rem;font-weight:500;background:transparent;border:none;width:100%;text-align:left;font-family:var(--sans);transition:color .12s,background .12s}
+.sidebar-collapse-btn:hover{color:var(--text);background:var(--bg3)}
+.sidebar.collapsed{width:52px;overflow:hidden}
+.sidebar.collapsed .sidebar-txt,.sidebar.collapsed .sidebar-section,.sidebar.collapsed .sidebar-filebadge,.sidebar.collapsed .sidebar-locked{display:none}
+.sidebar.collapsed .sidebar-glyph{font-size:1.1rem;width:auto;margin:0 auto}
+.sidebar.collapsed .sidebar-link{justify-content:center;padding:.45rem}
+.sidebar.collapsed .sidebar-logo{font-size:.55rem;padding:.5rem;text-align:center;overflow:hidden}
+.sidebar.collapsed .sidebar-bottom-btn{justify-content:center;padding:.38rem;overflow:hidden}
+.sidebar.collapsed .sidebar-bottom-btn-lbl{display:none}
+.sidebar.collapsed .sidebar-collapse-btn{justify-content:center;padding:.38rem}
+.sidebar.collapsed .sidebar-collapse-lbl{display:none}
+
+/* ── DATENCHECK STEP HINT ── */
+.dc-step-hint{font-size:.7rem;font-weight:600;color:var(--blue);font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.55rem;opacity:.8}
+
 /* ── MISC ── */
 .state-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 2rem;gap:.4rem;text-align:center}
 .state-msg h3{color:var(--text);font-size:.88rem}.state-msg p{color:var(--dim);font-size:.7rem;font-family:var(--mono)}
@@ -404,6 +436,37 @@ td.td-lt{background:rgba(192,132,252,.04)}
 /* Drag-Handle und Resize-Handle ausblenden */
 .page-detail-canvas .card-drag-handle,
 .page-detail-canvas .card-resize-handle{display:none!important}
+
+/* ── TILE ORDER BUTTONS (Keyboard-Alternative für Drag) ── */
+.tile-order-btns{display:flex;gap:.2rem;flex-shrink:0}
+.tile-order-btn{width:22px;height:22px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--dimmer);cursor:pointer;font-size:.6rem;display:flex;align-items:center;justify-content:center;padding:0;transition:color .12s,border-color .12s}
+.tile-order-btn:hover:not(:disabled){color:var(--blue);border-color:rgba(56,189,248,.4)}
+.tile-order-btn:disabled{opacity:.2;cursor:default}
+
+/* ── CUSTOM CONFIRM MODAL ── */
+#confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:800;display:none;align-items:center;justify-content:center}
+#confirm-backdrop.open{display:flex}
+#confirm-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 20px 56px rgba(0,0,0,.6);padding:1.2rem 1.4rem;max-width:380px;width:90%;z-index:801}
+.confirm-title{font-size:.85rem;font-weight:700;color:var(--text);margin-bottom:.5rem}
+.confirm-msg{font-size:.75rem;color:var(--dim);margin-bottom:1rem;line-height:1.5}
+.confirm-btns{display:flex;gap:.5rem;justify-content:flex-end}
+.confirm-btn-cancel{padding:.38rem .9rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--dim);font-family:var(--sans);font-size:.78rem;cursor:pointer;transition:color .12s}
+.confirm-btn-cancel:hover{color:var(--text)}
+.confirm-btn-ok{padding:.38rem .9rem;background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);border-radius:6px;color:var(--red);font-family:var(--sans);font-size:.78rem;font-weight:600;cursor:pointer;transition:background .12s}
+.confirm-btn-ok:hover{background:rgba(248,113,113,.25)}
+
+/* ── RESPONSIVE (schmale Bildschirme) ── */
+@media(max-width:800px){
+  .sidebar{width:56px;overflow:hidden}
+  .sidebar-txt,.sidebar-section,.sidebar-filebadge,.sidebar-locked{display:none}
+  .sidebar-logo{font-size:.6rem;padding:.5rem;text-align:center}
+  .sidebar-glyph{font-size:1.2rem;width:auto;margin:0 auto}
+  .sidebar-link{justify-content:center;padding:.5rem}
+  .sidebar-bottom-btn span{display:none}
+  .sidebar-bottom-btn{justify-content:center;padding:.4rem}
+  .page-scroll,.page-detail-canvas{overflow-x:auto}
+  .tile-container{justify-content:flex-start;padding:.5rem}
+}
 </style>
 </head>
 <body>
@@ -414,7 +477,11 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <div class="logo"><span class="logo-flow">Flow</span><span class="logo-heat">Analytics</span></div>
     <div class="logo-sub">Flow Analytics &middot; Dashboard</div>
   </div>
-  <div class="drop-zone" id="drop-zone">
+  <div class="drop-zone" id="drop-zone" style="position:relative">
+    <div id="upload-loading" aria-live="polite" aria-label="Datei wird geladen">
+      <div class="ul-spinner"></div>
+      <span class="ul-msg">Datei wird analysiert&hellip;</span>
+    </div>
     <div class="dz-grid">
       <div class="dz-cell c1"></div><div class="dz-cell c2"></div><div class="dz-cell c3"></div>
       <div class="dz-cell c4"></div><div class="dz-cell c2"></div><div class="dz-cell c1"></div>
@@ -431,6 +498,7 @@ td.td-lt{background:rgba(192,132,252,.04)}
 
   <!-- Sheet-Navigator -->
   <div class="sheet-nav">
+    <div style="padding:.32rem .7rem;font-size:.65rem;color:var(--dimmer);font-family:var(--mono);border-bottom:1px solid var(--border);background:var(--bg3)">&#9432; Erwartete Spaltenstruktur &mdash; nicht der Inhalt Ihrer Datei</div>
     <div class="sheet-tabs">
       <button class="sheet-tab active" data-sntab="jira-stories">JiraStories <span class="tab-badge req">Pflicht</span></button>
       <button class="sheet-tab" data-sntab="jira-epics">JiraEpics <span class="tab-badge opt">optional</span></button>
@@ -494,21 +562,21 @@ td.td-lt{background:rgba(192,132,252,.04)}
 <div id="app-screen">
 
   <!-- Shared squad dropdown – position:fixed, geöffnet von jeder .btn-squad-trigger -->
-  <div class="squad-dropdown" id="squad-dropdown">
+  <div class="squad-dropdown" id="squad-dropdown" role="dialog" aria-label="Squad-Filter">
     <div class="squad-dd-header">
-      <button class="sdd-btn" id="sdd-all">Alle</button>
-      <button class="sdd-btn" id="sdd-none">Keine</button>
+      <button class="sdd-btn" id="sdd-all" aria-label="Alle Squads auswählen">Alle</button>
+      <button class="sdd-btn" id="sdd-none" aria-label="Keine Squads auswählen">Keine</button>
     </div>
-    <div id="squad-opts"></div>
+    <div id="squad-opts" role="list"></div>
   </div>
 
   <!-- Shared issue-type dropdown – position:fixed, geöffnet von jeder .btn-issuetype-trigger -->
-  <div class="squad-dropdown" id="issuetype-dropdown">
+  <div class="squad-dropdown" id="issuetype-dropdown" role="dialog" aria-label="Issue-Typ-Filter">
     <div class="squad-dd-header">
-      <button class="sdd-btn" id="sdd-type-all">Alle</button>
-      <button class="sdd-btn" id="sdd-type-none">Keine</button>
+      <button class="sdd-btn" id="sdd-type-all" aria-label="Alle Issue-Typen auswählen">Alle</button>
+      <button class="sdd-btn" id="sdd-type-none" aria-label="Keine Issue-Typen auswählen">Keine</button>
     </div>
-    <div id="issuetype-opts"></div>
+    <div id="issuetype-opts" role="list"></div>
   </div>
 
   <!-- Shared Zeitraum-Dropdown – position:fixed, geöffnet von jeder .btn-daterange-trigger -->
@@ -524,11 +592,11 @@ td.td-lt{background:rgba(192,132,252,.04)}
     <div class="dr-divider">Zeitraum festlegen</div>
     <div class="dr-custom">
       <div class="dr-custom-row">
-        <label>Von</label>
+        <label for="dr-from">Von</label>
         <input type="date" id="dr-from">
       </div>
       <div class="dr-custom-row">
-        <label>Bis</label>
+        <label for="dr-to">Bis</label>
         <input type="date" id="dr-to">
       </div>
       <button id="dr-apply">&#10003; &Uuml;bernehmen</button>
@@ -549,62 +617,72 @@ td.td-lt{background:rgba(192,132,252,.04)}
   <div class="app-body">
 
     <!-- Persistente linke Navigation -->
-    <nav class="sidebar">
+    <nav class="sidebar" aria-label="Hauptnavigation">
       <div class="sidebar-logo">Flow<span class="hl">Analytics</span></div>
       <div class="sidebar-filebadge" id="file-badge">&mdash;</div>
 
       <!-- Gesperrter Hinweis vor Daten-Bestätigung -->
-      <div class="sidebar-locked" id="sidebar-locked">&#128274; Erst Daten best&auml;tigen</div>
+      <div class="sidebar-locked" id="sidebar-locked" aria-live="polite" aria-atomic="true">&#128274; Erst Daten best&auml;tigen</div>
 
       <div class="sidebar-nav">
         <div class="sidebar-section">&Uuml;berblick</div>
-        <div class="sidebar-link" data-page="lieferfahigkeit">
-          <span class="sidebar-glyph">&#128230;</span>
+        <div class="sidebar-link" data-page="lieferfahigkeit" role="button" tabindex="0" aria-label="Lieferfähigkeit – 6 Metriken">
+          <span class="sidebar-glyph" aria-hidden="true">&#128230;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Lieferf&auml;higkeit</span>
             <span class="sidebar-tech">6 Metriken</span>
           </span>
         </div>
         <div class="sidebar-section">Detailanalysen</div>
-        <div class="sidebar-link" data-page="blocker">
-          <span class="sidebar-glyph">&#9940;</span>
+        <div class="sidebar-link" data-page="blocker" role="button" tabindex="0" aria-label="Was blockiert uns? – Blockermanagement">
+          <span class="sidebar-glyph" aria-hidden="true">&#9940;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Was blockiert uns?</span>
             <span class="sidebar-tech">Blockermanagement</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="wipage">
-          <span class="sidebar-glyph">&#9203;</span>
+        <div class="sidebar-link" data-page="wipage" role="button" tabindex="0" aria-label="Was liegt gerade rum? – WIP-Alter">
+          <span class="sidebar-glyph" aria-hidden="true">&#9203;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Was liegt gerade rum?</span>
             <span class="sidebar-tech">WIP-Alter</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="scatter">
-          <span class="sidebar-glyph">&#9200;</span>
+        <div class="sidebar-link" data-page="scatter" role="button" tabindex="0" aria-label="Wie lange dauert ein Ticket? – Cycle Time">
+          <span class="sidebar-glyph" aria-hidden="true">&#9200;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wie lange dauert ein Ticket?</span>
             <span class="sidebar-tech">Cycle Time</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="heatmap">
-          <span class="sidebar-glyph">&#128293;</span>
+        <div class="sidebar-link" data-page="heatmap" role="button" tabindex="0" aria-label="Wo verbringen Tickets ihre Zeit? – Flow-Heatmap">
+          <span class="sidebar-glyph" aria-hidden="true">&#128293;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wo verbringen Tickets ihre Zeit?</span>
             <span class="sidebar-tech">Flow-Heatmap</span>
           </span>
         </div>
-        <div class="sidebar-link" data-page="monte">
-          <span class="sidebar-glyph">&#127922;&#127922;</span>
+        <div class="sidebar-link" data-page="monte" role="button" tabindex="0" aria-label="Wann sind wir fertig? – Monte Carlo">
+          <span class="sidebar-glyph" aria-hidden="true">&#127922;&#127922;</span>
           <span class="sidebar-txt">
             <span class="sidebar-name">Wann sind wir fertig?</span>
             <span class="sidebar-tech">Monte Carlo</span>
+          </span>
+        </div>
+        <div class="sidebar-link" data-page="cfd" role="button" tabindex="0" aria-label="Wie fließt Arbeit? – Cumulative Flow">
+          <span class="sidebar-glyph" aria-hidden="true">&#128200;</span>
+          <span class="sidebar-txt">
+            <span class="sidebar-name">Wie flie&szlig;t Arbeit?</span>
+            <span class="sidebar-tech">Cumulative Flow</span>
           </span>
         </div>
       </div>
 
       <!-- Sidebar-Bottom: Einstellungen · Theme · Datencheck · Neue Datei -->
       <div class="sidebar-bottom">
+        <button class="sidebar-collapse-btn" id="btn-sidebar-collapse" aria-label="Sidebar einklappen" title="Sidebar einklappen">
+          <span>&#9664;</span><span class="sidebar-collapse-lbl"> Einklappen</span>
+        </button>
         <!-- Einstellungen mit Overlay-Panel -->
         <div class="settings-wrap" id="settings-wrap" style="position:relative">
           <button class="sidebar-bottom-btn" id="btn-settings">&#9881; Einstellungen</button>
@@ -656,9 +734,9 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <span class="settings-hint" style="display:block;margin-bottom:.35rem">&#8596; ziehen oder &#9650;&#9660; &ndash; gilt f&uuml;r WIPAge &amp; Heatmap</span>
           <div class="settings-order-list" id="settings-order-list"></div>
         </div>
-        <button class="sidebar-bottom-btn" id="btn-theme">&#9728; Light</button>
-        <button class="sidebar-bottom-btn" id="btn-datencheck">&#10558; Datencheck</button>
-        <button class="sidebar-bottom-btn" id="btn-reset">&#8617; Neue Datei</button>
+        <button class="sidebar-bottom-btn" id="btn-theme" aria-label="Theme wechseln (aktuell: Dark)">&#9728; Light</button>
+        <button class="sidebar-bottom-btn" id="btn-datencheck" aria-label="Datencheck anzeigen">&#10558; Datencheck</button>
+        <button class="sidebar-bottom-btn" id="btn-reset" aria-label="Neue Datei laden">&#8617; Neue Datei</button>
       </div>
     </nav>
 
@@ -676,11 +754,11 @@ td.td-lt{background:rgba(192,132,252,.04)}
           <div class="pf-sep"></div>
           <!-- Squad-Filter (global, hier in der LF-Page) -->
           <div class="squad-dd-wrap" id="squad-dd-wrap">
-            <button class="pf-filter-chip btn-squad-trigger" id="btn-squad">SQUADS Alle &#9661;</button>
+            <button class="pf-filter-chip btn-squad-trigger" id="btn-squad" aria-haspopup="dialog" aria-expanded="false" aria-controls="squad-dropdown">SQUADS Alle &#9661;</button>
             <!-- #squad-dropdown wurde auf #app-screen-Ebene verschoben (position:fixed, shared) -->
           </div>
-          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
-          <button class="pf-filter-chip btn-daterange-trigger">ZEITRAUM Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="issuetype-dropdown">ISSUE-TYP Alle &#9661;</button>
+          <button class="pf-filter-chip btn-daterange-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="daterange-dropdown">ZEITRAUM Alle &#9661;</button>
           <div class="pf-spacer"></div>
           <button class="pf-reset pf-filter-chip squad-filter-reset" id="lf-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
         </div>
@@ -760,8 +838,33 @@ td.td-lt{background:rgba(192,132,252,.04)}
         <div class="page-detail-canvas" id="page-canvas-monte"></div>
       </div>
 
+      <!-- Page: Cumulative Flow Diagram -->
+      <div class="page page-flex" id="page-cfd">
+        <div class="page-filterbar">
+          <span class="pf-page-title">Wie fließt Arbeit?</span>
+          <div class="pf-sep"></div>
+          <button class="pf-filter-chip btn-squad-trigger" id="btn-squad-cfd">SQUADS Alle &#9661;</button>
+          <button class="pf-filter-chip btn-issuetype-trigger">ISSUE-TYP Alle &#9661;</button>
+          <div class="pf-spacer"></div>
+          <button class="pf-reset pf-filter-chip squad-filter-reset">&#8635; Filter zur&uuml;cksetzen</button>
+        </div>
+        <div class="page-detail-canvas" id="page-canvas-cfd"></div>
+      </div>
+
     </div><!-- .main-content -->
   </div><!-- .app-body -->
+
+  <!-- Custom Confirm Modal (ersetzt window.confirm) -->
+  <div id="confirm-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div id="confirm-modal">
+      <div class="confirm-title" id="confirm-title">Bestätigung</div>
+      <div class="confirm-msg" id="confirm-msg"></div>
+      <div class="confirm-btns">
+        <button class="confirm-btn-cancel" id="confirm-cancel">Abbrechen</button>
+        <button class="confirm-btn-ok" id="confirm-ok">Zurücksetzen</button>
+      </div>
+    </div>
+  </div>
 
 </div><!-- #app-screen -->
 
@@ -1096,6 +1199,7 @@ const CARD_PAGE_MAP = {
   'happinessfaktor':  'lieferfahigkeit',
   'saydoratioepics':  'lieferfahigkeit',
   'montecarlo':       'monte',
+  'cfd':              'cfd',
 };
 
 const COLOR_MIN_DARK  = [28,  42,  63 ];
@@ -1318,8 +1422,9 @@ const core = {
     document.querySelectorAll('.page').forEach(p => { p.style.display = 'none'; });
     const page = document.getElementById('page-' + pageId);
     if (page) page.style.display = page.classList.contains('page-flex') ? 'flex' : 'block';
-    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-    document.querySelector(`.sidebar-link[data-page="${pageId}"]`)?.classList.add('active');
+    document.querySelectorAll('.sidebar-link').forEach(l => { l.classList.remove('active'); l.removeAttribute('aria-current'); });
+    const _activeLink = document.querySelector(`.sidebar-link[data-page="${pageId}"]`);
+    if (_activeLink) { _activeLink.classList.add('active'); _activeLink.setAttribute('aria-current', 'page'); }
     // Datencheck-Button aktiv/inaktiv in Sidebar-Bottom
     const dcBtn = document.getElementById('btn-datencheck');
     if (dcBtn) dcBtn.classList.toggle('sb-active', pageId === 'datencheck');
@@ -1864,10 +1969,14 @@ function _initSidebarButtons() {
 // ── Sidebar-Navigation initialisieren ──
 function _initSidebar() {
   document.querySelectorAll('.sidebar-link').forEach(link => {
-    link.addEventListener('click', () => {
-      if (link.classList.contains('nav-locked')) return; // gesperrt bis Bestätigung
+    const _navigate = () => {
+      if (link.classList.contains('nav-locked')) return;
       const pageId = link.dataset.page;
       if (pageId) core.showPage(pageId);
+    };
+    link.addEventListener('click', _navigate);
+    link.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _navigate(); }
     });
   });
 
@@ -1882,6 +1991,8 @@ function _initSidebar() {
 // ════════════════════════════════════════════════
 function _loadFile(file) {
   core.state.fileName = file.name;
+  const spinner = document.getElementById('upload-loading');
+  if (spinner) spinner.style.display = 'flex';
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -1904,9 +2015,11 @@ function _loadFile(file) {
       _processData(rows);
       _showDataPreview(wb.SheetNames, sheets);
     } catch (err) {
+      if (spinner) spinner.style.display = 'none';
       const dp = document.getElementById('data-preview');
       if (dp) {
-        dp.innerHTML = `<div style="color:var(--red);background:var(--bg2);border:1px solid var(--red);border-radius:8px;padding:.8rem 1.2rem;font-family:var(--mono);font-size:.8rem">&#9888; Fehler beim Laden: ${escHtml(err.message)}</div>`;
+        dp.style.display = 'block';
+        dp.innerHTML = `<div role="alert" style="color:var(--red);background:var(--bg2);border:1px solid rgba(248,113,113,.4);border-radius:8px;padding:.88rem 1.2rem;font-family:var(--mono);font-size:.78rem;line-height:1.55"><strong style="display:block;margin-bottom:.3rem">&#9888; Datei konnte nicht gelesen werden</strong>${escHtml(err.message)}<br><span style="color:var(--dimmer);font-size:.72rem">Bitte prüfe, ob es sich um eine gültige .xlsx/.xlsm/.xls-Datei handelt.</span></div>`;
       }
     }
   };
@@ -1995,6 +2108,8 @@ function _showDataPreview(sheetNames, sheets) {
 
 // ── Upload-Screen → App-Screen schalten (Datencheck-Page, gesperrt) ──
 function _switchToAppScreen() {
+  const spinner = document.getElementById('upload-loading');
+  if (spinner) spinner.style.display = 'none';
   document.getElementById('upload-screen').style.display = 'none';
   const app = document.getElementById('app-screen');
   app.style.display = 'block';
@@ -2170,6 +2285,7 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
 
   page.innerHTML = `
     <div class="dc-wrap">
+      <div class="dc-step-hint">Schritt 1 von 1 &mdash; Bitte prüfen, dann bestätigen</div>
       <div class="dc-badge">&#10003; Datei erkannt</div>
       <h2 class="dc-title">Das haben wir in deinem Export gefunden</h2>
       <div class="dc-sub">${escHtml(s.fileName)} &middot; Sheet &bdquo;${escHtml(s.sheetName)}&ldquo; &middot; ${rows.length} Tickets</div>
@@ -2213,8 +2329,8 @@ function _buildDatencheckPage(_sheetNames, _sheets) {
       ${extraSheetsHtml}
 
       <div class="dc-cta">
-        <button class="btn-cta" id="btn-goto-app">Weiter zu Lieferf&auml;higkeit &rarr;</button>
-        <span class="dc-cta-note">Alles erkannt &mdash; du kannst Stati &amp; Squads jederzeit sp&auml;ter feinjustieren.</span>
+        <button class="btn-cta" id="btn-goto-app">&#10003; Sieht gut aus &mdash; weiter zum Dashboard &rarr;</button>
+        <span class="dc-cta-note">Stati, Squads &amp; Farben kannst du jederzeit in den Einstellungen anpassen.</span>
       </div>
     </div>
   `;
@@ -9605,6 +9721,854 @@ function _saveCfg() {
 window.init_akzeptanz = init_akzeptanz;
 })();
 
+// ── calc/cfd.calc.js ──
+﻿// cfd.calc.js – Berechnungslogik für Cumulative Flow Diagram
+// Alle Funktionen sind pure (kein DOM, kein core-Zugriff).
+// toDate wird als Parameter übergeben (aus core.toDate).
+
+const CFD_UNIT_LABELS = { week: 'Wo', month: 'Mo', quarter: 'Q' };
+
+// ── Zeitscheiben-Schlüssel ─────────────────────────────────────────────
+
+function isoWeekOf(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const year = d.getUTCFullYear();
+  const week = Math.ceil(((d - new Date(Date.UTC(year, 0, 1))) / 86400000 + 1) / 7);
+  return { year, week };
+}
+
+function bucketKey(date, unit) {
+  if (!date) return null;
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d)) return null;
+  if (unit === 'week') {
+    const { year, week } = isoWeekOf(d);
+    return `${year}-W${String(week).padStart(2, '0')}`;
+  }
+  if (unit === 'month') {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  const q = Math.floor(d.getMonth() / 3) + 1;
+  return `${d.getFullYear()}-Q${q}`;
+}
+
+function bucketLabel(key, unit) {
+  if (!key) return '';
+  if (unit === 'week') {
+    const [year, w] = key.split('-W');
+    return `KW ${parseInt(w)}, ${year}`;
+  }
+  if (unit === 'month') {
+    const parts = key.split('-');
+    const year = parts[0], m = parts[1];
+    const mon = ['Jan','Feb','Mrz','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'][parseInt(m) - 1];
+    return `${mon} ${year}`;
+  }
+  const [year, q] = key.split('-Q');
+  return `Q${q} ${year}`;
+}
+
+function nextBucketKey(key, unit) {
+  if (unit === 'week') {
+    const [yearStr, wStr] = key.split('-W');
+    let year = parseInt(yearStr), week = parseInt(wStr);
+    week++;
+    // Prüfen ob Jahr 53 Wochen hat (Dec 28 liegt immer in der letzten ISO-Woche)
+    const dec28 = new Date(year, 11, 28);
+    const maxWeek = isoWeekOf(dec28).week;
+    if (week > maxWeek) { week = 1; year++; }
+    return `${year}-W${String(week).padStart(2, '0')}`;
+  }
+  if (unit === 'month') {
+    const parts = key.split('-');
+    let year = parseInt(parts[0]), month = parseInt(parts[1]);
+    month++;
+    if (month > 12) { month = 1; year++; }
+    return `${year}-${String(month).padStart(2, '0')}`;
+  }
+  const [yearStr, qStr] = key.split('-Q');
+  let year = parseInt(yearStr), q = parseInt(qStr);
+  q++;
+  if (q > 4) { q = 1; year++; }
+  return `${year}-Q${q}`;
+}
+
+function buildTimeline(startKey, unit) {
+  const now = new Date();
+  const todayKey = bucketKey(now, unit);
+  const timeline = [];
+  let cur = startKey;
+  for (let safety = 0; safety < 600 && cur <= todayKey; safety++) {
+    timeline.push(cur);
+    if (cur === todayKey) break;
+    cur = nextBucketKey(cur, unit);
+  }
+  return timeline;
+}
+
+// ── Ausgangs-Datum (Resolved XOR Rejected) ────────────────────────────
+
+function exitDateOf(row, toDate) {
+  const res = toDate(row['Resolved']);
+  const rej = toDate(row['Rejected']);
+  if (res && rej) return res < rej ? res : rej;
+  return res || rej || null;
+}
+
+// ── 3-Bänder CFD ──────────────────────────────────────────────────────
+
+function buildCfdData3Bands(rows, entryCol, unit, toDate) {
+  if (!rows.length) return [];
+
+  const entryDates = rows.map(r => toDate(r[entryCol])).filter(Boolean);
+  if (!entryDates.length) return [];
+
+  const minKey = entryDates
+    .map(d => bucketKey(d, unit))
+    .filter(Boolean)
+    .sort()[0];
+  if (!minKey) return [];
+
+  const timeline = buildTimeline(minKey, unit);
+
+  // Entry- und Exit-Keys vorberechnen (einmalig)
+  const itemEntryKeys = rows.map(r => bucketKey(toDate(r[entryCol]), unit));
+  const itemExitKeys  = rows.map(r => {
+    const ed = exitDateOf(r, toDate);
+    return ed ? bucketKey(ed, unit) : null;
+  });
+
+  return timeline.map(key => {
+    let cumArrived = 0, cumDone = 0, arrivalCount = 0, departureCount = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const ek = itemEntryKeys[i];
+      const dk = itemExitKeys[i];
+      if (ek && ek <= key) { cumArrived++; if (ek === key) arrivalCount++; }
+      if (dk && dk <= key) { cumDone++;    if (dk === key) departureCount++; }
+    }
+    const wip = Math.max(0, cumArrived - cumDone);
+    return {
+      key,
+      label: bucketLabel(key, unit),
+      cumArrived,
+      cumDone,
+      wip,
+      arrivalCount,
+      departureCount,
+    };
+  });
+}
+
+// ── Alle-Status CFD ────────────────────────────────────────────────────
+
+function buildCfdDataAllStatus(rows, entryCol, statusOrder, unit, toDate) {
+  if (!rows.length) return { base3: [], validStatuses: [], statusLines: {} };
+
+  const base3 = buildCfdData3Bands(rows, entryCol, unit, toDate);
+  if (!base3.length) return { base3: [], validStatuses: [], statusLines: {} };
+
+  const timeline = base3.map(b => b.key);
+
+  // Nur Zustände einbeziehen für die eine _first-Spalte vorhanden ist
+  const validStatuses = statusOrder.filter(s =>
+    rows.some(r => r[s + '_first'] !== undefined && r[s + '_first'] !== null && r[s + '_first'] !== '')
+  );
+
+  // Kumulative Eintritte pro Status und Zeitscheibe
+  const statusLines = {};
+  for (const s of validStatuses) {
+    const col = s + '_first';
+    const keysPerRow = rows.map(r => bucketKey(toDate(r[col]), unit));
+    statusLines[s] = timeline.map(key => {
+      let count = 0;
+      for (const rk of keysPerRow) {
+        if (rk && rk <= key) count++;
+      }
+      return count;
+    });
+  }
+
+  // Monotoniebedingung: jede Status-Linie >= done-Linie (verhindert negative Bänder)
+  const doneByIdx = base3.map(b => b.cumDone);
+  for (const s of validStatuses) {
+    statusLines[s] = statusLines[s].map((v, i) => Math.max(v, doneByIdx[i]));
+  }
+
+  return { base3, validStatuses, statusLines };
+}
+
+// ── Raten ─────────────────────────────────────────────────────────────
+
+function smoothRates(arr, window) {
+  if (!arr.length) return [];
+  const w = Math.max(1, window);
+  return arr.map((_, i) => {
+    const start = Math.max(0, i - w + 1);
+    const slice = arr.slice(start, i + 1);
+    return slice.reduce((s, v) => s + v, 0) / slice.length;
+  });
+}
+
+// ── Stabilitätsbewertung ──────────────────────────────────────────────
+
+function calcStability(base3, cfg) {
+  if (!base3.length) return null;
+  const period = Math.min(Math.max(cfg.stabilityPeriod || 12, 2), base3.length);
+  const slice  = base3.slice(-period);
+
+  const avgArr = slice.reduce((s, d) => s + d.arrivalCount, 0) / slice.length;
+  const avgDep = slice.reduce((s, d) => s + d.departureCount, 0) / slice.length;
+  const imbalance = Math.abs(avgArr - avgDep) / Math.max(avgArr, avgDep, 1);
+
+  const byY = cfg.balanceThresholdYellow || 0.15;
+  const byR = cfg.balanceThresholdRed    || 0.35;
+  let balAmpel, balText;
+  if (imbalance <= byY)      { balAmpel = '🟢'; balText = 'Ausgeglichen'; }
+  else if (imbalance <= byR) { balAmpel = '🟡'; balText = 'Leicht unausgeglichen'; }
+  else                       { balAmpel = '🔴'; balText = 'Unausgeglichen'; }
+
+  const wipStart    = slice[0].wip;
+  const wipEnd      = slice[slice.length - 1].wip;
+  const wipDelta    = wipEnd - wipStart;
+  const relGrowth   = wipDelta / Math.max(wipStart, 1);
+
+  const wyY = cfg.wipGrowthThresholdYellow || 0.10;
+  const wyR = cfg.wipGrowthThresholdRed    || 0.30;
+  let wipAmpel, wipText;
+  if (relGrowth < -0.05)       { wipAmpel = '🟢'; wipText = 'WIP schrumpft'; }
+  else if (relGrowth <= wyY)   { wipAmpel = '🟢'; wipText = 'Stabil'; }
+  else if (relGrowth <= wyR)   { wipAmpel = '🟡'; wipText = 'Leicht wachsend'; }
+  else                         { wipAmpel = '🔴'; wipText = 'WIP wächst'; }
+
+  return { balAmpel, balText, avgArr, avgDep, wipAmpel, wipText, wipEnd, wipDelta, period };
+}
+
+// ── Tooltip: Median LT / CT ───────────────────────────────────────────
+
+function _median(arr) {
+  if (!arr.length) return null;
+  const s = arr.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+function calcTooltipLtCt(rows, idx, base3, cfg, toDate) {
+  if (!base3.length || idx < 0 || idx >= base3.length) return { lt: null, ct: null };
+
+  const unit     = cfg.timeUnit || 'week';
+  const slices   = cfg.tooltipRollingSlices || 4;
+  const winStart = base3[Math.max(0, idx - slices + 1)].key;
+  const winEnd   = base3[idx].key;
+
+  const ltStartCol = cfg.ltStart || 'Ready4Progress_first';
+  const ltEndCol   = cfg.ltEnd   || 'Resolved';
+  const ctStartCol = cfg.ctStart || 'In Progress_first';
+  const ctEndCol   = cfg.ctEnd   || 'Resolved';
+
+  const ltVals = [], ctVals = [];
+  for (const row of rows) {
+    const exitD = exitDateOf(row, toDate);
+    if (!exitD) continue;
+    const exKey = bucketKey(exitD, unit);
+    if (!exKey || exKey < winStart || exKey > winEnd) continue;
+
+    const ltS = toDate(row[ltStartCol]);
+    const ltE = toDate(row[ltEndCol]) || exitD;
+    if (ltS && ltE) {
+      const lt = (ltE - ltS) / 86400000 + 1;
+      if (lt > 0) ltVals.push(lt);
+    }
+
+    const ctS = toDate(row[ctStartCol]);
+    const ctE = toDate(row[ctEndCol]) || exitD;
+    if (ctS && ctE) {
+      const ct = (ctE - ctS) / 86400000 + 1;
+      if (ct > 0) ctVals.push(ct);
+    }
+  }
+
+  return { lt: _median(ltVals), ct: _median(ctVals) };
+}
+
+// ── cfd.js ──
+(function() {
+// cfd.js – Cumulative Flow Diagram
+
+
+
+function init_cfd() {
+
+  // ── Config ─────────────────────────────────────────────────────────────
+  const cfg = core.load('fhwa_cfd', {
+    bandMode:  '3bands',
+    timeUnit:  'week',
+    showRates: true,
+    entryCol:  'Ready4Progress_first',
+    ltStart:   'Ready4Progress_first',
+    ltEnd:     'Resolved',
+    ctStart:   'In Progress_first',
+    ctEnd:     'Resolved',
+    rateWindow:               4,
+    stabilityPeriod:          12,
+    tooltipRollingSlices:     4,
+    balanceThresholdYellow:   0.15,
+    balanceThresholdRed:      0.35,
+    wipGrowthThresholdYellow: 0.10,
+    wipGrowthThresholdRed:    0.30,
+    colorArrived:      '#4ade80',
+    colorWip:          '#38bdf8',
+    colorDone:         '#8ba8c8',
+    colorArrivalRate:  '#fb923c',
+    colorDepartureRate:'#c084fc',
+  });
+
+  function saveConfig() { core.save('fhwa_cfd', cfg); }
+
+  function _safeColor(v, fallback) {
+    return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback;
+  }
+
+  // ── Card ───────────────────────────────────────────────────────────────
+  const { cardEl, contentEl, headerExtraEl, diagEl } = core.createCard({
+    id:          'cfd',
+    title:       'Cumulative<span class="hl">Flow</span>',
+    defaultGrid: { col: 0, row: 0, w: 8, h: 14 },
+  });
+
+  // ── Header-Controls ────────────────────────────────────────────────────
+  function _sep() {
+    const s = document.createElement('span');
+    s.style.cssText = 'width:1px;height:18px;background:var(--border);flex-shrink:0';
+    return s;
+  }
+
+  // Band-Modus Toggle
+  const tglBand = document.createElement('div');
+  tglBand.className = 'tgl-group';
+  tglBand.innerHTML =
+    `<button class="tgl${cfg.bandMode==='3bands'?' ta-b':''}" data-bm="3bands">Bänder</button>` +
+    `<button class="tgl${cfg.bandMode==='allstatus'?' ta-b':''}" data-bm="allstatus">Alle Status</button>`;
+  tglBand.addEventListener('click', e => {
+    const btn = e.target.closest('[data-bm]');
+    if (!btn) return;
+    cfg.bandMode = btn.dataset.bm;
+    tglBand.querySelectorAll('[data-bm]').forEach(b => b.classList.toggle('ta-b', b.dataset.bm === cfg.bandMode));
+    saveConfig(); render();
+  });
+
+  // Zeiteinheit Toggle
+  const tglUnit = document.createElement('div');
+  tglUnit.className = 'tgl-group';
+  tglUnit.innerHTML = [['week','Wo'],['month','Mo'],['quarter','Q']].map(([v,l]) =>
+    `<button class="tgl${cfg.timeUnit===v?' ta-b':''}" data-unit="${v}">${l}</button>`
+  ).join('');
+  tglUnit.addEventListener('click', e => {
+    const btn = e.target.closest('[data-unit]');
+    if (!btn) return;
+    cfg.timeUnit = btn.dataset.unit;
+    tglUnit.querySelectorAll('[data-unit]').forEach(b => b.classList.toggle('ta-b', b.dataset.unit === cfg.timeUnit));
+    saveConfig(); render();
+  });
+
+  // Raten Toggle
+  const btnRates = document.createElement('button');
+  btnRates.className = 'tgl' + (cfg.showRates ? ' ta-b' : '');
+  btnRates.title = 'Raten-Overlay ein/aus';
+  btnRates.textContent = '≈ Raten';
+  btnRates.addEventListener('click', () => {
+    cfg.showRates = !cfg.showRates;
+    btnRates.classList.toggle('ta-b', cfg.showRates);
+    saveConfig(); render();
+  });
+
+  // Einstellungen Button
+  const btnSettings = document.createElement('button');
+  btnSettings.className = 'btn-icon';
+  btnSettings.textContent = '⚙ Einstellungen';
+  btnSettings.addEventListener('click', () => _togglePanel());
+
+  [tglBand, _sep(), tglUnit, _sep(), btnRates, _sep(), btnSettings]
+    .forEach(el => headerExtraEl.appendChild(el));
+
+  // ── Content-Layout ──────────────────────────────────────────────────────
+  contentEl.style.cssText = 'display:flex;flex-direction:column;overflow:hidden';
+
+  // Stabilitäts-Zeile
+  const stabBar = document.createElement('div');
+  stabBar.style.cssText = 'display:flex;align-items:center;gap:1rem;padding:.38rem .85rem;' +
+    'border-bottom:1px solid var(--border);background:var(--bg3);flex-shrink:0;flex-wrap:wrap;font-size:.73rem';
+  stabBar.innerHTML = `
+    <span style="display:flex;align-items:center;gap:.38rem">
+      <span style="color:var(--dimmer);font-size:.68rem">Gleichgewicht</span>
+      <span id="cfd-amp-bal">&#11035;</span>
+      <span id="cfd-txt-bal" style="font-weight:600"></span>
+      <span id="cfd-sub-bal" style="color:var(--dim);font-size:.67rem"></span>
+    </span>
+    <span style="width:1px;height:16px;background:var(--border)"></span>
+    <span style="display:flex;align-items:center;gap:.38rem">
+      <span style="color:var(--dimmer);font-size:.68rem">WIP-Trend</span>
+      <span id="cfd-amp-wip">&#11035;</span>
+      <span id="cfd-txt-wip" style="font-weight:600"></span>
+      <span id="cfd-sub-wip" style="color:var(--dim);font-size:.67rem"></span>
+    </span>`;
+  contentEl.appendChild(stabBar);
+
+  // Legende
+  const legendEl = document.createElement('div');
+  legendEl.id = 'cfd-legend';
+  legendEl.style.cssText = 'display:flex;gap:.9rem;align-items:center;padding:.28rem .85rem;' +
+    'border-bottom:1px solid var(--border);font-size:.68rem;flex-shrink:0;flex-wrap:wrap';
+  contentEl.appendChild(legendEl);
+
+  // Chart-Wrapper + SVG
+  const chartWrap = document.createElement('div');
+  chartWrap.style.cssText = 'flex:1;position:relative;overflow:hidden';
+  contentEl.appendChild(chartWrap);
+
+  const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgEl.style.cssText = 'width:100%;height:100%;display:block;overflow:visible';
+  chartWrap.appendChild(svgEl);
+
+  const hoverLine = document.createElement('div');
+  hoverLine.style.cssText = 'position:absolute;top:0;bottom:0;width:1px;background:var(--dim);' +
+    'opacity:.5;pointer-events:none;display:none';
+  chartWrap.appendChild(hoverLine);
+
+  const ttEl = document.createElement('div');
+  ttEl.style.cssText = 'position:absolute;pointer-events:none;display:none;' +
+    'background:var(--bg4);border:1px solid var(--border);border-radius:8px;' +
+    'padding:.5rem .65rem;font-size:.72rem;line-height:1.55;min-width:190px;' +
+    'box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:100';
+  chartWrap.appendChild(ttEl);
+
+  // ── Einstellungs-Panel ──────────────────────────────────────────────────
+  const settingsPanel = document.createElement('div');
+  settingsPanel.style.cssText = 'display:none;position:absolute;top:8px;right:8px;z-index:50;' +
+    'background:var(--bg2);border:1px solid var(--border);border-radius:10px;' +
+    'padding:.8rem 1rem;min-width:265px;box-shadow:0 12px 32px rgba(0,0,0,.5);font-size:.76rem';
+  cardEl.style.position = 'relative';
+  cardEl.appendChild(settingsPanel);
+
+  let _panelOpen = false;
+
+  function _buildPanel() {
+    const cols = (core.state.dateCols || []);
+    const sel = (id, val) =>
+      `<select id="${id}" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:.18rem .4rem;font-size:.72rem;font-family:var(--sans);max-width:150px">` +
+      cols.map(c => `<option${c === val ? ' selected' : ''}>${c}</option>`).join('') +
+      '</select>';
+    const row = (lbl, ctrl) =>
+      `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.42rem;gap:.5rem">` +
+      `<span style="color:var(--dim)">${lbl}</span>${ctrl}</div>`;
+    const num = (id, val, min, max) =>
+      `<input id="${id}" type="number" value="${val}" min="${min}" max="${max}" ` +
+      'style="width:56px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:.18rem .4rem;font-size:.72rem;text-align:right">';
+    const clr = (id, val) =>
+      `<input id="${id}" type="color" value="${_safeColor(val,'#4ade80')}" ` +
+      'style="width:32px;height:22px;border:none;background:transparent;cursor:pointer">';
+    const sec = lbl =>
+      `<div style="color:var(--dimmer);font-size:.63rem;text-transform:uppercase;letter-spacing:.09em;margin:.5rem 0 .3rem">${lbl}</div>`;
+    const hr = '<hr style="border:none;border-top:1px solid var(--border);margin:.45rem 0">';
+
+    settingsPanel.innerHTML =
+      `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">` +
+      `<span style="font-weight:700">Einstellungen</span>` +
+      `<button id="cfd-pclose" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:1rem">&#x2715;</button></div>` +
+      sec('Datumsspalten') +
+      row('Eingang',  sel('cfd-s-entry', cfg.entryCol)) +
+      row('LT Start', sel('cfd-s-lts',   cfg.ltStart)) +
+      row('LT Ende',  sel('cfd-s-lte',   cfg.ltEnd)) +
+      row('CT Start', sel('cfd-s-cts',   cfg.ctStart)) +
+      row('CT Ende',  sel('cfd-s-cte',   cfg.ctEnd)) +
+      hr + sec('Parameter') +
+      row('Raten-Glättung (Scheiben)', num('cfd-s-rw',  cfg.rateWindow,           1, 26)) +
+      row('Stabilitätszeitraum',       num('cfd-s-sp',  cfg.stabilityPeriod,       4, 52)) +
+      row('LT/CT-Fenster (Tooltip)',   num('cfd-s-tts', cfg.tooltipRollingSlices, 1, 26)) +
+      hr + sec('Farben') +
+      row('Angekommen',  clr('cfd-s-ca',  cfg.colorArrived)) +
+      row('WIP',         clr('cfd-s-cw',  cfg.colorWip)) +
+      row('Fertig',      clr('cfd-s-cd',  cfg.colorDone)) +
+      row('Anflussrate', clr('cfd-s-car', cfg.colorArrivalRate)) +
+      row('Abflussrate', clr('cfd-s-cdr', cfg.colorDepartureRate));
+
+    settingsPanel.querySelector('#cfd-pclose').onclick = () => _closePanel();
+
+    function _bind(id, key, xform) {
+      const el = settingsPanel.querySelector('#' + id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        cfg[key] = xform ? xform(el.value) : el.value;
+        saveConfig(); _buildLegend(); render();
+      });
+    }
+    _bind('cfd-s-entry', 'entryCol');
+    _bind('cfd-s-lts',   'ltStart');
+    _bind('cfd-s-lte',   'ltEnd');
+    _bind('cfd-s-cts',   'ctStart');
+    _bind('cfd-s-cte',   'ctEnd');
+    _bind('cfd-s-rw',  'rateWindow',           v => Math.max(1,  Math.min(26, parseInt(v) || 4)));
+    _bind('cfd-s-sp',  'stabilityPeriod',       v => Math.max(4,  Math.min(52, parseInt(v) || 12)));
+    _bind('cfd-s-tts', 'tooltipRollingSlices', v => Math.max(1,  Math.min(26, parseInt(v) || 4)));
+    _bind('cfd-s-ca',  'colorArrived');
+    _bind('cfd-s-cw',  'colorWip');
+    _bind('cfd-s-cd',  'colorDone');
+    _bind('cfd-s-car', 'colorArrivalRate');
+    _bind('cfd-s-cdr', 'colorDepartureRate');
+  }
+
+  function _togglePanel() {
+    _panelOpen = !_panelOpen;
+    if (_panelOpen) { _buildPanel(); settingsPanel.style.display = 'block'; }
+    else              { settingsPanel.style.display = 'none'; }
+  }
+  function _closePanel() { _panelOpen = false; settingsPanel.style.display = 'none'; }
+
+  // ── Legende ───────────────────────────────────────────────────────────
+  function _legDot(color) {
+    return `<span style="width:12px;height:10px;border-radius:3px;background:${color}33;` +
+      `border:1.5px solid ${color};flex-shrink:0"></span>`;
+  }
+  function _legLine(color) {
+    return `<span style="width:18px;height:0;border-top:2px dashed ${color};flex-shrink:0"></span>`;
+  }
+  function _legItem(dotOrLine, label, color) {
+    return `<span style="display:flex;align-items:center;gap:.32rem">${dotOrLine}` +
+      `<span style="color:${color || 'var(--dim)'}">${label}</span></span>`;
+  }
+
+  function _buildLegend(validStatuses) {
+    const ca = _safeColor(cfg.colorArrived, '#4ade80');
+    const cw = _safeColor(cfg.colorWip, '#38bdf8');
+    const cd = _safeColor(cfg.colorDone, '#8ba8c8');
+    const car = _safeColor(cfg.colorArrivalRate, '#fb923c');
+    const cdr = _safeColor(cfg.colorDepartureRate, '#c084fc');
+    const palette = core.palette();
+
+    let html = '';
+    if (cfg.bandMode === '3bands') {
+      html += _legItem(_legDot(ca), 'Angekommen');
+      html += _legItem(_legDot(cw), 'In Arbeit (WIP)');
+      html += _legItem(_legDot(cd), 'Fertig');
+    } else {
+      html += _legItem(_legDot(cd), 'Fertig');
+      (validStatuses || []).forEach((s, i) =>
+        html += _legItem(_legDot(palette[i % palette.length]), s)
+      );
+    }
+    if (cfg.showRates) {
+      html += _legItem(_legLine(car), 'Anflussrate', car);
+      html += _legItem(_legLine(cdr), 'Abflussrate', cdr);
+    }
+    legendEl.innerHTML = html;
+  }
+
+  // ── Stabilitäts-Zeile aktualisieren ──────────────────────────────────
+  function _updateStabBar(stab) {
+    const ul = CFD_UNIT_LABELS[cfg.timeUnit] || 'Wo';
+    const ampBal = document.getElementById('cfd-amp-bal');
+    const txtBal = document.getElementById('cfd-txt-bal');
+    const subBal = document.getElementById('cfd-sub-bal');
+    const ampWip = document.getElementById('cfd-amp-wip');
+    const txtWip = document.getElementById('cfd-txt-wip');
+    const subWip = document.getElementById('cfd-sub-wip');
+    if (!stab) {
+      if (ampBal) ampBal.textContent = '–';
+      if (txtBal) txtBal.textContent = '–';
+      if (subBal) subBal.textContent = '';
+      if (ampWip) ampWip.textContent = '–';
+      if (txtWip) txtWip.textContent = '–';
+      if (subWip) subWip.textContent = '';
+      return;
+    }
+    if (ampBal) ampBal.textContent = stab.balAmpel;
+    if (txtBal) txtBal.textContent = stab.balText;
+    if (subBal) subBal.textContent = `Anfluss: ${stab.avgArr.toFixed(1)}/${ul} · Abfluss: ${stab.avgDep.toFixed(1)}/${ul}`;
+    if (ampWip) ampWip.textContent = stab.wipAmpel;
+    if (txtWip) txtWip.textContent = stab.wipText;
+    if (subWip) subWip.textContent = `WIP: ${stab.wipEnd} · ${stab.wipDelta >= 0 ? '+' : ''}${stab.wipDelta} in ${stab.period} ${ul}`;
+  }
+
+  // ── Tooltip positionieren ─────────────────────────────────────────────
+  function _positionTooltip(mouseX, mouseY) {
+    const ttW = ttEl.offsetWidth  || 210;
+    const ttH = ttEl.offsetHeight || 200;
+    const cW  = chartWrap.clientWidth;
+    const cH  = chartWrap.clientHeight;
+    let left  = mouseX + 14;
+    if (left + ttW > cW) left = mouseX - ttW - 14;
+    if (left < 0) left = 4;
+    let top   = mouseY - Math.round(ttH / 2);
+    if (top + ttH > cH) top = cH - ttH - 4;
+    if (top < 4) top = 4;
+    ttEl.style.left = left + 'px';
+    ttEl.style.top  = top  + 'px';
+  }
+
+  // ── Hover-Cache ───────────────────────────────────────────────────────
+  let _base3 = [], _smoothArr = [], _smoothDep = [], _rows = [], _xOf = null;
+
+  // ── Render ────────────────────────────────────────────────────────────
+  function render() {
+    const rows = core.filteredRows();
+    _rows = rows;
+    const entryCol = cfg.entryCol || 'Ready4Progress_first';
+    const C = core.scatterColors();
+
+    if (!rows.length) {
+      svgEl.innerHTML = '';
+      _updateStabBar(null);
+      _buildLegend();
+      diagEl.textContent = 'Keine Daten – bitte Excel-Datei laden';
+      return;
+    }
+    if (!(core.state.dateCols || []).includes(entryCol)) {
+      svgEl.innerHTML = '';
+      _updateStabBar(null);
+      diagEl.textContent = `Eingangs-Spalte '${entryCol}' nicht gefunden – bitte Einstellungen prüfen`;
+      return;
+    }
+    const hasExit = rows.some(r => r['Resolved'] || r['Rejected']);
+    if (!hasExit) {
+      svgEl.innerHTML = '';
+      _updateStabBar(null);
+      diagEl.textContent = 'Keine Abschluss-Spalte gefunden (Resolved / Rejected)';
+      return;
+    }
+
+    const toDate = v => core.toDate(v);
+
+    // Kerndaten
+    const base3 = buildCfdData3Bands(rows, entryCol, cfg.timeUnit, toDate);
+    _base3 = base3;
+    if (!base3.length) {
+      svgEl.innerHTML = '';
+      _updateStabBar(null);
+      diagEl.textContent = 'Keine Items mit Eingangs-Datum in gewählter Spalte';
+      return;
+    }
+
+    const arrRates  = base3.map(b => b.arrivalCount);
+    const depRates  = base3.map(b => b.departureCount);
+    const sArr      = smoothRates(arrRates, cfg.rateWindow);
+    const sDep      = smoothRates(depRates, cfg.rateWindow);
+    _smoothArr = sArr;
+    _smoothDep = sDep;
+
+    const stab = calcStability(base3, cfg);
+    _updateStabBar(stab);
+
+    // Alle-Status-Daten (nur wenn nötig)
+    let allStatusData = null;
+    if (cfg.bandMode === 'allstatus') {
+      const statusOrder = core.loadGlobalStatusOrder();
+      allStatusData = buildCfdDataAllStatus(rows, entryCol, statusOrder, cfg.timeUnit, toDate);
+      _buildLegend(allStatusData.validStatuses || []);
+    } else {
+      _buildLegend();
+    }
+
+    // SVG-Maße
+    const W  = chartWrap.clientWidth  || 900;
+    const H  = chartWrap.clientHeight || 300;
+    const rPad = cfg.showRates ? 58 : 20;
+    const PAD  = { top: 20, right: rPad, bottom: 36, left: 52 };
+    const pW   = W - PAD.left - PAD.right;
+    const pH   = H - PAD.top  - PAD.bottom;
+    if (pW <= 0 || pH <= 0) { svgEl.innerHTML = ''; return; }
+
+    const n    = base3.length;
+    const xOf  = i => PAD.left + (n > 1 ? (i / (n - 1)) * pW : pW / 2);
+    _xOf       = xOf;
+
+    const maxCum = base3.reduce((m, b) => Math.max(m, b.cumArrived), 1);
+    const yTicks = core.intTicks(maxCum, 6);
+    const yMax   = yTicks[yTicks.length - 1] || 1;
+    const yOf    = v => PAD.top + pH - (v / yMax) * pH;
+
+    const maxRate = cfg.showRates ? Math.max(sArr.reduce((m, v) => Math.max(m, v), 0), sDep.reduce((m, v) => Math.max(m, v), 0), 1) : 1;
+    const rTicks  = cfg.showRates ? core.intTicks(maxRate, 4) : [];
+    const rMaxVal = cfg.showRates ? (rTicks[rTicks.length - 1] || 1) : 1;
+    const rOf     = v => PAD.top + pH - (v / rMaxVal) * pH;
+
+    const gridClr = core.isLight() ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)';
+    const axisClr = core.isLight() ? 'rgba(0,0,0,0.2)'  : 'rgba(255,255,255,0.25)';
+    const lblClr  = C.axisLabel;
+
+    const p = [];
+
+    // Gitternetz + linke Y-Achse
+    yTicks.forEach(v => {
+      const y = yOf(v);
+      p.push(`<line x1="${PAD.left}" y1="${y}" x2="${PAD.left+pW}" y2="${y}" stroke="${gridClr}" stroke-width="1"/>`);
+      p.push(`<text x="${PAD.left-6}" y="${y+4}" text-anchor="end" font-size="10" fill="${lblClr}" font-family="DM Mono,monospace">${v}</text>`);
+    });
+
+    // X-Achse
+    const xStep = Math.max(1, Math.ceil(n / Math.min(n, 10)));
+    base3.forEach((b, i) => {
+      if (i % xStep !== 0 && i !== n - 1) return;
+      const x = xOf(i);
+      const lbl = b.label;
+      p.push(`<line x1="${x}" y1="${PAD.top}" x2="${x}" y2="${PAD.top+pH}" stroke="${gridClr}" stroke-width="1"/>`);
+      p.push(`<text x="${x}" y="${PAD.top+pH+14}" text-anchor="middle" font-size="10" fill="${lblClr}" font-family="DM Mono,monospace">${lbl}</text>`);
+    });
+
+    // Achsenlinien
+    p.push(`<line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top+pH}" stroke="${axisClr}" stroke-width="1"/>`);
+    p.push(`<line x1="${PAD.left}" y1="${PAD.top+pH}" x2="${PAD.left+pW}" y2="${PAD.top+pH}" stroke="${axisClr}" stroke-width="1"/>`);
+
+    // Y-Achsenbeschriftung links
+    const midY = PAD.top + pH / 2;
+    p.push(`<text x="${PAD.left/2}" y="${midY}" transform="rotate(-90,${PAD.left/2},${midY})" text-anchor="middle" font-size="10" fill="${lblClr}">Kumulativ (Items)</text>`);
+
+    // Pfad-Helfer
+    function pathD(vals, yFn) {
+      return vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${xOf(i).toFixed(1)},${yFn(v).toFixed(1)}`).join(' ');
+    }
+    function pathClosed(vals, yFn, baseY) {
+      return pathD(vals, yFn) +
+        ` L${xOf(n-1).toFixed(1)},${baseY.toFixed(1)} L${xOf(0).toFixed(1)},${baseY.toFixed(1)} Z`;
+    }
+
+    // ── Flächen ───────────────────────────────────────────────────────────
+    if (cfg.bandMode === '3bands') {
+      const ca = _safeColor(cfg.colorArrived, '#4ade80');
+      const cw = _safeColor(cfg.colorWip,     '#38bdf8');
+      const cd = _safeColor(cfg.colorDone,    '#8ba8c8');
+
+      const arrivedVals = base3.map(b => b.cumArrived);
+      const doneVals    = base3.map(b => b.cumDone);
+
+      // Done-Fläche
+      p.push(`<path d="${pathClosed(doneVals, yOf, yOf(0))}" fill="${cd}" opacity="0.3"/>`);
+      p.push(`<path d="${pathD(doneVals, yOf)}" fill="none" stroke="${cd}" stroke-width="1.5"/>`);
+
+      // WIP-Band (zwischen done und arrived)
+      const arrLine  = pathD(arrivedVals, yOf);
+      const doneRev  = doneVals.slice().reverse().map((v, i) => `L${xOf(n-1-i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ');
+      p.push(`<path d="${arrLine} ${doneRev} Z" fill="${cw}" opacity="0.22"/>`);
+
+      // Arrived-Grenzlinie + leichte Füllung
+      p.push(`<path d="${pathClosed(arrivedVals, yOf, yOf(0))}" fill="${ca}" opacity="0.08"/>`);
+      p.push(`<path d="${arrLine}" fill="none" stroke="${ca}" stroke-width="2"/>`);
+
+    } else if (allStatusData && allStatusData.validStatuses && allStatusData.validStatuses.length) {
+      const { validStatuses, statusLines } = allStatusData;
+      const palette = core.palette();
+      const cd = _safeColor(cfg.colorDone, '#8ba8c8');
+      const doneVals = base3.map(b => b.cumDone);
+
+      // Done-Fläche (unterste)
+      p.push(`<path d="${pathClosed(doneVals, yOf, yOf(0))}" fill="${cd}" opacity="0.3"/>`);
+      p.push(`<path d="${pathD(doneVals, yOf)}" fill="none" stroke="${cd}" stroke-width="1.2"/>`);
+
+      // Bänder von unten nach oben (letzter Status im Stack = zuerst nach Done)
+      const revStatuses = [...validStatuses].reverse();
+      let prevVals = doneVals;
+      revStatuses.forEach((s, si) => {
+        const currVals = statusLines[s];
+        const color    = palette[si % palette.length];
+        const currLine = pathD(currVals, yOf);
+        const prevRev  = prevVals.slice().reverse().map((v, i) => `L${xOf(n-1-i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ');
+        p.push(`<path d="${currLine} ${prevRev} Z" fill="${color}" opacity="0.25"/>`);
+        p.push(`<path d="${currLine}" fill="none" stroke="${color}" stroke-width="1.2"/>`);
+        prevVals = currVals;
+      });
+    }
+
+    // ── Raten-Overlay ─────────────────────────────────────────────────────
+    if (cfg.showRates) {
+      const car = _safeColor(cfg.colorArrivalRate,   '#fb923c');
+      const cdr = _safeColor(cfg.colorDepartureRate, '#c084fc');
+      const ul  = CFD_UNIT_LABELS[cfg.timeUnit] || 'Wo';
+
+      // Rechte Y-Achse
+      p.push(`<line x1="${PAD.left+pW}" y1="${PAD.top}" x2="${PAD.left+pW}" y2="${PAD.top+pH}" stroke="${axisClr}" stroke-width="1" opacity="0.4"/>`);
+      rTicks.forEach(v => {
+        p.push(`<text x="${PAD.left+pW+8}" y="${rOf(v)+4}" font-size="9" fill="${car}" font-family="DM Mono,monospace" opacity="0.75">${v}</text>`);
+      });
+      p.push(`<text x="${PAD.left+pW+8}" y="${PAD.top-4}" font-size="9" fill="${car}" font-family="DM Mono,monospace" opacity="0.55">/${ul}</text>`);
+
+      p.push(`<path d="${pathD(sArr, rOf)}" fill="none" stroke="${car}" stroke-width="2" stroke-dasharray="5,3"/>`);
+      p.push(`<path d="${pathD(sDep, rOf)}" fill="none" stroke="${cdr}" stroke-width="2" stroke-dasharray="5,3"/>`);
+    }
+
+    svgEl.innerHTML = p.join('');
+
+    // Diag-Bar
+    const ul   = CFD_UNIT_LABELS[cfg.timeUnit] || 'Wo';
+    const last = base3[base3.length - 1];
+    const aaArr = arrRates.reduce((s, v) => s + v, 0) / Math.max(arrRates.length, 1);
+    const aaDep = depRates.reduce((s, v) => s + v, 0) / Math.max(depRates.length, 1);
+    diagEl.textContent = `n=${last.cumArrived} · WIP: ${last.wip} · Anfluss: ${aaArr.toFixed(1)}/${ul} · Abfluss: ${aaDep.toFixed(1)}/${ul}`;
+  }
+
+  // ── Hover ─────────────────────────────────────────────────────────────
+  chartWrap.addEventListener('mousemove', (e) => {
+    if (!_base3.length || !_xOf) return;
+    const rect  = chartWrap.getBoundingClientRect();
+    const mX    = e.clientX - rect.left;
+    const mY    = e.clientY - rect.top;
+    const n     = _base3.length;
+
+    let bestI = 0, bestD = Infinity;
+    for (let i = 0; i < n; i++) {
+      const d = Math.abs(_xOf(i) - mX);
+      if (d < bestD) { bestD = d; bestI = i; }
+    }
+
+    hoverLine.style.left    = _xOf(bestI) + 'px';
+    hoverLine.style.display = 'block';
+
+    const b   = _base3[bestI];
+    const ul  = CFD_UNIT_LABELS[cfg.timeUnit] || 'Wo';
+    const sA  = _smoothArr[bestI] !== undefined ? _smoothArr[bestI].toFixed(1) : '–';
+    const sD  = _smoothDep[bestI] !== undefined ? _smoothDep[bestI].toFixed(1) : '–';
+    const { lt, ct } = calcTooltipLtCt(_rows, bestI, _base3, cfg, v => core.toDate(v));
+    const ltStr = lt != null ? lt.toFixed(1) + 'd' : '–';
+    const ctStr = ct != null ? ct.toFixed(1) + 'd' : '–';
+
+    const car = _safeColor(cfg.colorArrivalRate, '#fb923c');
+    const cdr = _safeColor(cfg.colorDepartureRate, '#c084fc');
+    const ttRow = (lbl, val, col) =>
+      `<div style="display:flex;justify-content:space-between;gap:.8rem">` +
+      `<span style="color:var(--dim)">${lbl}</span>` +
+      `<span style="color:${col || 'var(--text)'};font-weight:600;font-family:DM Mono,monospace">${val}</span></div>`;
+    const ttSep = '<div style="height:1px;background:var(--border);margin:.28rem 0"></div>';
+
+    ttEl.innerHTML =
+      `<div style="font-weight:700;font-size:.78rem;margin-bottom:.32rem;color:var(--text)">${b.label}</div>` +
+      ttRow('Angekommen (kumulativ)', b.cumArrived, 'var(--green)') +
+      ttRow('In Arbeit (WIP)',         b.wip,        'var(--blue)') +
+      ttRow('Fertig (kumulativ)',       b.cumDone,    'var(--dim)') +
+      ttSep +
+      ttRow(`Throughput (diese ${ul})`,          b.departureCount, '') +
+      ttRow(`Anflussrate (Ø${cfg.rateWindow} ${ul})`, sA + '/' + ul, car) +
+      ttRow(`Abflussrate (Ø${cfg.rateWindow} ${ul})`, sD + '/' + ul, cdr) +
+      ttSep +
+      ttRow(`Median LT (Ø${cfg.tooltipRollingSlices} ${ul})`, ltStr, 'var(--yellow)') +
+      ttRow(`Median CT (Ø${cfg.tooltipRollingSlices} ${ul})`, ctStr, 'var(--yellow)');
+
+    ttEl.style.display = 'block';
+    _positionTooltip(mX, mY);
+  });
+
+  chartWrap.addEventListener('mouseleave', () => {
+    ttEl.style.display    = 'none';
+    hoverLine.style.display = 'none';
+  });
+
+  // ── Events ────────────────────────────────────────────────────────────
+  core.on('data',        render);
+  core.on('theme',       render);
+  core.on('filter',      render);
+  core.on('resize',      render);
+  core.on('statusOrder', render);
+}
+window.init_cfd = init_cfd;
+})();
+
 // ── Bootstrap ──
   init_blocker();
   init_heatmap();
@@ -9617,6 +10581,7 @@ window.init_akzeptanz = init_akzeptanz;
   init_saydoratioepics();
   init_montecarlo();
   init_akzeptanz();
+  init_cfd();
   core.initApp();
 
   // ── Settings-Panel: Overlay-Logik ──────────────────
